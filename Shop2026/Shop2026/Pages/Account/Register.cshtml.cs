@@ -1,38 +1,49 @@
+using Shop2026.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Shop2026.Data;
-using Shop2026.Models;
+using Microsoft.EntityFrameworkCore;
 
-namespace Shop2026.Pages.Account
+namespace KitchenCentralApp.Pages
 {
     public class RegisterModel : PageModel
     {
         private readonly ApplicationDbContext _context;
         public RegisterModel(ApplicationDbContext context) => _context = context;
 
-        [BindProperty]
-        public User NewUser { get; set; }
+        [BindProperty] public string FullName { get; set; }
+        [BindProperty] public string Username { get; set; }
+        [BindProperty] public string Password { get; set; }
 
-        public void OnGet() { }
+        public string ErrorMessage { get; set; }
 
         public async Task<IActionResult> OnPostAsync()
         {
-            if (!ModelState.IsValid) return Page();
-
-            var exists = _context.Users.Any(u => u.username == NewUser.username);
-            if (exists)
+            if (await _context.Users.AnyAsync(u => u.Username == Username))
             {
-                ModelState.AddModelError("", "Already have this this email.");
+                ErrorMessage = "This username have been choose, choose another name";
                 return Page();
             }
 
-            NewUser.role_id = 1;
-            NewUser.location_id = 1;
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "CUSTOMER");
+            if (role == null)
+            {
+                role = new Role { RoleName = "CUSTOMER" };
+                _context.Roles.Add(role);
+                await _context.SaveChangesAsync();
+            }
 
-            _context.Users.Add(NewUser);
+            var newUser = new User
+            {
+                FullName = FullName,
+                Username = Username,
+                PasswordHash = Password, 
+                RoleId = role.RoleId
+            };
+
+            _context.Users.Add(newUser);
             await _context.SaveChangesAsync();
 
-            return RedirectToPage("/Account/Login");
+            return RedirectToPage("/Login");
         }
     }
 }

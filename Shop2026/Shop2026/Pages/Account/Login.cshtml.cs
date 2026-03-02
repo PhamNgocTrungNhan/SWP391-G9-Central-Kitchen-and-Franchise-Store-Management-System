@@ -1,12 +1,12 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Shop2026.Models;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Shop2026.Data;
 
-namespace Shop2026.Pages.Account
+namespace KitchenCentralApp.Pages
 {
     public class LoginModel : PageModel
     {
@@ -19,20 +19,26 @@ namespace Shop2026.Pages.Account
         public async Task<IActionResult> OnPostAsync()
         {
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.username == Username && u.password_hash == Password);
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Username == Username && u.PasswordHash == Password);
 
-            if (user != null)
+            if (user == null)
             {
-                var claims = new List<Claim> {
-                    new Claim(ClaimTypes.Name, user.username),
-                    new Claim("FullName", user.full_name)
-                };
-                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-                return RedirectToPage("/Index"); 
+                ModelState.AddModelError(string.Empty, "Tài kho?n ho?c m?t kh?u không chính xác.");
+                return Page();
             }
-            ModelState.AddModelError("", "  Wrong username or password.");
-            return Page();
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim("FullName", user.FullName ?? ""),
+                new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "Guest") 
+            };
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+            return RedirectToPage("/Index");
         }
     }
 }

@@ -1,26 +1,33 @@
 ﻿@page
-@model Shop2026.Pages.Account.RegisterModel
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-5 card p-4 shadow-sm">
-            <h3 class="text-center">TẠO TÀI KHOẢN MỚI</h3>
-            <form method="post">
-                <div class="mb-3">
-                    <label>Họ và Tên</label>
-                    <input asp-for="NewUser.full_name" class="form-control" required />
-                </div>
-                <div class="mb-3">
-                    <label>Username (Email)</label>
-                    <input asp-for="NewUser.username" class="form-control" required />
-                </div>
-                <div class="mb-3">
-                    <label>Mật khẩu</label>
-                    <input asp-for="NewUser.password_hash" type="password" class="form-control" required />
-                </div>
-                <div class="text-danger">@Html.ValidationSummary(true)</div>
-                <button type="submit" class="btn btn-success w-100">Đăng ký ngay</button>
-                <a href="/Account/Login" class="d-block text-center mt-3">Đã có tài khoản? Đăng nhập</a>
-            </form>
+@model KitchenCentralApp.Pages.RegisterModel
+@{
+    ViewData["Title"] = "Đăng ký Khách hàng";
+}
+
+<div class="container mt-5" style="max-width: 400px;">
+    <h3 class="mb-4 text-center">Tạo tài khoản mua hàng</h3>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+
+    <form method="post" class="card p-4 shadow-sm">
+        <div class="mb-3">
+            <label class="form-label">Họ và tên</label>
+            <input type="text" asp-for="FullName" class="form-control" required />
         </div>
-    </div>
+        <div class="mb-3">
+            <label class="form-label">Tên đăng nhập</label>
+            <input type="text" asp-for="Username" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mật khẩu</label>
+            <input type="password" asp-for="Password" class="form-control" required />
+        </div>
+        <button type="submit" class="btn btn-success w-100 mb-3">Hoàn tất đăng ký</button>
+        <div class="text-center text-muted">
+            Đã có tài khoản? <a href="/Login" class="text-decoration-none">Đăng nhập</a>
+        </div>
+    </form>
 </div>

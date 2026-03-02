@@ -1,15 +1,19 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.Collections.Generic;
 
-namespace Shop2026.Models
+namespace Shop2026.Models;
+
+public partial class User
 {
-    public class User
-    {
-        [Key]
-        public int user_id { get; set; }
-        public string username { get; set; }
-        public string password_hash { get; set; }
-        public string full_name { get; set; }
-        public int role_id { get; set; }
-        public int location_id { get; set; }
-    }
+    public int UserId { get; set; }
+
+    public string Username { get; set; } = null!;
+
+    public string PasswordHash { get; set; } = null!;
+
+    public string? FullName { get; set; }
+
+    public int? RoleId { get; set; }
+
+    public virtual Role? Role { get; set; }
 }
