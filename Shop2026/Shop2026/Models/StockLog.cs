@@ -9,11 +9,17 @@ public partial class StockLog
 
     public int? ProductId { get; set; }
 
-    public decimal? ChangeQty { get; set; }
+    public string? LocationType { get; set; }
+
+    public int? LocationId { get; set; }
+
+    public decimal? ChangeQuantity { get; set; }
 
     public string? Reason { get; set; }
 
     public int? ReferenceId { get; set; }
+
+    public string? ReferenceType { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 

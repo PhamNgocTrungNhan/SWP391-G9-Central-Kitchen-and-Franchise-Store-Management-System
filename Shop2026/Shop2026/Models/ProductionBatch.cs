@@ -19,7 +19,9 @@ public partial class ProductionBatch
 
     public DateOnly? ExpDate { get; set; }
 
-    public string? BatchStatus { get; set; }
+    public string? Status { get; set; }
 
     public virtual Product? Product { get; set; }
+
+    public virtual ICollection<ProductionBatchOrder> ProductionBatchOrders { get; set; } = new List<ProductionBatchOrder>();
 }

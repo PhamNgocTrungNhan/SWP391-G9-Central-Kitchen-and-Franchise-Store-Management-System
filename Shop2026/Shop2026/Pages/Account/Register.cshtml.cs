@@ -2,6 +2,8 @@ using Shop2026.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Shop2026.Context;
+
 
 namespace KitchenCentralApp.Pages
 {
@@ -36,7 +38,7 @@ namespace KitchenCentralApp.Pages
             {
                 FullName = FullName,
                 Username = Username,
-                PasswordHash = Password, 
+                PasswordHash = Password,
                 RoleId = role.RoleId
             };
 

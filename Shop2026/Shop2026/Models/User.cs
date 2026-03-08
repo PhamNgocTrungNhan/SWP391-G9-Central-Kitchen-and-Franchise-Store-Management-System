@@ -15,5 +15,15 @@ public partial class User
 
     public int? RoleId { get; set; }
 
+    public int? StoreId { get; set; }
+
+    public int? KitchenId { get; set; }
+
+    public virtual ICollection<InternalOrder> InternalOrders { get; set; } = new List<InternalOrder>();
+
+    public virtual Kitchen? Kitchen { get; set; }
+
     public virtual Role? Role { get; set; }
+
+    public virtual Store? Store { get; set; }
 }

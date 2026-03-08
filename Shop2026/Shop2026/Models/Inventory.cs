@@ -9,9 +9,11 @@ public partial class Inventory
 
     public int? ProductId { get; set; }
 
-    public decimal? CurrentQty { get; set; }
+    public string? LocationType { get; set; }
 
-    public decimal? MinAlertQty { get; set; }
+    public int? LocationId { get; set; }
+
+    public decimal? CurrentQuantity { get; set; }
 
     public DateTime? LastUpdated { get; set; }
 

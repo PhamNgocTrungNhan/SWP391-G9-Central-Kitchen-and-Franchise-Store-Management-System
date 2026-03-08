@@ -7,23 +7,35 @@ public partial class InternalOrder
 {
     public int OrderId { get; set; }
 
+    public string? OrderCode { get; set; }
+
     public int StoreId { get; set; }
 
     public int? KitchenId { get; set; }
 
     public string? OrderStatus { get; set; }
 
-    public decimal? TotalCost { get; set; }
+    public DateTime? ExpectedDeliveryDate { get; set; }
 
-    public decimal? InternalRevenue { get; set; }
+    public int? ApprovedBy { get; set; }
+
+    public DateTime? ApprovedAt { get; set; }
+
+    public decimal? TotalAmount { get; set; }
 
     public string? RejectionReason { get; set; }
-
-    public string? StoreFeedback { get; set; }
-
-    public int? FeedbackRating { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    public virtual User? ApprovedByNavigation { get; set; }
+
+    public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
+
+    public virtual Kitchen? Kitchen { get; set; }
+
+    public virtual ICollection<ProductionBatchOrder> ProductionBatchOrders { get; set; } = new List<ProductionBatchOrder>();
+
+    public virtual Store Store { get; set; } = null!;
 }

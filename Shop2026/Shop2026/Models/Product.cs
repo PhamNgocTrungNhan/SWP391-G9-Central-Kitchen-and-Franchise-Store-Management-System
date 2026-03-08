@@ -9,7 +9,7 @@ public partial class Product
 
     public string Sku { get; set; } = null!;
 
-    public string Name { get; set; } = null!;
+    public string ProductName { get; set; } = null!;
 
     public int? CategoryId { get; set; }
 
@@ -19,9 +19,9 @@ public partial class Product
 
     public virtual Category? Category { get; set; }
 
-    public virtual Inventory? Inventory { get; set; }
+    public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
 
-    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+    public virtual ICollection<Inventory> Inventories { get; set; } = new List<Inventory>();
 
     public virtual ICollection<ProductionBatch> ProductionBatches { get; set; } = new List<ProductionBatch>();
 

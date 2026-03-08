@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using Shop2026.Models;
+using Shop2026.Context;
 using System.Security.Claims;
 
 namespace KitchenCentralApp.Pages
@@ -32,7 +32,7 @@ namespace KitchenCentralApp.Pages
             {
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim("FullName", user.FullName ?? ""),
-                new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "Guest") 
+                new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "Guest")
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
