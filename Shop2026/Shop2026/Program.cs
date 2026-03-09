@@ -71,11 +71,13 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddScoped<AuthRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<OrganizationRepository>();
+builder.Services.AddScoped<InternalOrderRepository>();
 
 // DLL O DAY
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<OrganizationService>();
+builder.Services.AddScoped<InternalOrderService>();
 
 var app = builder.Build();
 
