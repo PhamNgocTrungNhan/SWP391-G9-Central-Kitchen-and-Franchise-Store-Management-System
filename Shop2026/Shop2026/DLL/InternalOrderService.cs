@@ -12,7 +12,7 @@ namespace Shop2026.DLL
         {
             _orderRepository = orderRepository;
         }
-
+        //Create Internal Order
         public InternalOrder CreateInternalOrder(CreateInternalOrderRequest request)
         {
             var order = new InternalOrder
@@ -38,9 +38,15 @@ namespace Shop2026.DLL
 
             return order;
         }
+        //Get Store Orders
         public List<InternalOrder> GetStoreOrders(int storeId, string? status)
         {
             return _orderRepository.GetStoreOrders(storeId, status);
+        }
+        //Get Order Detail
+        public InternalOrder? GetOrderDetail(int orderId)
+        {
+            return _orderRepository.GetOrderDetail(orderId);
         }
     }
 }
