@@ -38,5 +38,9 @@ namespace Shop2026.DLL
 
             return order;
         }
+        public List<InternalOrder> GetStoreOrders(int storeId, string? status)
+        {
+            return _orderRepository.GetStoreOrders(storeId, status);
+        }
     }
 }

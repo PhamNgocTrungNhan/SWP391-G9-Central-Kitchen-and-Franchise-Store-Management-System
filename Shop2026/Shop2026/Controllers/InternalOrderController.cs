@@ -26,5 +26,14 @@ namespace Shop2026.Controllers
                 orderId = order.OrderId
             });
         }
+        [HttpGet]
+        public IActionResult GetStoreOrders(
+    [FromQuery] int storeId,
+    [FromQuery] string? status)
+        {
+            var orders = _orderService.GetStoreOrders(storeId, status);
+
+            return Ok(orders);
+        }
     }
 }
