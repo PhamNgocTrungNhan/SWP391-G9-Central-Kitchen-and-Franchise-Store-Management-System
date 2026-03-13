@@ -57,5 +57,18 @@ namespace Shop2026.DAL
                 })
                 .FirstOrDefault();
         }
+        //Get Order By Id
+        public InternalOrder? GetOrderById(int orderId)
+        {
+            return _context.InternalOrders
+                .FirstOrDefault(o => o.OrderId == orderId);
+        }
+
+        //Update Order
+        public void UpdateOrder(InternalOrder order)
+        {
+            _context.InternalOrders.Update(order);
+            _context.SaveChanges();
+        }
     }
 }

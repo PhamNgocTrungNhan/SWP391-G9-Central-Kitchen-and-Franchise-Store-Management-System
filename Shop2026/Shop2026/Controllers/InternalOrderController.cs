@@ -52,5 +52,34 @@ namespace Shop2026.Controllers
 
             return Ok(order);
         }
+        //Cancel Order
+        [HttpPut("{orderId}/cancel")]
+        public IActionResult CancelOrder(int orderId)
+        {
+            try
+            {
+                var result = _orderService.CancelOrder(orderId);
+
+                if (!result)
+                {
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                }
+
+                return Ok(new
+                {
+                    message = "Order cancelled successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
     }
 }

@@ -48,5 +48,27 @@ namespace Shop2026.DLL
         {
             return _orderRepository.GetOrderDetail(orderId);
         }
+        //Cancel Order
+        public bool CancelOrder(int orderId)
+        {
+            var order = _orderRepository.GetOrderById(orderId);
+
+            if (order == null)
+            {
+                return false;
+            }
+
+            //only cancel when PENDING
+            if (order.OrderStatus != "PENDING")
+            {
+                throw new Exception("Only PENDING orders can be cancelled");
+            }
+
+            order.OrderStatus = "CANCELLED";
+
+            _orderRepository.UpdateOrder(order);
+
+            return true;
+        }
     }
 }
