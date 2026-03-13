@@ -72,12 +72,24 @@ builder.Services.AddScoped<AuthRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<OrganizationRepository>();
 builder.Services.AddScoped<InternalOrderRepository>();
-
+builder.Services.AddScoped<CategoryRepository>();
+builder.Services.AddScoped<ProductRepository>();
+builder.Services.AddScoped<RecipeRepository>();
+builder.Services.AddScoped<ProductionBatchRepository>();
+builder.Services.AddScoped<InventoryRepository>();
+builder.Services.AddScoped<DashboardRepository>();
 // DLL O DAY
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<InternalOrderService>();
+builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<RecipeService>();
+builder.Services.AddScoped<ProductionBatchService>();
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<DashboardService>();
+
 
 var app = builder.Build();
 
