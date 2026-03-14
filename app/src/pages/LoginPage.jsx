@@ -1,7 +1,46 @@
-import { useNavigate } from 'react-router-dom'
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function LoginPage() {
-    const navigate = useNavigate()
+    const navigate = useNavigate();
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [status, setStatus] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+        setStatus('');
+        setLoading(true);
+        try {
+            const response = await fetch(`${apiBase}/Auth/login`, {
+                method: 'POST',
+                headers: {
+                    'accept': '*/*',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data?.message || 'Invalid username or password');
+            }
+            if (data?.token) {
+                localStorage.setItem('auth_token', data.token);
+            }
+            setStatus('Signed in successfully. Redirecting...');
+            setTimeout(() => navigate('/dashboard'), 400);
+        } catch (err) {
+            setError(err.message || 'Login failed');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-center relative overflow-x-hidden">
@@ -24,9 +63,10 @@ export default function LoginPage() {
                             </div>
                             <h1 className="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">Secure Enterprise Login</h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Central Kitchen &amp; Franchise Management</p>
+                            <span className="inline-flex items-center justify-center mx-auto px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">API: localhost:5202</span>
                         </div>
                         {/* Form */}
-                        <div className="p-8 pt-6 flex flex-col gap-5">
+                        <form className="p-8 pt-6 flex flex-col gap-5" onSubmit={handleLogin}>
                             {/* Username */}
                             <label className="flex flex-col w-full">
                                 <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Username or Email</p>
@@ -35,6 +75,9 @@ export default function LoginPage() {
                                     <input
                                         className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal"
                                         placeholder="Enter your username"
+                                        value={username}
+                                        onChange={e => setUsername(e.target.value)}
+                                        required
                                     />
                                 </div>
                             </label>
@@ -44,12 +87,20 @@ export default function LoginPage() {
                                 <div className="flex w-full items-stretch rounded-lg shadow-sm">
                                     <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">lock</span>
                                     <input
-                                        type="password"
+                                        type={showPassword ? 'text' : 'password'}
                                         className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border-y border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal border-x-0"
                                         placeholder="Enter your password"
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        required
+                                        autoComplete="current-password"
                                     />
-                                    <button className="text-slate-400 dark:text-slate-500 flex border border-l-0 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 items-center justify-center pr-3 pl-2 rounded-r-lg hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
-                                        <span className="material-symbols-outlined text-xl">visibility_off</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(v => !v)}
+                                        className="text-slate-400 dark:text-slate-500 flex border border-l-0 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 items-center justify-center pr-3 pl-2 rounded-r-lg hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility' : 'visibility_off'}</span>
                                     </button>
                                 </div>
                             </label>
@@ -79,14 +130,17 @@ export default function LoginPage() {
                             {/* Sign In Button */}
                             <div className="flex flex-col gap-3 mt-4">
                                 <button
-                                    onClick={() => navigate('/dashboard')}
-                                    className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold leading-normal tracking-wide transition-colors shadow-md shadow-primary/20"
+                                    type="submit"
+                                    className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold leading-normal tracking-wide transition-colors shadow-md shadow-primary/20 disabled:opacity-60"
+                                    disabled={loading}
                                 >
                                     <span className="material-symbols-outlined mr-2 text-[20px]">login</span>
-                                    <span>Sign In to System</span>
+                                    <span>{loading ? 'Signing In...' : 'Sign In to System'}</span>
                                 </button>
+                                {status && <div className="text-emerald-600 text-sm text-center mt-2">{status}</div>}
+                                {error && <div className="text-red-500 text-sm text-center mt-1">{error}</div>}
                             </div>
-                        </div>
+                        </form>
                         {/* Footer */}
                         <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-t border-slate-100 dark:border-slate-800 text-center">
                             <p className="text-xs text-slate-500 dark:text-slate-400">Need access? Contact your IT Administrator.</p>
