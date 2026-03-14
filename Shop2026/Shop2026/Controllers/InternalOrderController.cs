@@ -81,5 +81,18 @@ namespace Shop2026.Controllers
                 });
             }
         }
+        //Approve Order
+        [HttpPut("{orderId}/approve")]
+        public IActionResult ApproveOrder(int orderId)
+        {
+            int approvedBy = 1; // tạm thời hardcode (sau này lấy từ JWT user)
+
+            var order = _orderService.ApproveOrder(orderId, approvedBy);
+
+            if (order == null)
+                return NotFound("Order not found");
+
+            return Ok(order);
+        }
     }
 }

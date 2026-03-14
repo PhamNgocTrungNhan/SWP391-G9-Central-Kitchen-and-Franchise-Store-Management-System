@@ -70,5 +70,25 @@ namespace Shop2026.DAL
             _context.InternalOrders.Update(order);
             _context.SaveChanges();
         }
+        //Approve Order
+        public InternalOrder? ApproveOrder(int orderId, int approvedBy)
+        {
+            var order = _context.InternalOrders
+                        .FirstOrDefault(o => o.OrderId == orderId);
+
+            if (order == null)
+                return null;
+
+            if (order.OrderStatus != "PENDING")
+                throw new Exception("Only PENDING orders can be approved");
+
+            order.OrderStatus = "APPROVED";
+            order.ApprovedBy = approvedBy;
+            order.ApprovedAt = DateTime.UtcNow;
+
+            _context.SaveChanges();
+
+            return order;
+        }
     }
 }
