@@ -144,6 +144,18 @@ export default function StoreOrderPage() {
         return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
     }
 
+    const getStoreNameById = (storeId) => {
+        const id = Number(storeId)
+        if (!id || id < 1) return 'N/A'
+        return storeOptions.find((s) => Number(s.id) === id)?.name || `Store #${id}`
+    }
+
+    const getProductNameById = (productId) => {
+        const id = Number(productId)
+        if (!id || id < 1) return 'N/A'
+        return productOptions.find((p) => Number(p.id) === id)?.name || `Product #${id}`
+    }
+
     const normalizeOrders = (rawOrders) => {
         if (!Array.isArray(rawOrders)) return []
         return rawOrders.map((item) => {
@@ -152,11 +164,21 @@ export default function StoreOrderPage() {
 
             const status = normalizeStatus(item?.status || item?.orderStatus)
             const orderDetails = Array.isArray(item?.orderDetails) ? item.orderDetails : Array.isArray(item?.internalOrderDetails) ? item.internalOrderDetails : []
+            const productNames = Array.from(new Set(orderDetails.map((d) => d?.product?.productName || d?.product?.name || getProductNameById(d?.productId)).filter(Boolean)))
+            const totalQuantity = orderDetails.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+            const productLabel = productNames.length === 0
+                ? 'N/A'
+                : productNames.length === 1
+                    ? productNames[0]
+                    : `${productNames[0]} +${productNames.length - 1}`
             return {
                 id: `#${numericId}`,
                 orderId: numericId,
                 date: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
                 items: orderDetails.length,
+                totalQuantity,
+                storeName: item?.store?.storeName || item?.store?.name || getStoreNameById(item?.storeId),
+                productLabel,
                 status,
                 statusStyle: orderStatusStyle[status] || orderStatusStyle.Pending,
             }
@@ -435,6 +457,44 @@ export default function StoreOrderPage() {
                             </button>
                         </div>
 
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+                            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+                                <p className="text-sm font-semibold">Danh sách sản phẩm</p>
+                            </div>
+                            <table className="w-full min-w-[680px] text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mã</th>
+                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tên sản phẩm</th>
+                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {productOptions.length > 0 ? (
+                                        productOptions.map((product) => (
+                                            <tr key={product.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-4 py-2 text-sm font-semibold">#{product.id}</td>
+                                                <td className="px-4 py-2 text-sm">{product.name}</td>
+                                                <td className="px-4 py-2 text-sm">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowCreateOrderForm(true)}
+                                                        className="h-7 px-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                    >
+                                                        Tạo đơn
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={3} className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">Chưa có dữ liệu sản phẩm.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
                         {submitSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{submitSuccess}</p>}
                         {submitError && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{submitError}</p>}
 
@@ -634,8 +694,9 @@ export default function StoreOrderPage() {
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                             <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ngày tạo</th>
+                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cửa hàng</th>
                                             <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sản phẩm</th>
+                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Số lượng</th>
                                             <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
                                             <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hành động</th>
                                         </tr>
@@ -644,24 +705,38 @@ export default function StoreOrderPage() {
                                         {orders.map((order) => (
                                             <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-5 py-3 text-sm font-semibold">{order.id}</td>
-                                                <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{order.date}</td>
-                                                <td className="px-5 py-3 text-sm">{order.items}</td>
+                                                <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{order.storeName}</td>
+                                                <td className="px-5 py-3 text-sm">{order.productLabel}</td>
+                                                <td className="px-5 py-3 text-sm">{order.totalQuantity}</td>
                                                 <td className="px-5 py-3">
                                                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>{order.status}</span>
                                                 </td>
                                                 <td className="px-5 py-3">
-                                                    <button
-                                                        onClick={() => {
-                                                            const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
-                                                            if (selectedId > 0) {
-                                                                setDetailOrderId(String(selectedId))
-                                                                fetchOrderById(selectedId)
-                                                            }
-                                                        }}
-                                                        className="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[16px]">visibility</span>View
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
+                                                                if (selectedId > 0) {
+                                                                    setDetailOrderId(String(selectedId))
+                                                                    fetchOrderById(selectedId)
+                                                                }
+                                                            }}
+                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Xem chi tiết"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                        </button>
+                                                        {order.status !== 'Cancelled' && (
+                                                            <button
+                                                                onClick={() => cancelOrderById(order.orderId)}
+                                                                disabled={cancelLoading}
+                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                                                title="Hủy đơn"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -690,6 +765,10 @@ export default function StoreOrderPage() {
                                         </span>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">Ngày giao dự kiến: {toReadableDate(detailOrder.expectedDeliveryDate)}</p>
                                     </div>
+                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                        <p><span className="font-semibold">Cửa hàng:</span> {detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}</p>
+                                        <p><span className="font-semibold">Ngày tạo:</span> {toReadableDate(detailOrder.createdAt)}</p>
+                                    </div>
                                     {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Cancelled' && (
                                         <div className="mt-3">
                                             <button
@@ -705,7 +784,7 @@ export default function StoreOrderPage() {
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product ID</th>
+                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sản phẩm</th>
                                                     <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Đặt</th>
                                                     <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Xác nhận</th>
                                                     <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã giao</th>
@@ -715,7 +794,7 @@ export default function StoreOrderPage() {
                                                 {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
                                                     (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row) => (
                                                         <tr key={row.detailId || `${row.productId}-${row.quantityOrdered}`}>
-                                                            <td className="px-4 py-2 text-sm">#{row.productId}</td>
+                                                            <td className="px-4 py-2 text-sm">{row?.product?.productName || row?.product?.name || getProductNameById(row.productId)}</td>
                                                             <td className="px-4 py-2 text-sm">{row.quantityOrdered}</td>
                                                             <td className="px-4 py-2 text-sm">{row.quantityConfirmed}</td>
                                                             <td className="px-4 py-2 text-sm">{row.quantityShipped}</td>

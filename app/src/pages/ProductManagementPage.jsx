@@ -39,6 +39,9 @@ export default function ProductManagementPage() {
     const [editBaseUnit, setEditBaseUnit] = useState('')
     const [editProductType, setEditProductType] = useState('RAW')
 
+    const [showViewModal, setShowViewModal] = useState(false)
+    const [viewProduct, setViewProduct] = useState(null)
+
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [deleteLoading, setDeleteLoading] = useState(false)
     const [deleteError, setDeleteError] = useState('')
@@ -185,20 +188,23 @@ export default function ProductManagementPage() {
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
                 const backendMessage = data?.message || data?.title || 'Tạo sản phẩm thất bại.'
-                const hint = response.status === 400
-                    ? ' Kiểm tra lại categoryId (không được 0), SKU không trùng, và productType đúng enum backend.'
-                    : ''
+                const hint = response.status === 400 ? ' Dữ liệu không hợp lệ hoặc bị trùng.' : ''
                 throw new Error(`${backendMessage}${hint}`)
             }
 
-            setCreateSuccess(data?.message || 'Tạo sản phẩm thành công.')
+            setCreateSuccess(data?.message || 'Đã tạo sản phẩm.')
             setShowCreateModal(false)
             fetchProducts()
         } catch (error) {
-            setCreateError(error.message || 'Không thể gọi API tạo sản phẩm.')
+            setCreateError(error.message || 'Không thể tạo sản phẩm.')
         } finally {
             setCreateLoading(false)
         }
+    }
+
+    const openViewModal = (item) => {
+        setViewProduct(item)
+        setShowViewModal(true)
     }
 
     const openEditModal = (item) => {
@@ -252,17 +258,15 @@ export default function ProductManagementPage() {
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
                 const backendMessage = data?.message || data?.title || 'Cập nhật sản phẩm thất bại.'
-                const hint = response.status === 400
-                    ? ' Kiểm tra categoryId hợp lệ (không được 0), SKU không trùng và productType đúng enum backend.'
-                    : ''
+                const hint = response.status === 400 ? ' Dữ liệu không hợp lệ hoặc bị trùng.' : ''
                 throw new Error(`${backendMessage}${hint}`)
             }
 
-            setEditSuccess(data?.message || 'Cập nhật sản phẩm thành công.')
+            setEditSuccess(data?.message || 'Đã cập nhật sản phẩm.')
             setShowEditModal(false)
             fetchProducts()
         } catch (error) {
-            setEditError(error.message || 'Không thể gọi API cập nhật sản phẩm.')
+            setEditError(error.message || 'Không thể cập nhật sản phẩm.')
         } finally {
             setEditLoading(false)
         }
@@ -306,16 +310,16 @@ export default function ProductManagementPage() {
             if (!response.ok) {
                 const backendMessage = data?.message || data?.title || 'Xóa sản phẩm thất bại.'
                 const hint = response.status === 400
-                    ? ' Sản phẩm có thể đang được tham chiếu ở bảng khác (đơn hàng, tồn kho, batch, BOM...). Hãy gỡ dữ liệu liên quan trước khi xóa.'
+                    ? ' Sản phẩm đang được sử dụng ở dữ liệu khác.'
                     : ''
                 throw new Error(`${backendMessage}${hint}`)
             }
 
-            setDeleteSuccess(data?.message || 'Xóa sản phẩm thành công.')
+            setDeleteSuccess(data?.message || 'Đã xóa sản phẩm.')
             setShowDeleteModal(false)
             fetchProducts()
         } catch (error) {
-            setDeleteError(error.message || 'Không thể gọi API xóa sản phẩm.')
+            setDeleteError(error.message || 'Không thể xóa sản phẩm.')
         } finally {
             setDeleteLoading(false)
         }
@@ -357,7 +361,7 @@ export default function ProductManagementPage() {
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">Danh sách sản phẩm</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Tạm thời chỉ fetch danh sách Product. Khi bạn gửi API CRUD Product chuẩn, mình sẽ nối tạo/sửa/xóa ngay.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý sản phẩm với các thao tác xem, sửa, xóa.</p>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
@@ -405,16 +409,25 @@ export default function ProductManagementPage() {
                                             <td className="px-5 py-3 text-sm">
                                                 <div className="flex items-center gap-2">
                                                     <button
-                                                        onClick={() => openEditModal(item)}
-                                                        className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                        onClick={() => openViewModal(item)}
+                                                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                        title="Xem chi tiết"
                                                     >
-                                                        Sửa
+                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openEditModal(item)}
+                                                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                        title="Chỉnh sửa"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">edit</span>
                                                     </button>
                                                     <button
                                                         onClick={() => openDeleteModal(item)}
-                                                        className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700"
+                                                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                        title="Xóa"
                                                     >
-                                                        Xóa
+                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
                                                     </button>
                                                 </div>
                                             </td>
@@ -617,6 +630,29 @@ export default function ProductManagementPage() {
                             >
                                 {editLoading ? 'Đang cập nhật...' : 'Xác nhận cập nhật'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showViewModal && viewProduct && (
+                <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
+                    <div className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-base font-semibold">Chi tiết sản phẩm #{viewProduct.id}</p>
+                            <button
+                                onClick={() => setShowViewModal(false)}
+                                className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 text-sm">
+                            <p><span className="font-semibold">SKU:</span> {viewProduct.sku}</p>
+                            <p><span className="font-semibold">Tên sản phẩm:</span> {viewProduct.name}</p>
+                            <p><span className="font-semibold">Danh mục:</span> {viewProduct.categoryName}</p>
+                            <p><span className="font-semibold">Loại sản phẩm:</span> {viewProduct.productType}</p>
+                            <p><span className="font-semibold">Đơn vị gốc:</span> {viewProduct.baseUnit}</p>
                         </div>
                     </div>
                 </div>
