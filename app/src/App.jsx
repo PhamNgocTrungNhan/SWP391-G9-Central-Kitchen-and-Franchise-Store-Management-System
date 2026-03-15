@@ -10,6 +10,7 @@ import UserRolesPage from './pages/UserRolesPage'
 import StoreOrderPage from './pages/StoreOrderPage'
 import OrderManagementPage from './pages/OrderManagementPage'
 import SystemConfigPage from './pages/SystemConfigPage'
+import ProductManagementPage from './pages/ProductManagementPage'
 import Layout from './components/Layout'
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
           <Route path="/store-orders" element={<StoreOrderPage />} />
           <Route path="/order-management" element={<OrderManagementPage />} />
           <Route path="/system-config" element={<SystemConfigPage />} />
+          <Route path="/products" element={<ProductManagementPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
