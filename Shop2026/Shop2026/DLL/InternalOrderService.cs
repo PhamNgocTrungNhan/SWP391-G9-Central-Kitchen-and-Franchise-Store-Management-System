@@ -75,5 +75,10 @@ namespace Shop2026.DLL
         {
             return _orderRepository.ApproveOrder(orderId, approvedBy);
         }
+        //Reject Order
+        public InternalOrder? RejectOrder(int orderId, string reason)
+        {
+            return _orderRepository.RejectOrder(orderId, reason);
+        }
     }
 }

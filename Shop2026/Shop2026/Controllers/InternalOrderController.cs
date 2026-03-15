@@ -94,5 +94,30 @@ namespace Shop2026.Controllers
 
             return Ok(order);
         }
+        //Reject Order
+        [HttpPut("{orderId}/reject")]
+        public IActionResult RejectOrder(int orderId, [FromBody] RejectOrderRequest request)
+        {
+            try
+            {
+                var order = _orderService.RejectOrder(orderId, request.Reason);
+
+                if (order == null)
+                    return NotFound(new { message = "Order not found" });
+
+                return Ok(new
+                {
+                    message = "Order rejected successfully",
+                    order
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
     }
 }

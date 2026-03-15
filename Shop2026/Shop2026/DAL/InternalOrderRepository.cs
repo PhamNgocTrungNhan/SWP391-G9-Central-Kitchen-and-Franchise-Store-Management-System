@@ -90,5 +90,25 @@ namespace Shop2026.DAL
 
             return order;
         }
+        //Reject Order
+        public InternalOrder? RejectOrder(int orderId, string reason)
+        {
+            var order = _context.InternalOrders
+                        .FirstOrDefault(o => o.OrderId == orderId);
+
+            if (order == null)
+                return null;
+
+            if (order.OrderStatus != "PENDING")
+                throw new Exception("Only PENDING orders can be rejected");
+
+            order.OrderStatus = "REJECTED";
+            order.RejectionReason = reason;
+            order.UpdatedAt = DateTime.Now;
+
+            _context.SaveChanges();
+
+            return order;
+        }
     }
 }
