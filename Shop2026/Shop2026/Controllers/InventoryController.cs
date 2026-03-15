@@ -15,6 +15,12 @@ namespace Shop2026.Controllers
         // Xem danh sách tồn kho hiện tại
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
+        //Get Store Inventory
+        [HttpGet("store/{storeId}")]
+        public IActionResult GetStoreInventory(int storeId)
+        {
+            return Ok(_service.GetStoreInventory(storeId));
+        }
 
         // Xem lịch sử ra/vào kho (Nhật ký)
         [HttpGet("logs")]

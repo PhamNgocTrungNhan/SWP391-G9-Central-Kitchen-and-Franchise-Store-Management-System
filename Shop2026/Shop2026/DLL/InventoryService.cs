@@ -147,6 +147,13 @@ namespace Shop2026.DLL
         {
             return _repo.GetContext().StockLogs.OrderByDescending(x => x.CreatedAt).ToList();
         }
+        //Get Store Inventory
+        public IEnumerable<Inventory> GetStoreInventory(int storeId)
+        {
+            return _repo.GetContext().Inventories
+                .Where(i => i.LocationType == "STORE" && i.LocationId == storeId)
+                .ToList();
+        }
 
         // (Xuất kho dựa trên ID đơn hàng)
         public void TransferOrderToStore(int orderId)
