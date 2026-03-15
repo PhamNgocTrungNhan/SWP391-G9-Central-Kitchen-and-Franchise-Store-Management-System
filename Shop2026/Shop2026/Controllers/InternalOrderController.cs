@@ -119,5 +119,35 @@ namespace Shop2026.Controllers
                 });
             }
         }
+        // Update Order Status
+        [HttpPut("{orderId}/status")]
+        public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
+        {
+            try
+            {
+                var order = _orderService.UpdateOrderStatus(orderId, request.Status);
+
+                if (order == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                }
+
+                return Ok(new
+                {
+                    message = "Order status updated successfully",
+                    order
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
     }
 }

@@ -110,5 +110,21 @@ namespace Shop2026.DAL
 
             return order;
         }
+        //Uodate Order Status
+        public InternalOrder? UpdateOrderStatus(int orderId, string status)
+        {
+            var order = _context.InternalOrders
+                        .FirstOrDefault(o => o.OrderId == orderId);
+
+            if (order == null)
+                return null;
+
+            order.OrderStatus = status;
+            order.UpdatedAt = DateTime.Now;
+
+            _context.SaveChanges();
+
+            return order;
+        }
     }
 }

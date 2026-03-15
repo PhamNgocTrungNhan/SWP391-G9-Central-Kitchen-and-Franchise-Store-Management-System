@@ -80,5 +80,25 @@ namespace Shop2026.DLL
         {
             return _orderRepository.RejectOrder(orderId, reason);
         }
+        //Update Order Status
+        public InternalOrder? UpdateOrderStatus(int orderId, string status)
+        {
+            var order = _orderRepository.GetOrderById(orderId);
+
+            if (order == null)
+                return null;
+
+            var allowedStatuses = new List<string>
+            {
+                "PROCESSING",
+                "SHIPPING",
+                "COMPLETED"
+            };
+
+            if (!allowedStatuses.Contains(status))
+                throw new Exception("Invalid order status");
+
+            return _orderRepository.UpdateOrderStatus(orderId, status);
+        }
     }
 }
