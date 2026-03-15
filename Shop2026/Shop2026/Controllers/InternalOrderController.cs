@@ -81,6 +81,36 @@ namespace Shop2026.Controllers
                 });
             }
         }
+        // Confirm Order Completed
+        [HttpPut("{orderId}/confirm-completed")]
+        public IActionResult ConfirmOrderCompleted(int orderId)
+        {
+            try
+            {
+                var order = _orderService.ConfirmOrderCompleted(orderId);
+
+                if (order == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                }
+
+                return Ok(new
+                {
+                    message = "Order marked as COMPLETED",
+                    order
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
         //Approve Order
         [HttpPut("{orderId}/approve")]
         public IActionResult ApproveOrder(int orderId)

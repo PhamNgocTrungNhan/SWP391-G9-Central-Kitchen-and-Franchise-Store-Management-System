@@ -70,6 +70,24 @@ namespace Shop2026.DLL
 
             return true;
         }
+        // Confirm Order Completed
+        public InternalOrder? ConfirmOrderCompleted(int orderId)
+        {
+            var order = _orderRepository.GetOrderById(orderId);
+
+            if (order == null)
+                return null;
+
+            if (order.OrderStatus != "SHIPPING")
+                throw new Exception("Only SHIPPING orders can be confirmed as COMPLETED");
+
+            order.OrderStatus = "COMPLETED";
+            order.UpdatedAt = DateTime.Now;
+
+            _orderRepository.UpdateOrder(order);
+
+            return order;
+        }
         //Approve Order
         public InternalOrder? ApproveOrder(int orderId, int approvedBy)
         {
