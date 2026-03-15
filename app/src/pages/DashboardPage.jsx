@@ -1,5 +1,5 @@
 import Header from '../components/Header'
-import Sidebar from '../components/Sidebar'
+import { Link, useLocation } from 'react-router-dom'
 
 const kpiCards = [
     { label: 'Total Network Revenue', value: '$1.45M', trend: '+8.2%', trendType: 'up', sub: 'vs last week', icon: 'payments' },
@@ -29,6 +29,21 @@ const severityStyle = {
 }
 
 export default function DashboardPage() {
+    const location = useLocation()
+    const adminNavItems = [
+        { to: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
+        { to: '/network', icon: 'storefront', label: 'Franchises' },
+        { to: '/inventory', icon: 'inventory_2', label: 'Inventory' },
+        { to: '/recipes', icon: 'restaurant_menu', label: 'Recipes' },
+        { to: '/delivery', icon: 'fact_check', label: 'Delivery' },
+        { to: '/dispatch', icon: 'local_shipping', label: 'Dispatch' },
+        { to: '/users', icon: 'manage_accounts', label: 'Users' },
+        { to: '/store-orders', icon: 'shopping_cart', label: 'Store Orders' },
+        { to: '/order-management', icon: 'assignment', label: 'Order Management' },
+        { to: '/products', icon: 'inventory', label: 'Products' },
+        { to: '/system-config', icon: 'settings', label: 'System Config' },
+    ]
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
             <div className="flex h-full grow flex-col">
@@ -48,16 +63,22 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                             <nav className="flex flex-col gap-1">
-                                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary">
-                                    <span className="material-symbols-outlined">dashboard</span>
-                                    <p className="text-sm font-medium">Dashboard</p>
-                                </div>
-                                {[{ icon: 'factory', label: 'Production' }, { icon: 'storefront', label: 'Franchises' }, { icon: 'inventory_2', label: 'Inventory' }, { icon: 'analytics', label: 'Reports' }].map(({ icon, label }) => (
-                                    <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-                                        <span className="material-symbols-outlined">{icon}</span>
-                                        <p className="text-sm font-medium">{label}</p>
-                                    </div>
-                                ))}
+                                {adminNavItems.map(({ to, icon, label }) => {
+                                    const isActive = location.pathname === to
+                                    return (
+                                        <Link
+                                            key={to}
+                                            to={to}
+                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                                                ? 'bg-primary/10 text-primary'
+                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined">{icon}</span>
+                                            <p className="text-sm font-medium">{label}</p>
+                                        </Link>
+                                    )
+                                })}
                             </nav>
                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-4">
                                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-3">Advanced Filters</h3>
