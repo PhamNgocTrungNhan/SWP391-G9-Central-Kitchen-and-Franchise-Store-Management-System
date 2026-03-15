@@ -81,24 +81,30 @@ namespace Shop2026.DLL
             return _orderRepository.RejectOrder(orderId, reason);
         }
         //Update Order Status
-        public InternalOrder? UpdateOrderStatus(int orderId, string status)
+        public InternalOrder? UpdateOrderStatus(int orderId, string newStatus)
         {
             var order = _orderRepository.GetOrderById(orderId);
 
             if (order == null)
                 return null;
 
-            var allowedStatuses = new List<string>
+            var currentStatus = order.OrderStatus;
+
+            var validTransitions = new Dictionary<string, List<string>>
             {
-                "PROCESSING",
-                "SHIPPING",
-                "COMPLETED"
+                { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
+                { "APPROVED", new List<string> { "PROCESSING" } },
+                { "PROCESSING", new List<string> { "SHIPPING" } },
+                { "SHIPPING", new List<string> { "COMPLETED" } }
             };
 
-            if (!allowedStatuses.Contains(status))
-                throw new Exception("Invalid order status");
+            if (!validTransitions.ContainsKey(currentStatus) ||
+                !validTransitions[currentStatus].Contains(newStatus))
+            {
+                throw new Exception($"Invalid status transition: {currentStatus} → {newStatus}");
+            }
 
-            return _orderRepository.UpdateOrderStatus(orderId, status);
+            return _orderRepository.UpdateOrderStatus(orderId, newStatus);
         }
     }
 }
