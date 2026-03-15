@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const storeInventory = [
     { name: 'All-Purpose Flour', unit: 'kg', stock: 45, min: 20, icon: 'grain', status: 'ok' },
@@ -8,31 +8,252 @@ const storeInventory = [
     { name: 'Pizza Dough Base', unit: 'kg', stock: 12, min: 15, icon: 'bakery_dining', status: 'low' },
 ]
 
-const myOrders = [
-    { id: '#ORD-2041', date: 'Mar 04, 2026', items: 5, status: 'Delivered', statusStyle: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { id: '#ORD-2038', date: 'Mar 02, 2026', items: 3, status: 'In Transit', statusStyle: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { id: '#ORD-2035', date: 'Mar 01, 2026', items: 7, status: 'Processing', statusStyle: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    { id: '#ORD-2030', date: 'Feb 27, 2026', items: 4, status: 'Pending', statusStyle: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
-]
-
 const catalog = [
-    { name: 'All-Purpose Flour', unit: 'kg', price: '$1.20/kg', icon: 'grain' },
-    { name: 'Fresh Basil Leaves', unit: 'bunch', price: '$0.80/bunch', icon: 'eco' },
-    { name: 'Pizza Dough Base', unit: 'kg', price: '$2.50/kg', icon: 'bakery_dining' },
-    { name: 'House Burger Sauce', unit: 'L', price: '$4.00/L', icon: 'soup_kitchen' },
-    { name: 'Mozzarella Cheese', unit: 'kg', price: '$8.50/kg', icon: 'kitchen' },
-    { name: 'Tomato Sauce Base', unit: 'L', price: '$3.20/L', icon: 'local_pizza' },
+    { productId: 1, name: 'All-Purpose Flour', unit: 'kg', price: '$1.20/kg', icon: 'grain' },
+    { productId: 2, name: 'Fresh Basil Leaves', unit: 'bunch', price: '$0.80/bunch', icon: 'eco' },
+    { productId: 3, name: 'Pizza Dough Base', unit: 'kg', price: '$2.50/kg', icon: 'bakery_dining' },
+    { productId: 4, name: 'House Burger Sauce', unit: 'L', price: '$4.00/L', icon: 'soup_kitchen' },
+    { productId: 5, name: 'Mozzarella Cheese', unit: 'kg', price: '$8.50/kg', icon: 'kitchen' },
+    { productId: 6, name: 'Tomato Sauce Base', unit: 'L', price: '$3.20/L', icon: 'local_pizza' },
 ]
 
 const statusColors = { ok: 'bg-emerald-500', low: 'bg-amber-500', critical: 'bg-red-500' }
 const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg-red-50 dark:bg-red-900/10' }
+const orderStatusStyle = {
+    Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+    Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+const apiStatusToUi = {
+    PENDING: 'Pending',
+    CONFIRMED: 'Confirmed',
+    PROCESSING: 'Processing',
+    SHIPPED: 'Shipped',
+    DELIVERED: 'Delivered',
+    CANCELLED: 'Cancelled',
+}
 
 export default function StoreOrderPage() {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
     const [tab, setTab] = useState(0) // 0=Place Order, 1=My Orders, 2=Store Inventory
     const [cart, setCart] = useState({})
+    const [orders, setOrders] = useState([])
+    const [ordersLoading, setOrdersLoading] = useState(false)
+    const [ordersError, setOrdersError] = useState('')
+    const [detailOrderId, setDetailOrderId] = useState('')
+    const [detailLoading, setDetailLoading] = useState(false)
+    const [detailError, setDetailError] = useState('')
+    const [detailOrder, setDetailOrder] = useState(null)
+    const [cancelLoading, setCancelLoading] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
+    const [submitError, setSubmitError] = useState('')
+    const [submitSuccess, setSubmitSuccess] = useState('')
 
     const addToCart = (name) => setCart(c => ({ ...c, [name]: (c[name] || 0) + 1 }))
     const cartCount = Object.values(cart).reduce((a, b) => a + b, 0)
+
+    const toReadableDate = (dateString) => {
+        if (!dateString) return 'N/A'
+        const d = new Date(dateString)
+        if (Number.isNaN(d.getTime())) return dateString
+        return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    }
+
+    const normalizeStatus = (rawStatus) => {
+        if (!rawStatus) return 'Pending'
+        return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
+    }
+
+    const normalizeOrders = (rawOrders) => {
+        if (!Array.isArray(rawOrders)) return []
+        return rawOrders.map((item, index) => {
+            const status = normalizeStatus(item?.status || item?.orderStatus)
+            const orderDetails = Array.isArray(item?.orderDetails) ? item.orderDetails : Array.isArray(item?.internalOrderDetails) ? item.internalOrderDetails : []
+            const idValue = item?.id || item?.internalOrderId || item?.orderId || `TEMP-${index + 1}`
+            return {
+                id: `#${idValue}`,
+                date: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
+                items: orderDetails.length,
+                status,
+                statusStyle: orderStatusStyle[status] || orderStatusStyle.Pending,
+            }
+        })
+    }
+
+    const fetchMyOrders = async () => {
+        setOrdersError('')
+        setOrdersLoading(true)
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            const response = await fetch(`${apiBase}/internal-orders`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể tải danh sách đơn hàng.')
+            }
+
+            const records = Array.isArray(data) ? data : data?.items || []
+            setOrders(normalizeOrders(records))
+        } catch (error) {
+            setOrders([])
+            setOrdersError(error.message || 'Tải đơn hàng thất bại.')
+        } finally {
+            setOrdersLoading(false)
+        }
+    }
+
+    const fetchOrderById = async () => {
+        setDetailError('')
+        setDetailOrder(null)
+
+        const orderId = Number(detailOrderId)
+        if (!orderId || orderId < 1) {
+            setDetailError('Vui lòng nhập Order ID hợp lệ (số nguyên > 0).')
+            return
+        }
+
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            setDetailLoading(true)
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể tải chi tiết đơn hàng.')
+            }
+
+            setDetailOrder(data)
+        } catch (error) {
+            setDetailError(error.message || 'Tải chi tiết đơn thất bại.')
+        } finally {
+            setDetailLoading(false)
+        }
+    }
+
+    const cancelOrderById = async (orderId) => {
+        setDetailError('')
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            setCancelLoading(true)
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/cancel`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể hủy đơn hàng.')
+            }
+
+            const updatedStatus = normalizeStatus('CANCELLED')
+            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            fetchMyOrders()
+        } catch (error) {
+            setDetailError(error.message || 'Hủy đơn thất bại.')
+        } finally {
+            setCancelLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (tab === 1) {
+            fetchMyOrders()
+        }
+    }, [tab])
+
+    const handleSubmitOrder = async () => {
+        setSubmitError('')
+        setSubmitSuccess('')
+
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        if (!token) {
+            setSubmitError('Bạn chưa đăng nhập. Vui lòng đăng nhập lại để gửi đơn hàng.')
+            return
+        }
+
+        const orderDetails = Object.entries(cart)
+            .filter(([, quantity]) => quantity > 0)
+            .map(([name, quantity]) => {
+                const item = catalog.find(c => c.name === name)
+                return {
+                    productId: item?.productId ?? 0,
+                    quantityOrdered: quantity,
+                    quantityConfirmed: 0,
+                    quantityShipped: 0,
+                }
+            })
+            .filter(item => item.productId > 0)
+
+        if (!orderDetails.length) {
+            setSubmitError('Giỏ hàng đang trống hoặc chưa map được sản phẩm hợp lệ.')
+            return
+        }
+
+        const payload = {
+            storeId: Number(localStorage.getItem('store_id') || 1),
+            expectedDeliveryDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            orderDetails,
+        }
+
+        setSubmitting(true)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Gửi đơn hàng thất bại.')
+            }
+
+            const orderCode = data?.id || data?.orderId || data?.code
+            setSubmitSuccess(orderCode ? `Tạo đơn hàng thành công: #${orderCode}` : 'Tạo đơn hàng thành công.')
+            setCart({})
+            setTab(1)
+        } catch (error) {
+            setSubmitError(error.message || 'Không thể kết nối API nội bộ.')
+        } finally {
+            setSubmitting(false)
+        }
+    }
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -127,10 +348,16 @@ export default function StoreOrderPage() {
                                 </div>
                                 <div className="flex gap-3 justify-end">
                                     <button className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Lưu Nháp</button>
-                                    <button className="px-5 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors shadow-sm">
+                                    <button
+                                        onClick={handleSubmitOrder}
+                                        disabled={submitting}
+                                        className="px-5 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60"
+                                    >
                                         <span className="material-symbols-outlined text-[16px] mr-1 align-middle">send</span>Gửi Đơn Đặt Hàng
                                     </button>
                                 </div>
+                                {submitSuccess && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400 font-medium">{submitSuccess}</p>}
+                                {submitError && <p className="mt-3 text-sm text-red-600 dark:text-red-400 font-medium">{submitError}</p>}
                             </div>
                         )}
                     </>
@@ -143,8 +370,72 @@ export default function StoreOrderPage() {
                             <h1 className="text-2xl font-bold">Đơn Hàng Của Tôi</h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái xử lý và giao hàng của các đơn đặt.</p>
                         </div>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+                            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+                                <label className="flex-1">
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Tra cứu chi tiết theo Order ID</p>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={detailOrderId}
+                                        onChange={(e) => setDetailOrderId(e.target.value)}
+                                        placeholder="Ví dụ: 8"
+                                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                </label>
+                                <button
+                                    onClick={fetchOrderById}
+                                    disabled={detailLoading}
+                                    className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
+                                >
+                                    {detailLoading ? 'Đang lấy...' : 'Fetch Chi Tiết'}
+                                </button>
+                            </div>
+                            {detailError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{detailError}</p>}
+                            {detailOrder && (
+                                <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/40">
+                                    <div className="flex flex-wrap gap-3 items-center justify-between">
+                                        <p className="text-sm font-semibold">Order #{detailOrder.orderId || detailOrder.id}</p>
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle.Pending}`}>
+                                            {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Expected delivery: {toReadableDate(detailOrder.expectedDeliveryDate)}</p>
+                                    {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Cancelled' && (
+                                        <div className="mt-3">
+                                            <button
+                                                onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
+                                                disabled={cancelLoading}
+                                                className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60"
+                                            >
+                                                {cancelLoading ? 'Đang hủy...' : 'Hủy Đơn Này'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="mt-3 text-sm">
+                                        {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
+                                            (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row) => (
+                                                <div key={row.detailId || `${row.productId}-${row.quantityOrdered}`} className="py-1.5 border-b border-slate-200 dark:border-slate-700 last:border-b-0 flex items-center justify-between">
+                                                    <span>Product #{row.productId}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300">Ordered: {row.quantityOrdered} | Confirmed: {row.quantityConfirmed} | Shipped: {row.quantityShipped}</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {ordersLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải danh sách đơn hàng...</p>}
+                        {ordersError && <p className="text-sm text-red-600 dark:text-red-400">{ordersError}</p>}
+                        {!ordersLoading && !ordersError && orders.length === 0 && (
+                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-slate-500 dark:text-slate-400 text-sm">
+                                Chưa có đơn hàng nào từ API `/api/internal-orders`.
+                            </div>
+                        )}
                         <div className="flex flex-col gap-4">
-                            {myOrders.map(order => (
+                            {orders.map(order => (
                                 <div key={order.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow">
                                     <div className="flex items-center justify-between flex-wrap gap-3">
                                         <div className="flex items-center gap-4">
@@ -169,7 +460,7 @@ export default function StoreOrderPage() {
                                     <div className="mt-4">
                                         <div className="flex items-center gap-1">
                                             {['Đã đặt', 'Đang xử lý', 'Xuất kho', 'Đang giao', 'Đã nhận'].map((step, i) => {
-                                                const statusMap = { Pending: 0, Processing: 1, Processing: 2, 'In Transit': 3, Delivered: 4 }
+                                                const statusMap = { Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, 'In Transit': 3, Delivered: 4 }
                                                 const activeStep = statusMap[order.status] ?? 0
                                                 const done = i <= activeStep
                                                 return (
