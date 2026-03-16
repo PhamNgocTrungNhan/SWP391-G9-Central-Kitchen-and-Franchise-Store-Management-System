@@ -1,29 +1,36 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 
 const statusStyle = {
     Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    Approved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
     Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 const statusLabel = {
     Pending: 'Chờ xác nhận',
+    Approved: 'Đã duyệt',
     Confirmed: 'Đã xác nhận',
     Processing: 'Đang xử lý',
     Shipped: 'Đang giao',
     Delivered: 'Đã hoàn tất',
+    Rejected: 'Đã từ chối',
     Cancelled: 'Đã hủy',
 }
 
 const apiStatusToUi = {
     PENDING: 'Pending',
+    APPROVED: 'Approved',
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
     SHIPPED: 'Shipped',
     DELIVERED: 'Delivered',
+    COMPLETED: 'Delivered',
+    REJECTED: 'Rejected',
     CANCELLED: 'Cancelled',
 }
 
@@ -62,6 +69,7 @@ function resolveDefaultStoreId() {
 export default function OrderManagementPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
     const [orders, setOrders] = useState([])
+    const [productNameMap, setProductNameMap] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
     const [storeIdFilter, setStoreIdFilter] = useState(resolveDefaultStoreId)
@@ -106,6 +114,35 @@ export default function OrderManagementPage() {
                 }
             })
             .filter(Boolean)
+    }
+
+    const fetchProductMap = async () => {
+        const tk = token()
+        try {
+            const response = await fetch(`${apiBase}/products`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) return
+
+            const records = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+            const map = {}
+            records.forEach((item) => {
+                const id = Number(item?.productId || item?.id)
+                if (!id) return
+                const name = item?.productName || item?.name
+                if (!name) return
+                map[id] = name
+            })
+            setProductNameMap(map)
+        } catch {
+            setProductNameMap({})
+        }
     }
 
     const fetchOrders = async () => {
@@ -175,6 +212,72 @@ export default function OrderManagementPage() {
             fetchOrders()
         } catch (error) {
             openNotice('error', error.message || 'Thao tác xác nhận hoàn tất thất bại.')
+        } finally {
+            setActionLoadingId(null)
+        }
+    }
+
+    const approveOrder = async (orderId) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        setActionLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/approve`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể duyệt đơn hàng.')
+            }
+
+            openNotice('success', data?.message || 'Đã duyệt đơn hàng thành công.')
+            fetchOrders()
+        } catch (error) {
+            openNotice('error', error.message || 'Duyệt đơn hàng thất bại.')
+        } finally {
+            setActionLoadingId(null)
+        }
+    }
+
+    const rejectOrder = async (orderId) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        const reason = window.prompt('Nhập lý do từ chối (có thể bỏ trống):', '')
+
+        setActionLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/reject`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reason: reason || '' }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể từ chối đơn hàng.')
+            }
+
+            openNotice('success', data?.message || 'Đã từ chối đơn hàng.')
+            fetchOrders()
+        } catch (error) {
+            openNotice('error', error.message || 'Từ chối đơn hàng thất bại.')
         } finally {
             setActionLoadingId(null)
         }
@@ -265,17 +368,40 @@ export default function OrderManagementPage() {
 
     useEffect(() => {
         fetchOrders()
+        fetchProductMap()
     }, [])
 
-    const filters = ['All', 'Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+    const filters = ['All', 'Pending', 'Approved', 'Rejected', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
 
     const filtered = useMemo(() => {
         if (filter === 'All') return orders
         return orders.filter((o) => o.status === filter)
     }, [filter, orders])
 
+    const stats = useMemo(() => ({
+        total: orders.length,
+        pending: orders.filter((o) => o.status === 'Pending').length,
+        approved: orders.filter((o) => o.status === 'Approved').length,
+        processing: orders.filter((o) => o.status === 'Processing').length,
+        shipped: orders.filter((o) => o.status === 'Shipped').length,
+        delivered: orders.filter((o) => o.status === 'Delivered').length,
+        rejected: orders.filter((o) => o.status === 'Rejected').length,
+        cancelled: orders.filter((o) => o.status === 'Cancelled').length,
+    }), [orders])
+
     const canConfirmCompleted = (status) => status === 'Shipped'
     const canCancelOrder = (status) => status === 'Pending'
+    const canApproveOrder = (status) => status === 'Pending'
+    const canRejectOrder = (status) => status === 'Pending'
+
+    const getProductDisplayName = (item) => {
+        const productId = Number(item?.productId)
+        if (item?.product?.productName) return item.product.productName
+        if (item?.product?.name) return item.product.name
+        if (productId && productNameMap[productId]) return productNameMap[productId]
+        if (productId) return `Sản phẩm #${productId}`
+        return 'Sản phẩm chưa xác định'
+    }
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -293,6 +419,24 @@ export default function OrderManagementPage() {
                 <div>
                     <h1 className="text-2xl font-bold">Đơn hàng từ cửa hàng</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái và xác nhận hoàn tất các đơn nội bộ.</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                    {[
+                        { label: 'Tổng đơn', value: stats.total },
+                        { label: 'Chờ xác nhận', value: stats.pending },
+                        { label: 'Đã duyệt', value: stats.approved },
+                        { label: 'Đang xử lý', value: stats.processing },
+                        { label: 'Đang giao', value: stats.shipped },
+                        { label: 'Hoàn tất', value: stats.delivered },
+                        { label: 'Từ chối', value: stats.rejected },
+                        { label: 'Đã hủy', value: stats.cancelled },
+                    ].map((card) => (
+                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-4">{card.label}</p>
+                            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
+                        </div>
+                    ))}
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
@@ -318,23 +462,6 @@ export default function OrderManagementPage() {
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">API mới hiện hỗ trợ danh sách ổn định theo storeId (ví dụ: 1).</p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[
-                        { label: 'Tổng đơn', value: orders.length, color: 'text-slate-700 dark:text-slate-200', icon: 'list' },
-                        { label: 'Đang xử lý', value: orders.filter((o) => o.status === 'Processing').length, color: 'text-amber-600 dark:text-amber-400', icon: 'precision_manufacturing' },
-                        { label: 'Đang giao', value: orders.filter((o) => o.status === 'Shipped').length, color: 'text-blue-600 dark:text-blue-400', icon: 'local_shipping' },
-                        { label: 'Đã hoàn tất', value: orders.filter((o) => o.status === 'Delivered').length, color: 'text-emerald-600 dark:text-emerald-400', icon: 'check_circle' },
-                    ].map(({ label, value, color, icon }) => (
-                        <div key={label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex items-center gap-3 shadow-sm">
-                            <span className={`material-symbols-outlined text-2xl ${color}`}>{icon}</span>
-                            <div>
-                                <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {filters.map((f) => (
                         <button
@@ -350,61 +477,115 @@ export default function OrderManagementPage() {
                     ))}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                    {loading ? <div className="text-sm text-slate-500">Đang tải dữ liệu...</div> : null}
-                    {!loading && filtered.length === 0 ? <div className="text-sm text-slate-500">Không có đơn hàng phù hợp.</div> : null}
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    {loading ? <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu...</div> : null}
+                    {!loading && filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500">Không có đơn hàng phù hợp.</div> : null}
 
-                    {!loading && filtered.map((order) => (
-                        <div key={order.orderId} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                            <div className="p-4 flex items-center justify-between flex-wrap gap-3 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors" onClick={() => handleToggleExpand(order)}>
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-bold">#{order.orderId}</span>
-                                        <span className="text-xs text-slate-500">{order.orderCode}</span>
-                                    </div>
-                                    <p className="text-sm text-slate-600 dark:text-slate-400">{order.storeName}</p>
-                                    <p className="text-xs text-slate-400 mt-0.5">{order.createdAt} • {order.itemCount} mặt hàng • SL: {order.totalQty}</p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>{statusLabel[order.status] || order.status}</span>
-                                    <span className="material-symbols-outlined text-slate-400 text-[20px] transition-transform" style={{ transform: expandedId === order.orderId ? 'rotate(180deg)' : 'none' }}>expand_more</span>
-                                </div>
-                            </div>
-
-                            {expandedId === order.orderId ? (
-                                <div className="border-t border-slate-100 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/20">
-                                    {detailLoadingId === order.orderId ? <p className="mb-3 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
-                                    <div className="flex flex-col gap-2 mb-4">
-                                        {(order.details || []).map((item) => (
-                                            <div key={item?.detailId || `${order.orderId}-${item?.productId}`} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                                                <span className="text-sm">{item?.product?.productName || item?.product?.name || `Product #${item?.productId || 'N/A'}`}</span>
-                                                <span className="text-sm font-medium">{Number(item?.quantityOrdered || 0)}</span>
-                                            </div>
-                                        ))}
-                                        {detailLoadingId !== order.orderId && (!order.details || order.details.length === 0) ? <p className="text-xs text-slate-500">Đơn này chưa có dòng chi tiết hoặc API chưa trả chi tiết.</p> : null}
-                                    </div>
-                                    <div className="flex gap-2 flex-wrap">
-                                        <button
-                                            className="h-8 px-4 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
-                                            disabled={!canConfirmCompleted(order.status) || actionLoadingId === order.orderId}
-                                            onClick={() => confirmCompleted(order.orderId)}
-                                            title={!canConfirmCompleted(order.status) ? 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.' : ''}
-                                        >
-                                            {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Xác nhận hoàn tất'}
-                                        </button>
-                                        <button
-                                            className="h-8 px-4 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
-                                            disabled={!canCancelOrder(order.status) || cancelLoadingId === order.orderId}
-                                            onClick={() => cancelOrder(order.orderId)}
-                                            title={!canCancelOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được hủy.' : ''}
-                                        >
-                                            {cancelLoadingId === order.orderId ? 'Đang hủy...' : 'Hủy đơn'}
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                    ))}
+                    {!loading && filtered.length > 0 ? (
+                        <table className="w-full table-fixed text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                    <th className="w-[16%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
+                                    <th className="w-[18%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cửa hàng</th>
+                                    <th className="w-[16%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
+                                    <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mặt hàng</th>
+                                    <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL</th>
+                                    <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
+                                    <th className="w-[22%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {filtered.map((order) => (
+                                    <Fragment key={order.orderId}>
+                                        <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">
+                                                <p className="font-semibold">#{order.orderId}</p>
+                                                <p className="text-xs text-slate-500 mt-0.5">{order.orderCode}</p>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">{order.storeName}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">{order.createdAt}</td>
+                                            <td className="px-4 py-3 text-sm">{order.itemCount}</td>
+                                            <td className="px-4 py-3 text-sm">{order.totalQty}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>
+                                                    {statusLabel[order.status] || order.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-normal">
+                                                <button
+                                                    className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                    onClick={() => handleToggleExpand(order)}
+                                                >
+                                                    {expandedId === order.orderId ? 'Ẩn chi tiết' : 'Xem chi tiết'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {expandedId === order.orderId ? (
+                                            <tr className="bg-slate-50/60 dark:bg-slate-800/20">
+                                                <td colSpan={7} className="px-4 py-3">
+                                                    {detailLoadingId === order.orderId ? <p className="mb-2 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
+                                                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60"
+                                                            disabled={!canApproveOrder(order.status) || actionLoadingId === order.orderId}
+                                                            onClick={() => approveOrder(order.orderId)}
+                                                            title={!canApproveOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được duyệt.' : ''}
+                                                        >
+                                                            {actionLoadingId === order.orderId ? 'Đang duyệt...' : 'Duyệt'}
+                                                        </button>
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors disabled:opacity-60"
+                                                            disabled={!canRejectOrder(order.status) || actionLoadingId === order.orderId}
+                                                            onClick={() => rejectOrder(order.orderId)}
+                                                            title={!canRejectOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được từ chối.' : ''}
+                                                        >
+                                                            {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
+                                                        </button>
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
+                                                            disabled={!canConfirmCompleted(order.status) || actionLoadingId === order.orderId}
+                                                            onClick={() => confirmCompleted(order.orderId)}
+                                                            title={!canConfirmCompleted(order.status) ? 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.' : ''}
+                                                        >
+                                                            {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Hoàn tất'}
+                                                        </button>
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
+                                                            disabled={!canCancelOrder(order.status) || cancelLoadingId === order.orderId}
+                                                            onClick={() => cancelOrder(order.orderId)}
+                                                            title={!canCancelOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được hủy.' : ''}
+                                                        >
+                                                            {cancelLoadingId === order.orderId ? 'Đang hủy...' : 'Hủy'}
+                                                        </button>
+                                                    </div>
+                                                    {(order.details || []).length > 0 ? (
+                                                        <table className="w-full text-left border-collapse rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                                                            <thead>
+                                                                <tr className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Số lượng đặt</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(order.details || []).map((item) => (
+                                                                    <tr key={item?.detailId || `${order.orderId}-${item?.productId}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                                                        <td className="px-3 py-2 text-sm">{getProductDisplayName(item)}</td>
+                                                                        <td className="px-3 py-2 text-sm font-medium">{Number(item?.quantityOrdered || 0)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-500">Đơn này chưa có dòng chi tiết hoặc API chưa trả chi tiết.</p>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ) : null}
+                                    </Fragment>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : null}
                 </div>
             </div>
 

@@ -25,18 +25,23 @@ const orderStatusStyle = {
     Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    Approved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+    Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
     Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 const apiStatusToUi = {
     PENDING: 'Pending',
+    APPROVED: 'Approved',
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
     SHIPPED: 'Shipped',
     DELIVERED: 'Delivered',
+    COMPLETED: 'Delivered',
     CANCELLED: 'Cancelled',
+    REJECTED: 'Rejected',
 }
 
 export default function StoreOrderPage() {
@@ -302,6 +307,7 @@ export default function StoreOrderPage() {
             setCancelLoading(false)
         }
     }
+
 
     useEffect(() => {
         if (tab === 1) {
@@ -771,13 +777,15 @@ export default function StoreOrderPage() {
                                     </div>
                                     {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Cancelled' && (
                                         <div className="mt-3">
-                                            <button
-                                                onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
-                                                disabled={cancelLoading}
-                                                className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60"
-                                            >
-                                                {cancelLoading ? 'Đang hủy đơn...' : 'Hủy Đơn Hàng Này'}
-                                            </button>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <button
+                                                    onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
+                                                    disabled={cancelLoading}
+                                                    className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60"
+                                                >
+                                                    {cancelLoading ? 'Đang hủy đơn...' : 'Hủy Đơn Hàng Này'}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                     <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
