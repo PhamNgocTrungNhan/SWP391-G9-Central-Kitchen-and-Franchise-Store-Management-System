@@ -1,191 +1,413 @@
-const stores = [
-    { id: 'CK-001', name: 'Central Kitchen - NYC', manager: 'Sarah Jenkins', email: 'sarah.j@kitchen.com', region: 'Northeast', status: 'Active', icon: 'domain', iconBg: 'bg-primary/10 text-primary' },
-    { id: 'FR-042', name: 'Downtown Express', manager: 'Mike Chen', email: 'm.chen@franchise.com', region: 'Northeast', status: 'Active', icon: 'storefront', iconBg: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' },
-    { id: 'FR-015', name: 'Uptown Market', manager: 'Elena Rodriguez', email: 'elena.r@franchise.com', region: 'Northeast', status: 'Maintenance', icon: 'storefront', iconBg: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' },
-]
+import { useEffect, useMemo, useState } from 'react'
 
 const statusStyle = {
-    Active: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
-    Maintenance: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+    active: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+    inactive: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
 }
-const statusDot = { Active: 'bg-emerald-500', Maintenance: 'bg-amber-500' }
+
+function toStoreItem(item) {
+    const id = Number(item?.storeId ?? item?.id)
+    if (!id) return null
+    const users = Array.isArray(item?.users) ? item.users : []
+    const manager = users[0]
+    const active = Boolean(item?.isActive)
+    return {
+        id,
+        code: `ST-${String(id).padStart(3, '0')}`,
+        name: item?.storeName || 'Chưa có tên',
+        address: item?.address || 'Chưa có địa chỉ',
+        phone: item?.phone || 'Chưa có số điện thoại',
+        status: active ? 'active' : 'inactive',
+        manager: manager?.fullName || manager?.username || 'Chưa gán',
+        managerLogin: manager?.username || 'N/A',
+    }
+}
 
 export default function FranchiseNetworkPage() {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const [stores, setStores] = useState([])
+    const [loading, setLoading] = useState(false)
+    const [keyword, setKeyword] = useState('')
+
+    const [showCreate, setShowCreate] = useState(false)
+    const [showEdit, setShowEdit] = useState(false)
+    const [showDelete, setShowDelete] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
+
+    const [editingStore, setEditingStore] = useState(null)
+    const [deletingStore, setDeletingStore] = useState(null)
+    const [formName, setFormName] = useState('')
+    const [formAddress, setFormAddress] = useState('')
+    const [formPhone, setFormPhone] = useState('')
+    const [formIsActive, setFormIsActive] = useState(true)
+
+    const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
+
+    const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
+
+    const openNotice = (type, message) => setNotice({ open: true, type, message })
+    const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
+
+    const resetForm = () => {
+        setFormName('')
+        setFormAddress('')
+        setFormPhone('')
+        setFormIsActive(true)
+    }
+
+    const parseStoreArray = (data) => {
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+        return list.map(toStoreItem).filter(Boolean)
+    }
+
+    const fetchStores = async () => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return []
+        }
+
+        setLoading(true)
+        try {
+            const res = await fetch(`${apiBase}/Organization/stores`, {
+                method: 'GET',
+                headers: { accept: '*/*', Authorization: `Bearer ${tk}` },
+            })
+            const data = await res.json().catch(() => [])
+            if (!res.ok) throw new Error(data?.message || data?.title || 'Không tải được danh sách cửa hàng.')
+            const parsed = parseStoreArray(data)
+            setStores(parsed)
+            return parsed
+        } catch (err) {
+            setStores([])
+            openNotice('error', err.message || 'Tải danh sách thất bại.')
+            return []
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const buildPayload = (storeId) => {
+        const payload = {
+            storeName: formName.trim(),
+            address: formAddress.trim(),
+            phone: formPhone.trim(),
+            isActive: formIsActive,
+        }
+        if (Number(storeId) > 0) {
+            payload.storeId = Number(storeId)
+        }
+        return payload
+    }
+
+    const sendStoreWrite = async (method, url, payload) => {
+        const tk = token()
+        if (!tk) throw new Error('Thiếu token đăng nhập.')
+        // Backend now accepts flat JSON body for PUT/POST.
+        let res = await fetch(url, {
+            method,
+            headers: {
+                accept: '*/*',
+                Authorization: `Bearer ${tk}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+
+        // Fallback for older binder that expects { store: {...} }.
+        if (!res.ok && (res.status === 400 || res.status === 415)) {
+            const wrapped = { store: payload }
+            res = await fetch(url, {
+                method,
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(wrapped),
+            })
+        }
+
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+            throw new Error(data?.message || data?.title || data?.errors?.store?.[0] || 'Yêu cầu thất bại.')
+        }
+    }
+
+    const verifyUpdatedStore = (list, id, expected) => {
+        const row = list.find((s) => s.id === id)
+        if (!row) return false
+        return (
+            row.name === expected.storeName
+            && row.address === expected.address
+            && row.phone === expected.phone
+            && (row.status === 'active') === expected.isActive
+        )
+    }
+
+    const handleCreate = async () => {
+        const payload = buildPayload(0)
+        if (!payload.storeName || !payload.address || !payload.phone) {
+            openNotice('error', 'Vui lòng nhập đầy đủ tên, địa chỉ và số điện thoại.')
+            return
+        }
+
+        setSubmitting(true)
+        try {
+            await sendStoreWrite('POST', `${apiBase}/Organization/stores`, payload)
+            setShowCreate(false)
+            resetForm()
+            await fetchStores()
+            openNotice('success', 'Tạo cửa hàng thành công.')
+        } catch (err) {
+            openNotice('error', err.message || 'Tạo cửa hàng thất bại.')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const startEdit = (store) => {
+        setEditingStore(store)
+        setFormName(store.name)
+        setFormAddress(store.address === 'Chưa có địa chỉ' ? '' : store.address)
+        setFormPhone(store.phone === 'Chưa có số điện thoại' ? '' : store.phone)
+        setFormIsActive(store.status === 'active')
+        setShowEdit(true)
+    }
+
+    const handleUpdate = async () => {
+        const id = Number(editingStore?.id)
+        const payload = buildPayload(id)
+        if (!id || !payload.storeName || !payload.address || !payload.phone) {
+            openNotice('error', 'Thông tin cập nhật chưa hợp lệ.')
+            return
+        }
+
+        setSubmitting(true)
+        try {
+            await sendStoreWrite('PUT', `${apiBase}/Organization/stores/${id}`, payload)
+            const newList = await fetchStores()
+            setShowEdit(false)
+            setEditingStore(null)
+
+            if (!verifyUpdatedStore(newList, id, payload)) {
+                openNotice('error', 'API báo cập nhật thành công nhưng dữ liệu trả về không đúng. Khả năng cao lỗi nằm ở backend/database mapping.')
+                return
+            }
+
+            openNotice('success', 'Cập nhật cửa hàng thành công.')
+        } catch (err) {
+            openNotice('error', err.message || 'Cập nhật cửa hàng thất bại.')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const startDelete = (store) => {
+        setDeletingStore(store)
+        setShowDelete(true)
+    }
+
+    const handleDelete = async () => {
+        const id = Number(deletingStore?.id)
+        if (!id) return
+
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập.')
+            return
+        }
+
+        setSubmitting(true)
+        try {
+            const res = await fetch(`${apiBase}/Organization/stores/${id}`, {
+                method: 'DELETE',
+                headers: { accept: '*/*', Authorization: `Bearer ${tk}` },
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data?.message || data?.title || 'Xóa cửa hàng thất bại.')
+
+            const newList = await fetchStores()
+            setShowDelete(false)
+            setDeletingStore(null)
+
+            const deletedRow = newList.find((s) => s.id === id)
+            if (deletedRow && deletedRow.status !== 'inactive') {
+                openNotice('error', 'API báo đã xóa nhưng trạng thái chưa đổi. Vui lòng kiểm tra backend/database.')
+                return
+            }
+
+            openNotice('success', data?.message || 'Đã vô hiệu hóa cửa hàng thành công.')
+        } catch (err) {
+            openNotice('error', err.message || 'Không thể xóa cửa hàng.')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchStores()
+    }, [])
+
+    const filteredStores = useMemo(() => {
+        const kw = keyword.trim().toLowerCase()
+        if (!kw) return stores
+        return stores.filter((s) => (
+            s.code.toLowerCase().includes(kw)
+            || s.name.toLowerCase().includes(kw)
+            || s.address.toLowerCase().includes(kw)
+            || s.phone.toLowerCase().includes(kw)
+            || s.manager.toLowerCase().includes(kw)
+        ))
+    }, [keyword, stores])
+
+    const activeCount = stores.filter((s) => s.status === 'active').length
+    const inactiveCount = stores.length - activeCount
+
     return (
-        <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
-            {/* Header */}
-            <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-10 py-3 bg-white dark:bg-background-dark sticky top-0 z-10">
-                <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-primary text-[24px]">restaurant</span>
-                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Kitchen Admin</h2>
-                </div>
-                <div className="flex flex-1 justify-end gap-8">
-                    <nav className="hidden md:flex items-center gap-9">
-                        {['Dashboard', 'Directory', 'Reports', 'Settings'].map((item, i) => (
-                            <a key={item} href="#" className={`text-sm font-medium leading-normal transition-colors ${i === 1 ? 'text-primary' : 'text-slate-600 dark:text-slate-400 hover:text-primary'}`}>{item}</a>
-                        ))}
-                    </nav>
-                    <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20"
-                        style={{ backgroundImage: `url("https://lh3.googleusercontent.com/aida-public/AB6AXuB4-5_YtJOt-e5xhsGgAEn3B4QBbmXwze_YAdQ0uISadWPS5MoNqLBYqA9vpQ8Q5TDJALupnBcETNiDL_kgnD2FLJIIJtkZMOXtTHsD8ivJRv5egQd-eTxcocSF9nbXTL4MD2UdjKbas5q17IW0tizy9sF_4PjGQ46kIaXxRc6l9uyadEAlFAN-p4O96cgz1dUtyLEcAjoutWk1GFGkNKkBsvfvy-RFEGTI7wkJBzpeqFxQfy6ZOeRz-2dhBVSs6zCRtYC7iSyNuBM")` }} />
+        <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
+            <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-background-dark sticky top-0 z-10">
+                <h2 className="text-lg font-bold">Quản lý cửa hàng</h2>
+                <div className="flex items-center gap-2">
+                    <button className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm" onClick={fetchStores}>Tải lại</button>
+                    <button className="h-10 px-4 rounded-lg bg-primary text-white text-sm" onClick={() => { resetForm(); setShowCreate(true) }}>Thêm cửa hàng</button>
                 </div>
             </header>
 
-            <div className="flex flex-1">
-                {/* Sidebar */}
-                <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark hidden lg:flex flex-col p-4 gap-6">
-                    <div>
-                        <h1 className="text-base font-semibold">Admin Panel</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">Network Management</p>
+            <main className="p-6 lg:p-8 flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/50">
+                        <p className="text-sm text-slate-500">Tổng cửa hàng</p>
+                        <p className="text-2xl font-bold">{stores.length}</p>
                     </div>
-                    <nav className="flex flex-col gap-2">
-                        {[
-                            { icon: 'dashboard', label: 'Dashboard', active: false },
-                            { icon: 'storefront', label: 'Directory', active: true },
-                            { icon: 'inventory_2', label: 'Inventory', active: false },
-                            { icon: 'settings', label: 'Settings', active: false },
-                        ].map(({ icon, label, active }) => (
-                            <a key={label} href="#" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${active ? 'bg-primary/10 text-primary dark:bg-primary/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                                <span className="material-symbols-outlined">{icon}</span>
-                                <span className="text-sm font-medium">{label}</span>
-                            </a>
-                        ))}
-                    </nav>
-                    <div className="mt-auto flex flex-col gap-4">
-                        <div className="flex flex-col gap-2 rounded-xl p-4 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">Total Stores</p>
-                            <p className="text-2xl font-bold">48</p>
-                            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                                <span className="material-symbols-outlined text-[16px]">trending_up</span><span>+5% this month</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-2 rounded-xl p-4 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">New Openings</p>
-                            <p className="text-2xl font-bold">3</p>
-                            <p className="text-slate-500 dark:text-slate-400 text-xs">In the last 30 days</p>
-                        </div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/50">
+                        <p className="text-sm text-slate-500">Đang hoạt động</p>
+                        <p className="text-2xl font-bold text-emerald-600">{activeCount}</p>
                     </div>
-                </aside>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/50">
+                        <p className="text-sm text-slate-500">Ngừng hoạt động</p>
+                        <p className="text-2xl font-bold text-amber-600">{inactiveCount}</p>
+                    </div>
+                </div>
 
-                {/* Main */}
-                <main className="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark p-6 lg:p-8 gap-8 overflow-y-auto">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold leading-tight">Franchise &amp; Kitchen Directory</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-base leading-relaxed mt-1">Manage central kitchens and franchise locations across the network.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button className="flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                <span className="material-symbols-outlined text-[20px]">download</span>Export List
-                            </button>
-                            <button className="flex items-center gap-2 h-10 px-5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20">
-                                <span className="material-symbols-outlined text-[20px]">add</span>Add New Store
-                            </button>
-                        </div>
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 shadow-sm">
+                    <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <h3 className="font-semibold text-lg">Danh sách cửa hàng</h3>
+                        <input
+                            className="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent text-sm w-full sm:w-72"
+                            placeholder="Tìm cửa hàng..."
+                            value={keyword}
+                            onChange={(e) => setKeyword(e.target.value)}
+                        />
                     </div>
-
-                    {/* Map */}
-                    <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 overflow-hidden shadow-sm">
-                        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-400">map</span>Network Map
-                            </h3>
-                            <div className="flex gap-2">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium">
-                                    <span className="size-2 rounded-full bg-primary" /> Central Kitchen (1)
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium">
-                                    <span className="size-2 rounded-full bg-emerald-500" /> Franchise (47)
-                                </span>
-                            </div>
-                        </div>
-                        <div className="w-full h-[300px] lg:h-[400px] bg-slate-100 dark:bg-slate-800 relative">
-                            <div className="absolute inset-0 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-900 opacity-80" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-slate-400 dark:text-slate-600 flex flex-col items-center gap-2">
-                                    <span className="material-symbols-outlined text-5xl">map</span>
-                                    <span className="text-sm font-medium">Interactive Map — Network View</span>
-                                </div>
-                            </div>
-                            {/* Pins */}
-                            <div className="absolute top-[40%] left-[30%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                                <div className="bg-primary text-white text-xs font-bold px-2 py-1 rounded shadow-lg mb-1 whitespace-nowrap">Central Kitchen NYC</div>
-                                <span className="material-symbols-outlined text-primary text-[32px] drop-shadow-md">location_on</span>
-                            </div>
-                            {[['35%', '45%'], ['55%', '25%'], ['45%', '60%']].map(([t, l], i) => (
-                                <div key={i} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ top: t, left: l }}>
-                                    <span className="material-symbols-outlined text-emerald-500 text-[24px] drop-shadow-md hover:scale-125 transition-transform cursor-pointer">location_on</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Directory Table */}
-                    <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 shadow-sm flex flex-col">
-                        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <h3 className="font-semibold text-lg">Store Directory</h3>
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
-                                    <input className="h-10 pl-10 pr-4 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary w-full sm:w-64" placeholder="Search stores..." type="text" />
-                                </div>
-                                <button className="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[20px]">filter_list</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                        {['Store Info', 'Manager', 'Region', 'Status', 'Actions'].map(h => (
-                                            <th key={h} className={`px-5 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${h === 'Actions' ? 'text-right' : ''}`}>{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {stores.map(s => (
-                                        <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`size-10 rounded-lg flex items-center justify-center flex-shrink-0 ${s.iconBg}`}>
-                                                        <span className="material-symbols-outlined">{s.icon}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-sm">{s.name}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ID: {s.id} • {s.id.startsWith('CK') ? 'HQ' : 'Franchise'}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <p className="text-sm font-medium">{s.manager}</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.email}</p>
-                                            </td>
-                                            <td className="px-5 py-4"><span className="text-sm">{s.region}</span></td>
-                                            <td className="px-5 py-4">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[s.status]}`}>
-                                                    <span className={`size-1.5 rounded-full ${statusDot[s.status]}`} />{s.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-4 text-right">
-                                                <button className="text-slate-400 hover:text-primary transition-colors p-1"><span className="material-symbols-outlined text-[20px]">edit</span></button>
-                                                <button className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors p-1 ml-1"><span className="material-symbols-outlined text-[20px]">more_vert</span></button>
-                                            </td>
-                                        </tr>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                    {['Thông tin', 'Quản lý', 'Địa chỉ', 'Trạng thái', 'Thao tác'].map((h) => (
+                                        <th key={h} className={`px-5 py-4 text-xs font-semibold uppercase tracking-wider ${h === 'Thao tác' ? 'text-right' : ''}`}>{h}</th>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-                            <span>Showing 1 to 3 of 48 entries</span>
-                            <div className="flex gap-1">
-                                {['Prev', '1', '2', '3', 'Next'].map((p, i) => (
-                                    <button key={p} className={`px-3 py-1 rounded border text-sm ${i === 1 ? 'border-primary bg-primary text-white' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>{p}</button>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {loading ? <tr><td colSpan={5} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
+                                {!loading && filteredStores.length === 0 ? <tr><td colSpan={5} className="px-5 py-8 text-center text-sm">Không có dữ liệu.</td></tr> : null}
+                                {!loading && filteredStores.map((s) => (
+                                    <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td className="px-5 py-4">
+                                            <p className="font-medium text-sm">{s.name}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">Mã: {s.code} - SĐT: {s.phone}</p>
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            <p className="text-sm font-medium">{s.manager}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">User: {s.managerLogin}</p>
+                                        </td>
+                                        <td className="px-5 py-4 text-sm">{s.address}</td>
+                                        <td className="px-5 py-4">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[s.status]}`}>
+                                                {s.status === 'active' ? 'Đang hoạt động' : 'Ngừng hoạt động'}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-4 text-right">
+                                            <button className="text-slate-400 hover:text-primary p-1" onClick={() => startEdit(s)}>
+                                                <span className="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
+                                            <button className="text-slate-400 hover:text-red-500 p-1 ml-1" onClick={() => startDelete(s)}>
+                                                <span className="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </td>
+                                    </tr>
                                 ))}
-                            </div>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+
+            {(showCreate || showEdit) ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+                    <div className="w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+                            <h3 className="text-lg font-semibold">{showCreate ? 'Thêm cửa hàng' : 'Cập nhật cửa hàng'}</h3>
+                            <button className="text-slate-500" onClick={() => { setShowCreate(false); setShowEdit(false); }} disabled={submitting}><span className="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 px-6 py-5">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-sm">Tên cửa hàng</span>
+                                <input type="text" className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 text-sm" value={formName} onChange={(e) => setFormName(e.target.value)} />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-sm">Địa chỉ</span>
+                                <input type="text" className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 text-sm" value={formAddress} onChange={(e) => setFormAddress(e.target.value)} />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-sm">Số điện thoại</span>
+                                <input type="text" className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 text-sm" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} />
+                            </label>
+                            <label className="flex items-center gap-2 pt-1">
+                                <input type="checkbox" checked={formIsActive} onChange={(e) => setFormIsActive(e.target.checked)} />
+                                <span className="text-sm">Đang hoạt động</span>
+                            </label>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
+                            <button className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm" onClick={() => { setShowCreate(false); setShowEdit(false); }} disabled={submitting}>Hủy</button>
+                            <button className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-white disabled:opacity-60" onClick={showCreate ? handleCreate : handleUpdate} disabled={submitting}>
+                                {submitting ? 'Đang xử lý...' : showCreate ? 'Tạo cửa hàng' : 'Lưu thay đổi'}
+                            </button>
                         </div>
                     </div>
-                </main>
-            </div>
+                </div>
+            ) : null}
+
+            {showDelete ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+                            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">Xác nhận xóa</h3>
+                        </div>
+                        <div className="px-6 py-5 text-sm">Bạn có chắc muốn vô hiệu hóa cửa hàng {deletingStore?.name}?</div>
+                        <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
+                            <button className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm" onClick={() => setShowDelete(false)} disabled={submitting}>Hủy</button>
+                            <button className="h-10 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-60" onClick={handleDelete} disabled={submitting}>{submitting ? 'Đang xóa...' : 'Xóa cửa hàng'}</button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {notice.open ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/35 p-4">
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                            <span className={`material-symbols-outlined ${notice.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{notice.type === 'success' ? 'check_circle' : 'error'}</span>
+                            <h4 className="font-semibold text-sm">{notice.type === 'success' ? 'Thông báo thành công' : 'Thông báo lỗi'}</h4>
+                        </div>
+                        <div className="px-5 py-4 text-sm">{notice.message}</div>
+                        <div className="px-5 pb-5 flex justify-end">
+                            <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-white" onClick={closeNotice}>Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     )
 }

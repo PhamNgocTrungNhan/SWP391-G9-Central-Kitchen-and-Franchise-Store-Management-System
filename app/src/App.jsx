@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import BatchTraceabilityPage from './pages/BatchTraceabilityPage'
 import FranchiseNetworkPage from './pages/FranchiseNetworkPage'
+import KitchenManagementPage from './pages/KitchenManagementPage'
 import RecipeBOMPage from './pages/RecipeBOMPage'
 import StoreDeliveryPage from './pages/StoreDeliveryPage'
 import SupplyDispatchPage from './pages/SupplyDispatchPage'
@@ -21,7 +22,9 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/inventory" element={<BatchTraceabilityPage />} />
-          <Route path="/network" element={<FranchiseNetworkPage />} />
+          <Route path="/organization/stores" element={<FranchiseNetworkPage />} />
+          <Route path="/organization/kitchens" element={<KitchenManagementPage />} />
+          <Route path="/network" element={<Navigate to="/organization/stores" replace />} />
           <Route path="/recipes" element={<RecipeBOMPage />} />
           <Route path="/delivery" element={<StoreDeliveryPage />} />
           <Route path="/dispatch" element={<SupplyDispatchPage />} />
