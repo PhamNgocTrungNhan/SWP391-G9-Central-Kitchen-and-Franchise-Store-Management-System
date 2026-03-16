@@ -48,7 +48,7 @@ export default function KitchenManagementPage() {
         const tk = token()
         if (!tk) {
             openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
-            return
+            return []
         }
 
         setLoading(true)
@@ -66,10 +66,13 @@ export default function KitchenManagementPage() {
             }
 
             const list = (Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])
-            setKitchens(list.map(toKitchenItem).filter(Boolean))
+            const normalized = list.map(toKitchenItem).filter(Boolean)
+            setKitchens(normalized)
+            return normalized
         } catch (error) {
             setKitchens([])
             openNotice('error', error.message || 'Tải danh sách bếp thất bại.')
+            return []
         } finally {
             setLoading(false)
         }
@@ -123,9 +126,13 @@ export default function KitchenManagementPage() {
     }
 
     const verifyUpdatedKitchen = (list, id, expected) => {
+        if (!Array.isArray(list)) return false
         const row = list.find((k) => k.id === id)
         if (!row) return false
-        return row.name === expected.kitchenName && row.address === expected.address
+
+        const normalize = (value) => String(value || '').trim().toLowerCase()
+        return normalize(row.name) === normalize(expected.kitchenName)
+            && normalize(row.address) === normalize(expected.address)
     }
 
     const handleCreateKitchen = async () => {
