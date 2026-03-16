@@ -1,58 +1,61 @@
-﻿//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.EntityFrameworkCore;
-//using Shop2026.Models;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Shop2026.DLL;
+using Shop2026.DTOs;
 
-//namespace Shop2026.Controllers
-//{
-//    [Route("api/[controller]")]
-//    [ApiController]
-//    public class ProductsController : ControllerBase
-//    {
-//        private readonly ApplicationDbContext _context;
+namespace Shop2026.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Roles = "ADMIN, MANAGER")]
+    public class ProductsController : ControllerBase
+    {
+        private readonly ProductService _service;
+        public ProductsController(ProductService service) => _service = service;
 
-//        public ProductsController(ApplicationDbContext context)
-//        {
-//            _context = context;
-//        }
+        [HttpGet]
+        public IActionResult GetAll() => Ok(_service.GetAll());
 
-//        [HttpGet]
-//        public async Task<IActionResult> GetProducts()
-//        {
-//            var products = await _context.Products.ToListAsync();
-//            return Ok(products);
-//        }
+        [HttpPost]
+        public IActionResult Create([FromBody] ProductRequest request)
+        {
+            try
+            {
+                _service.Create(request);
+                return Ok(new
+                {
+                    message = "Tạo sản phẩm thành công"
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
 
-//        [HttpPost]
-//        public async Task<IActionResult> CreateProduct([FromBody] Product product)
-//        {
-//            _context.Products.Add(product);
-//            await _context.SaveChangesAsync();
-//            return Ok(new { Message = "Thêm sản phẩm thành công", Product = product });
-//        }
+        [HttpPut("{id}")]
+        public IActionResult Update(int id, [FromBody] ProductRequest request)
+        {
+            try
+            {
+                _service.Update(id, request);
+                return Ok(new
+                {
+                    message = "Cập nhật thành công"
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
 
-//        [HttpPut("{id}")]
-//        public async Task<IActionResult> UpdateProduct(int id, [FromBody] Product updatedProduct)
-//        {
-//            var product = await _context.Products.FindAsync(id);
-//            if (product == null) return NotFound("Không tìm thấy sản phẩm.");
-
-//            product.Name = updatedProduct.Name;
-//            product.Sku = updatedProduct.Sku;
-//            product.BaseUnit = updatedProduct.BaseUnit;
-//            product.ProductType = updatedProduct.ProductType;
-
-//            await _context.SaveChangesAsync();
-//            return Ok(new { Message = "Cap nhat thanh cong" });
-//        }
-
-//        [HttpDelete("{id}")]
-//        public async Task<IActionResult> DeleteProduct(int id)
-//        {
-//            var product = await _context.Products.FindAsync(id);
-//            if (product == null) return NotFound();
-//            _context.Products.Remove(product);
-//            await _context.SaveChangesAsync();
-//            return Ok(new { Message = "Xoa thanh cong" });
-//        }
-//    }
-//}
+        [HttpDelete("{id}")]
+        public IActionResult Delete(int id)
+        {
+            try
+            {
+                _service.Delete(id);
+                return Ok(new
+                {
+                    message = "Xóa thành công"
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+    }
+}
