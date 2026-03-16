@@ -102,7 +102,7 @@ export default function StoreOrderPage() {
             }
 
             const [storeRes, productRes] = await Promise.all([
-                fetch(`${apiBase}/stores`, { method: 'GET', headers }),
+                fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers }),
                 fetch(`${apiBase}/products`, { method: 'GET', headers }),
             ])
 

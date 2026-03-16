@@ -67,6 +67,8 @@ export default function OrderManagementPage() {
     const [storeIdFilter, setStoreIdFilter] = useState(resolveDefaultStoreId)
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
+    const [cancelLoadingId, setCancelLoadingId] = useState(null)
+    const [detailLoadingId, setDetailLoadingId] = useState(null)
     const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
 
     const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
@@ -178,6 +180,89 @@ export default function OrderManagementPage() {
         }
     }
 
+    const cancelOrder = async (orderId) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        setCancelLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/cancel`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể hủy đơn hàng.')
+            }
+
+            openNotice('success', data?.message || 'Đã hủy đơn hàng thành công.')
+            fetchOrders()
+        } catch (error) {
+            openNotice('error', error.message || 'Hủy đơn hàng thất bại.')
+        } finally {
+            setCancelLoadingId(null)
+        }
+    }
+
+    const fetchOrderDetail = async (orderId) => {
+        const tk = token()
+        if (!tk) return
+
+        setDetailLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể tải chi tiết đơn hàng.')
+            }
+
+            const details = Array.isArray(data?.internalOrderDetails)
+                ? data.internalOrderDetails
+                : Array.isArray(data?.orderDetails)
+                    ? data.orderDetails
+                    : []
+
+            setOrders((prev) => prev.map((order) => {
+                if (order.orderId !== orderId) return order
+
+                const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                return {
+                    ...order,
+                    details,
+                    itemCount: details.length,
+                    totalQty,
+                }
+            }))
+        } catch (error) {
+            openNotice('error', error.message || 'Tải chi tiết đơn hàng thất bại.')
+        } finally {
+            setDetailLoadingId(null)
+        }
+    }
+
+    const handleToggleExpand = (order) => {
+        const nextExpanded = expandedId === order.orderId ? null : order.orderId
+        setExpandedId(nextExpanded)
+
+        if (nextExpanded === order.orderId && (!Array.isArray(order.details) || order.details.length === 0)) {
+            fetchOrderDetail(order.orderId)
+        }
+    }
+
     useEffect(() => {
         fetchOrders()
     }, [])
@@ -190,6 +275,7 @@ export default function OrderManagementPage() {
     }, [filter, orders])
 
     const canConfirmCompleted = (status) => status === 'Shipped'
+    const canCancelOrder = (status) => status === 'Pending'
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -270,7 +356,7 @@ export default function OrderManagementPage() {
 
                     {!loading && filtered.map((order) => (
                         <div key={order.orderId} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                            <div className="p-4 flex items-center justify-between flex-wrap gap-3 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors" onClick={() => setExpandedId(expandedId === order.orderId ? null : order.orderId)}>
+                            <div className="p-4 flex items-center justify-between flex-wrap gap-3 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors" onClick={() => handleToggleExpand(order)}>
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="font-bold">#{order.orderId}</span>
@@ -287,6 +373,7 @@ export default function OrderManagementPage() {
 
                             {expandedId === order.orderId ? (
                                 <div className="border-t border-slate-100 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/20">
+                                    {detailLoadingId === order.orderId ? <p className="mb-3 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
                                     <div className="flex flex-col gap-2 mb-4">
                                         {(order.details || []).map((item) => (
                                             <div key={item?.detailId || `${order.orderId}-${item?.productId}`} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
@@ -294,6 +381,7 @@ export default function OrderManagementPage() {
                                                 <span className="text-sm font-medium">{Number(item?.quantityOrdered || 0)}</span>
                                             </div>
                                         ))}
+                                        {detailLoadingId !== order.orderId && (!order.details || order.details.length === 0) ? <p className="text-xs text-slate-500">Đơn này chưa có dòng chi tiết hoặc API chưa trả chi tiết.</p> : null}
                                     </div>
                                     <div className="flex gap-2 flex-wrap">
                                         <button
@@ -303,6 +391,14 @@ export default function OrderManagementPage() {
                                             title={!canConfirmCompleted(order.status) ? 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.' : ''}
                                         >
                                             {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Xác nhận hoàn tất'}
+                                        </button>
+                                        <button
+                                            className="h-8 px-4 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
+                                            disabled={!canCancelOrder(order.status) || cancelLoadingId === order.orderId}
+                                            onClick={() => cancelOrder(order.orderId)}
+                                            title={!canCancelOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được hủy.' : ''}
+                                        >
+                                            {cancelLoadingId === order.orderId ? 'Đang hủy...' : 'Hủy đơn'}
                                         </button>
                                     </div>
                                 </div>
