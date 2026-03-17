@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -15,6 +16,26 @@ import ProductManagementPage from './pages/ProductManagementPage'
 import Layout from './components/Layout'
 
 function App() {
+  useEffect(() => {
+    const candidates = [
+      localStorage.getItem('auth_token'),
+      localStorage.getItem('token'),
+      localStorage.getItem('access_token'),
+      sessionStorage.getItem('auth_token'),
+      sessionStorage.getItem('token'),
+      sessionStorage.getItem('access_token'),
+    ]
+
+    const firstToken = candidates.find((item) => String(item || '').trim())
+    if (!firstToken) return
+
+    const normalized = String(firstToken).replace(/^Bearer\s+/i, '').trim()
+    if (!normalized) return
+
+    localStorage.setItem('auth_token', normalized)
+    localStorage.setItem('token', normalized)
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
