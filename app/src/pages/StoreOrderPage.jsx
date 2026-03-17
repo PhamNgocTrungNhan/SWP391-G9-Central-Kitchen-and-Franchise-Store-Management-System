@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react'
 
-const storeInventory = [
-    { name: 'All-Purpose Flour', unit: 'kg', stock: 45, min: 20, icon: 'grain', status: 'ok' },
-    { name: 'Fresh Tomatoes', unit: 'kg', stock: 8, min: 15, icon: 'eco', status: 'low' },
-    { name: 'Mozzarella Cheese', unit: 'kg', stock: 3, min: 10, icon: 'kitchen', status: 'critical' },
-    { name: 'Tomato Sauce Base', unit: 'L', stock: 22, min: 10, icon: 'soup_kitchen', status: 'ok' },
-    { name: 'Pizza Dough Base', unit: 'kg', stock: 12, min: 15, icon: 'bakery_dining', status: 'low' },
-]
-
 const fallbackStoreOptions = [{ id: 1, name: 'Store #1' }]
 const fallbackProductOptions = [
     { id: 1, name: 'All-Purpose Flour' },
@@ -44,9 +36,97 @@ const apiStatusToUi = {
     REJECTED: 'Rejected',
 }
 
+const inventoryActionLabel = {
+    IN: 'Nhập kho',
+    OUT: 'Xuất kho',
+    ADJUST: 'Điều chỉnh',
+    TRANSFER_IN: 'Chuyển vào',
+    TRANSFER_OUT: 'Chuyển ra',
+}
+
+function parseArrayData(raw) {
+    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw?.items)) return raw.items
+    if (Array.isArray(raw?.data)) return raw.data
+    return []
+}
+
+function parseSafeNumber(value, fallback = 0) {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+}
+
+function normalizeLocationType(locationType) {
+    const raw = String(locationType || '').toUpperCase()
+    if (raw === 'KITCHEN') return 'Bếp trung tâm'
+    if (raw === 'STORE') return 'Cửa hàng'
+    return locationType || 'N/A'
+}
+
+function resolveInventoryStatus(row) {
+    const current = parseSafeNumber(row?.currentQuantity, 0)
+    const min = parseSafeNumber(row?.minimumQuantity ?? row?.minQuantity ?? row?.reorderLevel ?? row?.safetyStock, 0)
+
+    if (current <= 0) return 'critical'
+    if (min > 0 && current <= min) return 'low'
+    if (min === 0 && current <= 10) return 'low'
+    return 'ok'
+}
+
+function toInventoryRow(item, productNameById) {
+    const productId = parseSafeNumber(item?.productId, 0)
+    const status = resolveInventoryStatus(item)
+    const min = parseSafeNumber(item?.minimumQuantity ?? item?.minQuantity ?? item?.reorderLevel ?? item?.safetyStock, 0)
+
+    return {
+        id: parseSafeNumber(item?.inventoryId ?? item?.id, productId),
+        productId,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        locationType: normalizeLocationType(item?.locationType),
+        locationId: parseSafeNumber(item?.locationId, 0),
+        currentQuantity: parseSafeNumber(item?.currentQuantity, 0),
+        minQuantity: min,
+        lastUpdated: item?.lastUpdated || item?.updatedAt || item?.modifiedAt || null,
+        status,
+    }
+}
+
+function toInventoryLogRow(item, productNameById) {
+    const productId = parseSafeNumber(item?.productId, 0)
+    const rawAction = String(item?.transactionType || item?.type || item?.action || '').toUpperCase()
+    const rawReason = String(item?.reason || '').toUpperCase()
+    const referenceType = String(item?.referenceType || '').toUpperCase()
+    const action = inventoryActionLabel[rawAction]
+        || inventoryActionLabel[rawReason]
+        || (rawReason === 'INITIAL_STOCK' ? 'Khởi tạo tồn kho' : '')
+        || item?.transactionType
+        || item?.type
+        || item?.action
+        || item?.reason
+        || 'N/A'
+
+    return {
+        id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
+        inventoryId: parseSafeNumber(item?.inventoryId, 0),
+        productId,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        locationType: normalizeLocationType(item?.locationType),
+        locationTypeRaw: String(item?.locationType || '').toUpperCase(),
+        locationId: parseSafeNumber(item?.locationId, 0),
+        action,
+        quantityChange: parseSafeNumber(item?.quantityChanged ?? item?.changeQuantity ?? item?.quantity ?? item?.amount, 0),
+        note: item?.note || item?.reason || item?.description || '',
+        reason: item?.reason || '',
+        referenceType: referenceType || 'N/A',
+        referenceId: item?.referenceId,
+        createdAt: item?.createdAt || item?.transactionDate || item?.timestamp || null,
+    }
+}
+
 export default function StoreOrderPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
-    const [tab, setTab] = useState(0) // 0=Place Order, 1=My Orders, 2=Store Inventory
+    const [tab, setTab] = useState(0) // 0=Place Order, 1=My Orders
+    const [inventoryFilter, setInventoryFilter] = useState('store')
     const [showCreateOrderForm, setShowCreateOrderForm] = useState(false)
     const [orders, setOrders] = useState([])
     const [ordersLoading, setOrdersLoading] = useState(false)
@@ -67,6 +147,11 @@ export default function StoreOrderPage() {
     const [productOptions, setProductOptions] = useState(fallbackProductOptions)
     const [optionsLoading, setOptionsLoading] = useState(false)
     const [optionsError, setOptionsError] = useState('')
+    const [inventoryLoading, setInventoryLoading] = useState(false)
+    const [inventoryError, setInventoryError] = useState('')
+    const [inventoryInfo, setInventoryInfo] = useState('')
+    const [inventoryRows, setInventoryRows] = useState([])
+    const [inventoryLogs, setInventoryLogs] = useState([])
     const [formExpectedDeliveryDate, setFormExpectedDeliveryDate] = useState(() => {
         const date = new Date(Date.now() + 24 * 60 * 60 * 1000)
         const offset = date.getTimezoneOffset() * 60 * 1000
@@ -142,6 +227,114 @@ export default function StoreOrderPage() {
         const d = new Date(dateString)
         if (Number.isNaN(d.getTime())) return dateString
         return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    }
+
+    const fetchInventory = async () => {
+        setInventoryError('')
+        setInventoryInfo('')
+
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        if (!token) {
+            setInventoryRows([])
+            setInventoryLogs([])
+            setInventoryInfo('')
+            setInventoryError('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        const parsedStoreId = Number(formStoreId)
+        if (inventoryFilter === 'store' && (!parsedStoreId || parsedStoreId < 1)) {
+            setInventoryRows([])
+            setInventoryLogs([])
+            setInventoryInfo('')
+            setInventoryError('Store ID không hợp lệ để tải tồn kho theo cửa hàng.')
+            return
+        }
+
+        setInventoryLoading(true)
+        try {
+            const headers = {
+                accept: '*/*',
+                Authorization: `Bearer ${token}`,
+            }
+
+            const inventoryUrl = inventoryFilter === 'store'
+                ? `${apiBase}/Inventory/store/${parsedStoreId}`
+                : `${apiBase}/Inventory/stock`
+
+            const [inventoryRes, logsRes] = await Promise.all([
+                fetch(inventoryUrl, { method: 'GET', headers }),
+                fetch(`${apiBase}/Inventory/logs`, { method: 'GET', headers }),
+            ])
+
+            const inventoryJson = await inventoryRes.json().catch(() => [])
+            const logsJson = await logsRes.json().catch(() => [])
+
+            if (!inventoryRes.ok) {
+                throw new Error(inventoryJson?.message || inventoryJson?.title || 'Không thể tải dữ liệu tồn kho.')
+            }
+
+            if (!logsRes.ok) {
+                throw new Error(logsJson?.message || logsJson?.title || 'Không thể tải lịch sử biến động tồn kho.')
+            }
+
+            const productNameById = productOptions.reduce((acc, item) => {
+                const id = Number(item?.id)
+                if (id > 0) acc[id] = item?.name || `Product #${id}`
+                return acc
+            }, {})
+
+            let inventoryRecords = parseArrayData(inventoryJson)
+
+            if (inventoryFilter === 'store' && inventoryRecords.length === 0) {
+                const stockRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
+                const stockJson = await stockRes.json().catch(() => [])
+
+                if (stockRes.ok) {
+                    const stockRecords = parseArrayData(stockJson)
+                    const storeScopedFromStock = stockRecords.filter((row) => {
+                        const rowLocationType = String(row?.locationType || '').toUpperCase()
+                        const rowLocationId = Number(row?.locationId)
+                        return rowLocationType === 'STORE' && rowLocationId === parsedStoreId
+                    })
+
+                    inventoryRecords = storeScopedFromStock
+                    if (storeScopedFromStock.length > 0) {
+                        setInventoryInfo('API /Inventory/store/' + parsedStoreId + ' đang trả rỗng, đã tự fallback từ /Inventory/stock để hiển thị dữ liệu store.')
+                    } else {
+                        setInventoryInfo('Store #' + parsedStoreId + ' hiện chưa có bản ghi tồn kho trong hệ thống.')
+                    }
+                }
+            }
+
+            const normalizedInventory = inventoryRecords
+                .map((item) => toInventoryRow(item, productNameById))
+                .filter((item) => item.productId > 0)
+
+            const normalizedLogs = parseArrayData(logsJson)
+                .map((item) => toInventoryLogRow(item, productNameById))
+                .filter((item) => item.id > 0 || item.inventoryId > 0)
+                .filter((item) => {
+                    if (inventoryFilter !== 'store') return true
+                    return item.locationTypeRaw === 'STORE' && item.locationId === parsedStoreId
+                })
+                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                .slice(0, 20)
+
+            if (inventoryFilter === 'store' && normalizedLogs.length === 0 && !inventoryInfo) {
+                setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho Store #' + parsedStoreId + '.')
+            }
+
+            setInventoryRows(normalizedInventory)
+            setInventoryLogs(normalizedLogs)
+        } catch (error) {
+            setInventoryRows([])
+            setInventoryLogs([])
+            setInventoryInfo('')
+            setInventoryError(error.message || 'Tải tồn kho thất bại.')
+        } finally {
+            setInventoryLoading(false)
+        }
     }
 
     const normalizeStatus = (rawStatus) => {
@@ -316,6 +509,12 @@ export default function StoreOrderPage() {
     }, [tab, formStoreId, ordersStatusFilter])
 
     useEffect(() => {
+        if (tab === 2) {
+            fetchInventory()
+        }
+    }, [tab, formStoreId, inventoryFilter])
+
+    useEffect(() => {
         fetchDropdownOptions()
     }, [])
 
@@ -422,7 +621,7 @@ export default function StoreOrderPage() {
                 </div>
                 <div className="flex flex-1 justify-end gap-6 items-center">
                     <nav className="hidden md:flex items-center gap-8">
-                        {['Tạo Đơn Hàng', 'Danh Sách Đơn', 'Tồn Kho Cửa Hàng'].map((item, i) => (
+                        {['Tạo Đơn Hàng', 'Danh Sách Đơn'].map((item, i) => (
                             <button key={item} onClick={() => setTab(i)} className={`text-sm font-medium transition-colors ${i === tab ? 'text-primary font-semibold border-b-2 border-primary pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-primary'}`}>{item}</button>
                         ))}
                     </nav>
@@ -827,45 +1026,92 @@ export default function StoreOrderPage() {
                     <>
                         <div className="flex justify-between items-center flex-wrap gap-4">
                             <div>
-                                <h1 className="text-2xl font-bold">Tồn Kho Cửa Hàng</h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Xem tồn kho hiện tại và cảnh báo hàng sắp hết tại cửa hàng.</p>
+                                <h1 className="text-2xl font-bold">Tồn Kho</h1>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Đồng bộ trực tiếp từ API Inventory theo cửa hàng hoặc toàn hệ thống.</p>
                             </div>
-                            <div className="flex gap-3">
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-medium border border-red-200 dark:border-red-800">
-                                    <span className="size-1.5 rounded-full bg-red-500" />2 mặt hàng cần đặt ngay
-                                </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <select
+                                    value={inventoryFilter}
+                                    onChange={(e) => setInventoryFilter(e.target.value)}
+                                    className="h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm"
+                                >
+                                    <option value="store">Theo cửa hàng đã chọn</option>
+                                    <option value="all">Toàn hệ thống</option>
+                                </select>
+                                <button
+                                    onClick={fetchInventory}
+                                    className="flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">refresh</span>
+                                    Tải lại
+                                </button>
                                 <button onClick={() => setTab(0)} className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
-                                    <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>Đặt Thêm Hàng
+                                    <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>Đặt thêm hàng
                                 </button>
                             </div>
                         </div>
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                            <table className="w-full text-left border-collapse">
+
+                        {inventoryError ? <p className="text-sm text-red-600 dark:text-red-400">{inventoryError}</p> : null}
+                        {inventoryInfo ? <p className="text-sm text-amber-700 dark:text-amber-400">{inventoryInfo}</p> : null}
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {[
+                                { label: 'Mặt hàng', value: inventoryRows.length },
+                                { label: 'Sắp hết', value: inventoryRows.filter((row) => row.status === 'low').length },
+                                { label: 'Cần bổ sung ngay', value: inventoryRows.filter((row) => row.status === 'critical').length },
+                                { label: 'Tổng số lượng', value: inventoryRows.reduce((sum, row) => sum + Number(row.currentQuantity || 0), 0) },
+                            ].map((card) => (
+                                <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-4">{card.label}</p>
+                                    <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+                            <table className="w-full min-w-[840px] text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        {['Nguyên liệu / Bán thành phẩm', 'Tồn kho', 'Tối thiểu', 'Trạng thái', 'Hành động'].map(h => (
+                                        {['Sản phẩm', 'Vị trí', 'Số lượng hiện tại', 'Mức tối thiểu', 'Cập nhật lần cuối', 'Trạng thái', 'Hành động'].map(h => (
                                             <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {storeInventory.map(item => (
-                                        <tr key={item.name} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${stockBg[item.status]}`}>
+                                    {inventoryLoading ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Đang tải tồn kho...</td>
+                                        </tr>
+                                    ) : null}
+
+                                    {!inventoryLoading && inventoryRows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Không có dữ liệu tồn kho phù hợp.</td>
+                                        </tr>
+                                    ) : null}
+
+                                    {!inventoryLoading && inventoryRows.map((item) => (
+                                        <tr key={`${item.id}-${item.productId}`} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${stockBg[item.status]}`}>
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined text-slate-400">{item.icon}</span>
-                                                    <span className="font-medium text-sm">{item.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className={`font-bold text-sm ${item.status === 'critical' ? 'text-red-600 dark:text-red-400' : item.status === 'low' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.stock} {item.unit}</span>
-                                                    <div className="w-24 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                                                        <div className={`h-full rounded-full ${statusColors[item.status]}`} style={{ width: `${Math.min(100, (item.stock / (item.min * 2)) * 100)}%` }} />
+                                                    <span className="material-symbols-outlined text-slate-400">inventory_2</span>
+                                                    <div>
+                                                        <p className="font-medium text-sm">{item.productName}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Product #{item.productId}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{item.min} {item.unit}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} #{item.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`font-bold text-sm ${item.status === 'critical' ? 'text-red-600 dark:text-red-400' : item.status === 'low' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.currentQuantity}</span>
+                                                    <div className="w-24 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                        <div className={`h-full rounded-full ${statusColors[item.status]}`} style={{ width: `${Math.min(100, (item.currentQuantity / Math.max(1, item.minQuantity * 2)) * 100)}%` }} />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{item.minQuantity || '-'}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(item.lastUpdated)}</td>
                                             <td className="px-5 py-4">
                                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${item.status === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : item.status === 'low' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
                                                     <span className={`size-1.5 rounded-full ${statusColors[item.status]}`} />
@@ -879,6 +1125,55 @@ export default function StoreOrderPage() {
                                                     </button>
                                                 )}
                                             </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+                            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold">Lịch sử biến động tồn kho</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Hiển thị 20 giao dịch gần nhất</p>
+                            </div>
+                            <table className="w-full min-w-[820px] text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        {['Mã log', 'Sản phẩm', 'Vị trí', 'Lý do/Loại giao dịch', 'Số lượng thay đổi', 'Tham chiếu', 'Thời gian'].map((h) => (
+                                            <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {inventoryLoading ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Đang tải logs...</td>
+                                        </tr>
+                                    ) : null}
+
+                                    {!inventoryLoading && inventoryLogs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Chưa có giao dịch tồn kho.</td>
+                                        </tr>
+                                    ) : null}
+
+                                    {!inventoryLoading && inventoryLogs.map((log) => (
+                                        <tr key={`${log.id}-${log.inventoryId}-${log.createdAt || 'no-date'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className="px-5 py-3 text-sm font-semibold">#{log.id || log.inventoryId}</td>
+                                            <td className="px-5 py-3 text-sm">{log.productName}</td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} #{log.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                <p>{log.action}</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Reason: {log.reason || '-'}</p>
+                                            </td>
+                                            <td className={`px-5 py-3 text-sm font-semibold ${log.quantityChange < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
+                                            </td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                <p>{log.referenceType || 'N/A'}</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Ref ID: {log.referenceId ?? '-'}</p>
+                                            </td>
+                                            <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(log.createdAt)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

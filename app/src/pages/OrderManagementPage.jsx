@@ -75,6 +75,7 @@ export default function OrderManagementPage() {
     const [storeIdFilter, setStoreIdFilter] = useState(resolveDefaultStoreId)
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
+    const [transferLoadingId, setTransferLoadingId] = useState(null)
     const [cancelLoadingId, setCancelLoadingId] = useState(null)
     const [detailLoadingId, setDetailLoadingId] = useState(null)
     const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
@@ -314,6 +315,37 @@ export default function OrderManagementPage() {
         }
     }
 
+    const transferOrder = async (orderId) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        setTransferLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/Inventory/transfer/${orderId}`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể xuất kho cho đơn hàng này.')
+            }
+
+            openNotice('success', data?.message || `Đã xuất kho cho đơn hàng #${orderId}.`)
+            fetchOrders()
+        } catch (error) {
+            openNotice('error', error.message || 'Xuất kho thất bại.')
+        } finally {
+            setTransferLoadingId(null)
+        }
+    }
+
     const fetchOrderDetail = async (orderId) => {
         const tk = token()
         if (!tk) return
@@ -393,6 +425,7 @@ export default function OrderManagementPage() {
     const canCancelOrder = (status) => status === 'Pending'
     const canApproveOrder = (status) => status === 'Pending'
     const canRejectOrder = (status) => status === 'Pending'
+    const canTransferOrder = (status) => ['Approved', 'Confirmed'].includes(status)
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)
@@ -540,6 +573,14 @@ export default function OrderManagementPage() {
                                                             title={!canRejectOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được từ chối.' : ''}
                                                         >
                                                             {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
+                                                        </button>
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-60"
+                                                            disabled={!canTransferOrder(order.status) || transferLoadingId === order.orderId}
+                                                            onClick={() => transferOrder(order.orderId)}
+                                                            title={!canTransferOrder(order.status) ? 'Chỉ đơn đã duyệt hoặc đã xác nhận mới được xuất kho.' : ''}
+                                                        >
+                                                            {transferLoadingId === order.orderId ? 'Đang xuất kho...' : 'Xuất kho'}
                                                         </button>
                                                         <button
                                                             className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"

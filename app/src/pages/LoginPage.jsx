@@ -12,6 +12,12 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
+    const extractRawToken = (value) => {
+        const tokenValue = String(value || '').trim();
+        if (!tokenValue) return '';
+        return tokenValue.replace(/^Bearer\s+/i, '').trim();
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
@@ -30,9 +36,13 @@ export default function LoginPage() {
             if (!response.ok) {
                 throw new Error(data?.message || 'Invalid username or password');
             }
-            if (data?.token) {
-                localStorage.setItem('auth_token', data.token);
+            const rawToken = extractRawToken(data?.token || data?.accessToken || data?.jwt || data?.jwtToken);
+            if (!rawToken) {
+                throw new Error('Login thanh cong nhung khong nhan duoc token tu backend.');
             }
+
+            localStorage.setItem('auth_token', rawToken);
+            localStorage.setItem('token', rawToken);
             setStatus('Signed in successfully. Redirecting...');
             setTimeout(() => navigate('/dashboard'), 400);
         } catch (err) {
