@@ -114,6 +114,19 @@ function toInventoryLogRow(item, productNameById) {
     }
 }
 
+function toProductionBatchRow(item, productNameById) {
+    const productId = parseSafeNumber(item?.productId, 0)
+    return {
+        id: parseSafeNumber(item?.productionBatchId ?? item?.batchId ?? item?.id, 0),
+        productId,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
+        quantityProduced: parseSafeNumber(item?.quantityProduced, 0),
+        status: item?.status || item?.batchStatus || 'N/A',
+        mfgDate: item?.mfgDate || item?.manufacturingDate || item?.createdAt || null,
+    }
+}
+
 export default function BatchTraceabilityPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
     const [inventoryMode, setInventoryMode] = useState('store')
@@ -123,6 +136,13 @@ export default function BatchTraceabilityPage() {
     const [info, setInfo] = useState('')
     const [rows, setRows] = useState([])
     const [logs, setLogs] = useState([])
+    const [batchLoading, setBatchLoading] = useState(false)
+    const [batchError, setBatchError] = useState('')
+    const [batchNotice, setBatchNotice] = useState('')
+    const [batches, setBatches] = useState([])
+    const [batchProductId, setBatchProductId] = useState('1')
+    const [batchQuantityPlanned, setBatchQuantityPlanned] = useState('1')
+    const [batchMfgDate, setBatchMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
     const [productNameMap, setProductNameMap] = useState({})
 
     const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
@@ -251,6 +271,115 @@ export default function BatchTraceabilityPage() {
         }
     }
 
+    const fetchProductionBatches = async () => {
+        setBatchError('')
+
+        const tk = token()
+        if (!tk) {
+            setBatches([])
+            setBatchError('Thieu token dang nhap de tai Production Batches.')
+            return
+        }
+
+        setBatchLoading(true)
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                if (response.status === 405) {
+                    setBatchError('Backend chua ho tro GET /ProductionBatches (405). Ban van tao batch bang POST duoc.')
+                    setBatches([])
+                    return
+                }
+                throw new Error(data?.message || data?.title || 'Khong the tai danh sach Production Batches.')
+            }
+
+            const records = parseArrayData(data)
+            const normalized = records
+                .map((item) => toProductionBatchRow(item, productNameMap))
+                .filter((item) => item.id > 0 || item.productId > 0)
+                .sort((a, b) => new Date(b.mfgDate || 0).getTime() - new Date(a.mfgDate || 0).getTime())
+                .slice(0, 20)
+
+            setBatches(normalized)
+        } catch (e) {
+            setBatches([])
+            setBatchError(e.message || 'Tai Production Batches that bai.')
+        } finally {
+            setBatchLoading(false)
+        }
+    }
+
+    const createProductionBatch = async () => {
+        setBatchError('')
+        setBatchNotice('')
+
+        const tk = token()
+        if (!tk) {
+            setBatchError('Thieu token dang nhap. Vui long dang nhap lai.')
+            return
+        }
+
+        const productId = Number(batchProductId)
+        const quantityPlanned = Number(batchQuantityPlanned)
+        if (!productId || productId < 1 || !Number.isFinite(quantityPlanned) || quantityPlanned < 1) {
+            setBatchError('productId va quantityPlanned phai lon hon 0.')
+            return
+        }
+        if (!batchMfgDate) {
+            setBatchError('Vui long nhap mfgDate.')
+            return
+        }
+
+        setBatchLoading(true)
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    productId,
+                    quantityPlanned,
+                    mfgDate: new Date(batchMfgDate).toISOString(),
+                }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Tao me san xuat that bai.')
+            }
+
+            setBatchNotice(data?.message || 'Tao me san xuat thanh cong.')
+
+            const productIdValue = Number(productId)
+            const createdAt = new Date(batchMfgDate).toISOString()
+            const localRow = {
+                id: Date.now(),
+                productId: productIdValue,
+                productName: productNameMap[productIdValue] || `Product #${productIdValue}`,
+                quantityPlanned,
+                quantityProduced: 0,
+                status: 'CREATED',
+                mfgDate: createdAt,
+            }
+            setBatches((prev) => [localRow, ...prev].slice(0, 20))
+        } catch (e) {
+            setBatchError(e.message || 'Khong the tao me san xuat.')
+        } finally {
+            setBatchLoading(false)
+        }
+    }
+
     useEffect(() => {
         fetchProductMap()
     }, [])
@@ -373,6 +502,94 @@ export default function BatchTraceabilityPage() {
                                             {item.status === 'critical' ? 'Can dat ngay' : item.status === 'low' ? 'Sap het' : 'Du hang'}
                                         </span>
                                     </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+                    <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold">Production Batches</p>
+                        <button
+                            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                            onClick={fetchProductionBatches}
+                        >
+                            Tai lai batch
+                        </button>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Product ID</span>
+                            <input
+                                type="number"
+                                min="1"
+                                value={batchProductId}
+                                onChange={(e) => setBatchProductId(e.target.value)}
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quantity Planned</span>
+                            <input
+                                type="number"
+                                min="1"
+                                value={batchQuantityPlanned}
+                                onChange={(e) => setBatchQuantityPlanned(e.target.value)}
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MFG Date</span>
+                            <input
+                                type="datetime-local"
+                                value={batchMfgDate}
+                                onChange={(e) => setBatchMfgDate(e.target.value)}
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                            />
+                        </label>
+                        <button
+                            className="h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
+                            onClick={createProductionBatch}
+                            disabled={batchLoading}
+                        >
+                            {batchLoading ? 'Dang xu ly...' : 'Tao batch'}
+                        </button>
+                    </div>
+
+                    {batchError ? <p className="px-5 py-3 text-sm text-red-600 dark:text-red-400">{batchError}</p> : null}
+                    {batchNotice ? <p className="px-5 py-3 text-sm text-emerald-600 dark:text-emerald-400">{batchNotice}</p> : null}
+
+                    <table className="w-full min-w-[860px] text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                {['Batch ID', 'Product', 'So luong ke hoach', 'So luong da SX', 'Trang thai', 'MFG Date'].map((h) => (
+                                    <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {batchLoading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Dang tai production batches...</td>
+                                </tr>
+                            ) : null}
+
+                            {!batchLoading && batches.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Chua co production batch nao.</td>
+                                </tr>
+                            ) : null}
+
+                            {!batchLoading && batches.map((batch) => (
+                                <tr key={`${batch.id}-${batch.productId}-${batch.mfgDate || 'na'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                    <td className="px-5 py-3 text-sm font-semibold">#{batch.id || 'N/A'}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.productName}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.quantityPlanned}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.quantityProduced}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.status}</td>
+                                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(batch.mfgDate)}</td>
                                 </tr>
                             ))}
                         </tbody>
