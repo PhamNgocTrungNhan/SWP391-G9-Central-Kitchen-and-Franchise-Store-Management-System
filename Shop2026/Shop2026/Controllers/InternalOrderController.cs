@@ -17,7 +17,6 @@ namespace Shop2026.Controllers
             _orderService = orderService;
         }
 
-        // ================= HELPER =================
         private bool TryGetStoreId(out int storeId)
         {
             storeId = 0;
@@ -32,16 +31,31 @@ namespace Shop2026.Controllers
             return claim != null && int.TryParse(claim, out userId);
         }
 
-        // ================= STORE STAFF =================
-        //Create Order
+        private bool IsAdmin() => User.IsInRole("ADMIN");
+
+
         [HttpPost]
-        [Authorize(Roles = "STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult CreateOrder([FromBody] CreateInternalOrderRequest request)
         {
-            if (!TryGetStoreId(out int storeId))
-                return Unauthorized(new { message = "Invalid StoreId" });
+            if (IsAdmin())
+            {
+                if (request.StoreId <= 0)
+                    return BadRequest(new
+                    {
+                        message = "ADMIN vui lòng truyền StoreId hợp lệ để tạo đơn."
+                    });
+            }
+            else
+            {
+                if (!TryGetStoreId(out int storeId))
+                    return Unauthorized(new
+                    {
+                        message = "Invalid StoreId in Token"
+                    });
 
-            request.StoreId = storeId;
+                request.StoreId = storeId;
+            }
 
             var order = _orderService.CreateInternalOrder(request);
 
@@ -51,71 +65,140 @@ namespace Shop2026.Controllers
                 orderId = order.OrderId
             });
         }
-        //Ger Store Orders
+
         [HttpGet]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
-        public IActionResult GetStoreOrders([FromQuery] string? status)
+        public IActionResult GetStoreOrders([FromQuery] string? status, [FromQuery] int? storeId)
         {
-            if (!TryGetStoreId(out int storeId))
-                return Unauthorized(new { message = "Invalid StoreId" });
+            int targetStoreId;
 
-            var orders = _orderService.GetStoreOrders(storeId, status);
+            if (IsAdmin())
+            {
+                if (!storeId.HasValue || storeId.Value <= 0)
+                    return BadRequest(new
+                    {
+                        message = "ADMIN vui lòng cung cấp ?storeId= trên URL để xem danh sách."
+                    });
+
+                targetStoreId = storeId.Value;
+            }
+            else
+            {
+                if (!TryGetStoreId(out targetStoreId))
+                    return Unauthorized(new
+                    {
+                        message = "Invalid StoreId in Token"
+                    });
+            }
+
+            var orders = _orderService.GetStoreOrders(targetStoreId, status);
             return Ok(orders);
         }
-        //Get Order Detail
+
         [HttpGet("{orderId}")]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult GetOrderDetail(int orderId)
         {
-            if (!TryGetStoreId(out int storeId))
-                return Unauthorized(new { message = "Invalid StoreId" });
-
             var order = _orderService.GetOrderDetail(orderId);
 
             if (order == null)
-                return NotFound(new { message = "Order not found" });
+                return NotFound(new
+                {
+                    message = "Order not found"
+                });
 
-            if (order.StoreId != storeId)
-                return Forbid();
+            if (!IsAdmin())
+            {
+                if (!TryGetStoreId(out int storeId) || order.StoreId != storeId)
+                    return Forbid();
+            }
 
             return Ok(order);
         }
-        //Cancel Order
+
         [HttpPut("{orderId}/cancel")]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult CancelOrder(int orderId)
         {
-            if (!TryGetStoreId(out int storeId))
-                return Unauthorized(new { message = "Invalid StoreId" });
+            int storeIdToPass;
+
+            if (IsAdmin())
+            {
+                var order = _orderService.GetOrderDetail(orderId);
+                if (order == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                storeIdToPass = (int)order.StoreId;
+            }
+            else
+            {
+                if (!TryGetStoreId(out storeIdToPass))
+                    return Unauthorized(new
+                    {
+                        message = "Invalid StoreId"
+                    });
+            }
 
             try
             {
-                var result = _orderService.CancelOrder(orderId, storeId);
+                var result = _orderService.CancelOrder(orderId, storeIdToPass);
 
                 if (!result)
-                    return NotFound(new { message = "Order not found" });
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
 
-                return Ok(new { message = "Order cancelled successfully" });
+                return Ok(new
+                {
+                    message = "Order cancelled successfully"
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
-        //Confirm Order Completed
+
         [HttpPut("{orderId}/confirm-completed")]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult ConfirmOrderCompleted(int orderId)
         {
-            if (!TryGetStoreId(out int storeId))
-                return Unauthorized(new { message = "Invalid StoreId" });
+            int storeIdToPass;
+
+            if (IsAdmin())
+            {
+                var orderForStore = _orderService.GetOrderDetail(orderId);
+                if (orderForStore == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                storeIdToPass = (int)orderForStore.StoreId;
+            }
+            else
+            {
+                if (!TryGetStoreId(out storeIdToPass))
+                    return Unauthorized(new
+                    {
+                        message = "Invalid StoreId"
+                    });
+            }
 
             try
             {
-                var order = _orderService.ConfirmOrderCompleted(orderId, storeId);
+                var order = _orderService.ConfirmOrderCompleted(orderId, storeIdToPass);
 
                 if (order == null)
-                    return NotFound(new { message = "Order not found" });
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
 
                 return Ok(new
                 {
@@ -125,40 +208,54 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
 
-        // ================= SUPPLY COORDINATOR =================
-        //Get All Orders
+
         [HttpPut("{orderId}/approve")]
         [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult ApproveOrder(int orderId)
         {
             if (!TryGetUserId(out int userId))
-                return Unauthorized(new { message = "Invalid UserId" });
+                return Unauthorized(new
+                {
+                    message = "Invalid UserId"
+                });
 
             var order = _orderService.ApproveOrder(orderId, userId);
 
             if (order == null)
-                return NotFound(new { message = "Order not found" });
+                return NotFound(new
+                {
+                    message = "Order not found"
+                });
 
             return Ok(order);
         }
-        //Reject Order
+
         [HttpPut("{orderId}/reject")]
         [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult RejectOrder(int orderId, [FromBody] RejectOrderRequest request)
         {
             if (!TryGetUserId(out int userId))
-                return Unauthorized(new { message = "Invalid UserId" });
+                return Unauthorized(new
+                {
+                    message = "Invalid UserId"
+                });
 
             try
             {
                 var order = _orderService.RejectOrder(orderId, request.Reason, userId);
 
                 if (order == null)
-                    return NotFound(new { message = "Order not found" });
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
 
                 return Ok(new
                 {
@@ -168,10 +265,13 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
-        //Update Order Status
+
         [HttpPut("{orderId}/status")]
         [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
@@ -181,7 +281,10 @@ namespace Shop2026.Controllers
                 var order = _orderService.UpdateOrderStatus(orderId, request.Status);
 
                 if (order == null)
-                    return NotFound(new { message = "Order not found" });
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
 
                 return Ok(new
                 {
@@ -191,7 +294,10 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
     }
