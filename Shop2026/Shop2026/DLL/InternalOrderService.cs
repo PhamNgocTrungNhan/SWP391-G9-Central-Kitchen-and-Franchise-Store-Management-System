@@ -49,20 +49,19 @@ namespace Shop2026.DLL
             return _orderRepository.GetOrderDetail(orderId);
         }
         //Cancel Order
-        public bool CancelOrder(int orderId)
+        public bool CancelOrder(int orderId, int storeId)
         {
             var order = _orderRepository.GetOrderById(orderId);
 
             if (order == null)
-            {
                 return false;
-            }
 
-            //only cancel when PENDING
+            // ✅ CHECK QUYỀN Ở ĐÂY
+            if (order.StoreId != storeId)
+                throw new Exception("Bạn không có quyền hủy đơn này");
+
             if (order.OrderStatus != "PENDING")
-            {
                 throw new Exception("Only PENDING orders can be cancelled");
-            }
 
             order.OrderStatus = "CANCELLED";
 
@@ -71,15 +70,18 @@ namespace Shop2026.DLL
             return true;
         }
         // Confirm Order Completed
-        public InternalOrder? ConfirmOrderCompleted(int orderId)
+        public InternalOrder? ConfirmOrderCompleted(int orderId, int storeId)
         {
             var order = _orderRepository.GetOrderById(orderId);
 
             if (order == null)
                 return null;
 
+            if (order.StoreId != storeId)
+                throw new Exception("Không có quyền");
+
             if (order.OrderStatus != "SHIPPING")
-                throw new Exception("Only SHIPPING orders can be confirmed as COMPLETED");
+                throw new Exception("Only SHIPPING orders can be confirmed");
 
             order.OrderStatus = "COMPLETED";
             order.UpdatedAt = DateTime.Now;
@@ -94,9 +96,9 @@ namespace Shop2026.DLL
             return _orderRepository.ApproveOrder(orderId, approvedBy);
         }
         //Reject Order
-        public InternalOrder? RejectOrder(int orderId, string reason)
+        public InternalOrder? RejectOrder(int orderId, string reason, int rejectedBy)
         {
-            return _orderRepository.RejectOrder(orderId, reason);
+            return _orderRepository.RejectOrder(orderId, reason, rejectedBy);
         }
         //Update Order Status
         public InternalOrder? UpdateOrderStatus(int orderId, string newStatus)
