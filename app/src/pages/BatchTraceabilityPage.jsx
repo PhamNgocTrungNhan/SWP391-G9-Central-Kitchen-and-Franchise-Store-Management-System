@@ -38,6 +38,14 @@ function toReadableDate(dateString) {
     return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function parseIdFromLocationHeader(locationValue) {
+    if (!locationValue) return 0
+    const matched = String(locationValue).match(/\/(\d+)(?:\?.*)?$/)
+    if (!matched) return 0
+    const parsed = Number(matched[1])
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
 function resolveDefaultStoreId() {
     const directValue = localStorage.getItem('storeId') || localStorage.getItem('store_id') || localStorage.getItem('current_store_id')
     if (directValue && String(directValue).trim()) return String(directValue).trim()
@@ -196,12 +204,18 @@ export default function BatchTraceabilityPage() {
     const [logs, setLogs] = useState([])
     const [batchLoading, setBatchLoading] = useState(false)
     const [batchError, setBatchError] = useState('')
+    const [batchInfo, setBatchInfo] = useState('')
     const [batchNotice, setBatchNotice] = useState('')
     const [batches, setBatches] = useState([])
     const [showCreateBatchForm, setShowCreateBatchForm] = useState(false)
     const [showViewBatchForm, setShowViewBatchForm] = useState(false)
     const [showEditBatchForm, setShowEditBatchForm] = useState(false)
+    const [showStatusBatchForm, setShowStatusBatchForm] = useState(false)
     const [viewBatchRow, setViewBatchRow] = useState(null)
+    const [statusBatchRow, setStatusBatchRow] = useState(null)
+    const [nextBatchStatus, setNextBatchStatus] = useState('IN_PROGRESS')
+    const [nextQuantityActual, setNextQuantityActual] = useState('')
+    const [batchStatusLoadingId, setBatchStatusLoadingId] = useState(null)
     const [editBatchId, setEditBatchId] = useState('')
     const [editBatchProductId, setEditBatchProductId] = useState('1')
     const [editBatchQuantityPlanned, setEditBatchQuantityPlanned] = useState('1')
@@ -344,6 +358,7 @@ export default function BatchTraceabilityPage() {
 
     const fetchProductionBatches = async () => {
         setBatchError('')
+        setBatchInfo('')
 
         const tk = token()
         if (!tk) {
@@ -365,8 +380,7 @@ export default function BatchTraceabilityPage() {
             const data = await response.json().catch(() => [])
             if (!response.ok) {
                 if (response.status === 405) {
-                    setBatchError('Backend chua ho tro GET /ProductionBatches (405). Ban van tao batch bang POST duoc.')
-                    setBatches([])
+                    setBatchInfo('Backend chua ho tro GET /ProductionBatches (405). Ban van tao batch bang POST; neu backend tra ID khi tao thi co the thao tac ngay.')
                     return
                 }
                 throw new Error(data?.message || data?.title || 'Khong the tai danh sach Production Batches.')
@@ -528,6 +542,7 @@ export default function BatchTraceabilityPage() {
 
     const createProductionBatch = async (source = null) => {
         setBatchError('')
+        setBatchInfo('')
         setBatchNotice('')
 
         const tk = token()
@@ -575,8 +590,13 @@ export default function BatchTraceabilityPage() {
 
             const productIdValue = Number(productId)
             const createdAt = new Date(mfgDateValue).toISOString()
+            const locationHeader = response.headers.get('Location') || response.headers.get('location') || response.headers.get('Content-Location') || response.headers.get('content-location')
+            const headerBatchId = parseIdFromLocationHeader(locationHeader)
+            const createdBatchId = Number(data?.productionBatchId ?? data?.batchId ?? data?.id ?? headerBatchId ?? 0)
             const localRow = {
-                id: Date.now(),
+                id: createdBatchId > 0 ? createdBatchId : null,
+                localKey: Date.now(),
+                pendingSync: createdBatchId <= 0,
                 productId: productIdValue,
                 productName: productNameMap[productIdValue] || `Product #${productIdValue}`,
                 storeId: parseSafeNumber(source?.storeId, 0),
@@ -589,6 +609,10 @@ export default function BatchTraceabilityPage() {
                 mfgDate: createdAt,
             }
             setBatches((prev) => [localRow, ...prev].slice(0, 20))
+
+            if (createdBatchId <= 0) {
+                setBatchInfo('Da tao me san xuat, nhung backend khong tra ve ID me. Vui long cap nhat backend de tra ve productionBatchId hoac header Location.')
+            }
 
             if (source?.key) {
                 setBatchNotice(`Da tao me san xuat tu don ${source.orderCode || `#${source.orderId}`}.`)
@@ -622,7 +646,10 @@ export default function BatchTraceabilityPage() {
 
     const openBatchEdit = (batch) => {
         const batchId = Number(batch?.id)
-        if (!batchId) return
+        if (!batchId) {
+            setBatchError('Batch nay chua co ID tu backend. Vui long bam Tai lai batch truoc khi cap nhat.')
+            return
+        }
         setEditBatchId(String(batchId))
         setEditBatchProductId(String(batch?.productId || 1))
         setEditBatchQuantityPlanned(String(batch?.quantityPlanned || 1))
@@ -709,7 +736,7 @@ export default function BatchTraceabilityPage() {
 
         const batchId = Number(batch?.id)
         if (!batchId) {
-            setBatchError('Batch ID khong hop le de xoa.')
+            setBatchError('Batch nay chua co ID tu backend. Vui long bam Tai lai batch truoc khi xoa.')
             return
         }
 
@@ -739,6 +766,79 @@ export default function BatchTraceabilityPage() {
             setBatchError(e.message || 'Xoa me san xuat that bai.')
         } finally {
             setBatchDeleteLoadingId(null)
+        }
+    }
+
+    const openBatchStatusForm = (batch) => {
+        if (!Number(batch?.id)) {
+            setBatchError('Batch nay chua co ID tu backend. Vui long bam Tai lai batch truoc khi chuyen status.')
+            return
+        }
+        setStatusBatchRow(batch)
+        setNextBatchStatus('IN_PROGRESS')
+        setNextQuantityActual('')
+        setBatchError('')
+        setBatchNotice('')
+        setShowStatusBatchForm(true)
+    }
+
+    const updateProductionBatchStatus = async () => {
+        const tk = token()
+        if (!tk) {
+            setBatchError('Thieu token dang nhap. Vui long dang nhap lai.')
+            return
+        }
+
+        const batchId = Number(statusBatchRow?.id)
+        if (!batchId) {
+            setBatchError('Batch ID khong hop le de cap nhat trang thai.')
+            return
+        }
+
+        const quantityActual = String(nextQuantityActual || '').trim()
+        const parsedQtyActual = quantityActual === '' ? null : Number(quantityActual)
+        if (parsedQtyActual !== null && (!Number.isFinite(parsedQtyActual) || parsedQtyActual < 0)) {
+            setBatchError('quantityActual phai >= 0 hoac de trong.')
+            return
+        }
+
+        setBatchStatusLoadingId(batchId)
+        setBatchError('')
+        setBatchNotice('')
+
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches/${batchId}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    status: nextBatchStatus,
+                    quantityActual: parsedQtyActual,
+                }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Khong the cap nhat trang thai me san xuat.')
+            }
+
+            setBatchNotice(data?.message || `Cap nhat trang thai me #${batchId} thanh cong.`)
+            setShowStatusBatchForm(false)
+            setBatches((prev) => prev.map((item) => {
+                if (Number(item.id) !== batchId) return item
+                return {
+                    ...item,
+                    status: nextBatchStatus,
+                    quantityProduced: parsedQtyActual !== null ? parsedQtyActual : item.quantityProduced,
+                }
+            }))
+        } catch (e) {
+            setBatchError(e.message || 'Cap nhat trang thai that bai.')
+        } finally {
+            setBatchStatusLoadingId(null)
         }
     }
 
@@ -954,6 +1054,7 @@ export default function BatchTraceabilityPage() {
                     </div>
 
                     {batchError ? <p className="px-5 py-3 text-sm text-red-600 dark:text-red-400">{batchError}</p> : null}
+                    {batchInfo ? <p className="px-5 py-3 text-sm text-amber-700 dark:text-amber-400">{batchInfo}</p> : null}
                     {batchNotice ? <p className="px-5 py-3 text-sm text-emerald-600 dark:text-emerald-400">{batchNotice}</p> : null}
 
                     <table className="w-full min-w-[860px] text-left border-collapse">
@@ -977,44 +1078,57 @@ export default function BatchTraceabilityPage() {
                                 </tr>
                             ) : null}
 
-                            {!batchLoading && batches.map((batch) => (
-                                <tr key={`${batch.id}-${batch.productId}-${batch.mfgDate || 'na'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-5 py-3 text-sm font-semibold">#{batch.id || 'N/A'}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.sourceOrderCode || 'N/A'}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.storeName || 'N/A'}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.productName}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.quantityPlanned}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.quantityProduced}</td>
-                                    <td className="px-5 py-3 text-sm">{batch.status}</td>
-                                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(batch.mfgDate)}</td>
-                                    <td className="px-5 py-3 text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => openBatchView(batch)}
-                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                title="View"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                            </button>
-                                            <button
-                                                onClick={() => openBatchEdit(batch)}
-                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                title="Edit"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">edit</span>
-                                            </button>
-                                            <button
-                                                onClick={() => deleteProductionBatch(batch)}
-                                                disabled={batchDeleteLoadingId === Number(batch.id)}
-                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
-                                                title="Delete"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {!batchLoading && batches.map((batch) => {
+                                const hasServerId = Number(batch?.id) > 0
+                                const isActionDisabled = !hasServerId || Boolean(batch?.pendingSync)
+                                return (
+                                    <tr key={`${batch.id || `local-${batch.localKey || 0}`}-${batch.productId}-${batch.mfgDate || 'na'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td className="px-5 py-3 text-sm font-semibold">{hasServerId ? `#${batch.id}` : 'LOCAL'}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.sourceOrderCode || 'N/A'}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.storeName || 'N/A'}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.productName}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.quantityPlanned}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.quantityProduced}</td>
+                                        <td className="px-5 py-3 text-sm">{batch.status}</td>
+                                        <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(batch.mfgDate)}</td>
+                                        <td className="px-5 py-3 text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => openBatchView(batch)}
+                                                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                    title="View"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => openBatchEdit(batch)}
+                                                    disabled={isActionDisabled}
+                                                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                                    title="Edit"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteProductionBatch(batch)}
+                                                    disabled={isActionDisabled || batchDeleteLoadingId === Number(batch.id)}
+                                                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                                    title="Delete"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => openBatchStatusForm(batch)}
+                                                    disabled={isActionDisabled || batchStatusLoadingId === Number(batch.id)}
+                                                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                                    title="Chuyen status"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">sync_alt</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -1181,6 +1295,61 @@ export default function BatchTraceabilityPage() {
                                 <p><span className="font-semibold">Quantity Produced:</span> {viewBatchRow.quantityProduced}</p>
                                 <p><span className="font-semibold">Status:</span> {viewBatchRow.status}</p>
                                 <p><span className="font-semibold">MFG Date:</span> {toReadableDate(viewBatchRow.mfgDate)}</p>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
+                {showStatusBatchForm && statusBatchRow ? (
+                    <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
+                        <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <p className="text-base font-semibold">Chuyen trang thai me #{statusBatchRow.id}</p>
+                                <button
+                                    onClick={() => setShowStatusBatchForm(false)}
+                                    className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    disabled={batchStatusLoadingId === Number(statusBatchRow.id)}
+                                >
+                                    Dong
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</span>
+                                    <select
+                                        value={nextBatchStatus}
+                                        onChange={(e) => setNextBatchStatus(e.target.value)}
+                                        className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    >
+                                        <option value="IN_PROGRESS">IN_PROGRESS</option>
+                                        <option value="COMPLETED">COMPLETED</option>
+                                        <option value="CANCELLED">CANCELLED</option>
+                                    </select>
+                                </label>
+
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quantity Actual (tuy chon)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={nextQuantityActual}
+                                        onChange={(e) => setNextQuantityActual(e.target.value)}
+                                        placeholder="De trong neu chua co"
+                                        className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-3">
+                                <button
+                                    onClick={updateProductionBatchStatus}
+                                    disabled={batchStatusLoadingId === Number(statusBatchRow.id)}
+                                    className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+                                >
+                                    {batchStatusLoadingId === Number(statusBatchRow.id) ? 'Dang cap nhat...' : 'Cap nhat trang thai'}
+                                </button>
                             </div>
                         </div>
                     </div>
