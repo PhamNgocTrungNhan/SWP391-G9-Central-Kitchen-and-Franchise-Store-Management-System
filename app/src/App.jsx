@@ -13,6 +13,13 @@ import StoreOrderPage from './pages/StoreOrderPage'
 import OrderManagementPage from './pages/OrderManagementPage'
 import SystemConfigPage from './pages/SystemConfigPage'
 import ProductManagementPage from './pages/ProductManagementPage'
+import CategoriesPage from './pages/CategoriesPage'
+import OrganizationPage from './pages/OrganizationPage'
+import RecipesPage from './pages/RecipesPage'
+import InventoryPage from './pages/InventoryPage'
+import InternalOrdersPage from './pages/InternalOrdersPage'
+import ProductionBatchesPage from './pages/ProductionBatchesPage'
+import UsersPage from './pages/UsersPage'
 import Layout from './components/Layout'
 
 function App() {
@@ -42,15 +49,25 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/inventory" element={<BatchTraceabilityPage />} />
+
+          {/* FE route set */}
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/organization" element={<OrganizationPage />} />
+          <Route path="/recipes" element={<RecipesPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/internal-orders" element={<InternalOrdersPage />} />
+          <Route path="/production-batches" element={<ProductionBatchesPage />} />
+          <Route path="/users" element={<UsersPage />} />
+
+          {/* Existing Quanvnm_API route set */}
+          <Route path="/batch-traceability" element={<BatchTraceabilityPage />} />
           <Route path="/organization/stores" element={<FranchiseNetworkPage />} />
           <Route path="/organization/kitchens" element={<KitchenManagementPage />} />
           <Route path="/network" element={<Navigate to="/organization/stores" replace />} />
-          <Route path="/recipes" element={<RecipeBOMPage />} />
+          <Route path="/recipe-bom" element={<RecipeBOMPage />} />
           <Route path="/delivery" element={<StoreDeliveryPage />} />
           <Route path="/dispatch" element={<SupplyDispatchPage />} />
-          <Route path="/users" element={<UserRolesPage />} />
-          {/* New pages */}
+          <Route path="/user-roles" element={<UserRolesPage />} />
           <Route path="/store-orders" element={<StoreOrderPage />} />
           <Route path="/order-management" element={<OrderManagementPage />} />
           <Route path="/system-config" element={<SystemConfigPage />} />
