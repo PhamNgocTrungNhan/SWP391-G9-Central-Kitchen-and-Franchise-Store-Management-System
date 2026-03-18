@@ -116,10 +116,16 @@ function toInventoryLogRow(item, productNameById) {
 
 function toProductionBatchRow(item, productNameById) {
     const productId = parseSafeNumber(item?.productId, 0)
+    const storeId = parseSafeNumber(item?.storeId ?? item?.store?.storeId ?? item?.store?.id, 0)
+    const sourceOrderId = parseSafeNumber(item?.internalOrderId ?? item?.orderId ?? item?.sourceOrderId ?? item?.referenceId, 0)
     return {
         id: parseSafeNumber(item?.productionBatchId ?? item?.batchId ?? item?.id, 0),
         productId,
         productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        storeId,
+        storeName: item?.store?.storeName || item?.store?.name || (storeId ? `Store #${storeId}` : 'N/A'),
+        sourceOrderId,
+        sourceOrderCode: item?.orderCode || (sourceOrderId ? `#${sourceOrderId}` : 'N/A'),
         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
         quantityProduced: parseSafeNumber(item?.quantityProduced, 0),
         status: item?.status || item?.batchStatus || 'N/A',
@@ -127,9 +133,61 @@ function toProductionBatchRow(item, productNameById) {
     }
 }
 
+function normalizeOrderStatus(rawStatus) {
+    const status = String(rawStatus || '').toUpperCase()
+    if (status === 'APPROVED') return 'Approved'
+    if (status === 'CONFIRMED') return 'Confirmed'
+    if (status === 'PROCESSING') return 'Processing'
+    if (status === 'PENDING') return 'Pending'
+    if (status === 'DELIVERED' || status === 'COMPLETED') return 'Delivered'
+    if (status === 'REJECTED') return 'Rejected'
+    if (status === 'CANCELLED') return 'Cancelled'
+    return rawStatus || 'Pending'
+}
+
+function normalizeInternalOrderRows(rawOrders, productNameById) {
+    const records = parseArrayData(rawOrders)
+    return records
+        .map((item) => {
+            const orderId = parseSafeNumber(item?.orderId ?? item?.internalOrderId ?? item?.id, 0)
+            if (!orderId) return null
+
+            const storeId = parseSafeNumber(item?.storeId ?? item?.store?.storeId ?? item?.store?.id, 0)
+            const detailsRaw = Array.isArray(item?.internalOrderDetails)
+                ? item.internalOrderDetails
+                : Array.isArray(item?.orderDetails)
+                    ? item.orderDetails
+                    : []
+
+            const details = detailsRaw
+                .map((row, idx) => {
+                    const productId = parseSafeNumber(row?.productId, 0)
+                    const quantityOrdered = parseSafeNumber(row?.quantityOrdered, 0)
+                    if (!productId || quantityOrdered <= 0) return null
+                    return {
+                        key: `${orderId}-${productId}-${idx}`,
+                        productId,
+                        productName: row?.product?.productName || row?.product?.name || productNameById[productId] || `Product #${productId}`,
+                        quantityOrdered,
+                    }
+                })
+                .filter(Boolean)
+
+            return {
+                orderId,
+                orderCode: item?.orderCode || `#${orderId}`,
+                status: normalizeOrderStatus(item?.orderStatus || item?.status),
+                storeId,
+                storeName: item?.store?.storeName || item?.store?.name || (storeId ? `Store #${storeId}` : 'N/A'),
+                details,
+            }
+        })
+        .filter(Boolean)
+}
+
 export default function BatchTraceabilityPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
-    const [inventoryMode, setInventoryMode] = useState('store')
+    const [inventoryMode, setInventoryMode] = useState('all')
     const [storeId, setStoreId] = useState(resolveDefaultStoreId)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -140,9 +198,22 @@ export default function BatchTraceabilityPage() {
     const [batchError, setBatchError] = useState('')
     const [batchNotice, setBatchNotice] = useState('')
     const [batches, setBatches] = useState([])
+    const [showCreateBatchForm, setShowCreateBatchForm] = useState(false)
+    const [showViewBatchForm, setShowViewBatchForm] = useState(false)
+    const [showEditBatchForm, setShowEditBatchForm] = useState(false)
+    const [viewBatchRow, setViewBatchRow] = useState(null)
+    const [editBatchId, setEditBatchId] = useState('')
+    const [editBatchProductId, setEditBatchProductId] = useState('1')
+    const [editBatchQuantityPlanned, setEditBatchQuantityPlanned] = useState('1')
+    const [editBatchMfgDate, setEditBatchMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
+    const [batchDeleteLoadingId, setBatchDeleteLoadingId] = useState(null)
+    const [batchCreateOrderKey, setBatchCreateOrderKey] = useState('')
     const [batchProductId, setBatchProductId] = useState('1')
     const [batchQuantityPlanned, setBatchQuantityPlanned] = useState('1')
     const [batchMfgDate, setBatchMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
+    const [orderRows, setOrderRows] = useState([])
+    const [orderLoading, setOrderLoading] = useState(false)
+    const [orderError, setOrderError] = useState('')
     const [productNameMap, setProductNameMap] = useState({})
 
     const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
@@ -317,7 +388,145 @@ export default function BatchTraceabilityPage() {
         }
     }
 
-    const createProductionBatch = async () => {
+    const fetchOrdersForBatch = async () => {
+        setOrderError('')
+
+        const tk = token()
+        if (!tk) {
+            setOrderRows([])
+            setOrderError('Thieu token dang nhap de tai don order.')
+            return
+        }
+
+        setOrderLoading(true)
+        try {
+            const headers = {
+                accept: '*/*',
+                Authorization: `Bearer ${tk}`,
+            }
+
+            const fetchOrderRecords = async (url) => {
+                const res = await fetch(url, { method: 'GET', headers })
+                const payload = await res.json().catch(() => [])
+                if (!res.ok) {
+                    throw new Error(payload?.message || payload?.title || 'Khong the tai danh sach don order.')
+                }
+                return parseArrayData(payload)
+            }
+
+            let mergedOrders = []
+            let allOrdersError = ''
+
+            try {
+                mergedOrders = await fetchOrderRecords(`${apiBase}/internal-orders`)
+            } catch (e) {
+                allOrdersError = e.message || 'Loi tai danh sach order toan he thong.'
+            }
+
+            if (!mergedOrders.length) {
+                const storesRes = await fetch(`${apiBase}/Organization/stores`, {
+                    method: 'GET',
+                    headers,
+                })
+                const storesPayload = await storesRes.json().catch(() => [])
+                const stores = storesRes.ok ? parseArrayData(storesPayload) : []
+
+                const storeIds = stores
+                    .map((store) => Number(store?.storeId ?? store?.id))
+                    .filter((id) => Number.isFinite(id) && id > 0)
+
+                if (storeIds.length) {
+                    const results = await Promise.allSettled(
+                        storeIds.map((id) => fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(id)}`)),
+                    )
+
+                    const dedupeMap = new Map()
+                    results.forEach((result) => {
+                        if (result.status !== 'fulfilled') return
+                        result.value.forEach((order) => {
+                            const orderId = Number(order?.orderId ?? order?.internalOrderId ?? order?.id)
+                            if (orderId > 0) dedupeMap.set(orderId, order)
+                        })
+                    })
+                    mergedOrders = Array.from(dedupeMap.values())
+                }
+            }
+
+            if (!mergedOrders.length && allOrdersError) {
+                throw new Error(allOrdersError)
+            }
+
+            const approvedOrders = normalizeInternalOrderRows(mergedOrders, productNameMap)
+                .filter((order) => order.status === 'Approved')
+
+            const needHydrate = approvedOrders.filter((order) => !Array.isArray(order.details) || order.details.length === 0)
+            let hydratedMap = new Map()
+
+            if (needHydrate.length) {
+                const detailResults = await Promise.allSettled(
+                    needHydrate.map(async (order) => {
+                        const detailRes = await fetch(`${apiBase}/internal-orders/${order.orderId}`, {
+                            method: 'GET',
+                            headers,
+                        })
+                        const detailPayload = await detailRes.json().catch(() => ({}))
+                        if (!detailRes.ok) return { orderId: order.orderId, details: [] }
+
+                        const detailsRaw = Array.isArray(detailPayload?.internalOrderDetails)
+                            ? detailPayload.internalOrderDetails
+                            : Array.isArray(detailPayload?.orderDetails)
+                                ? detailPayload.orderDetails
+                                : []
+
+                        const details = detailsRaw
+                            .map((row, idx) => {
+                                const productId = parseSafeNumber(row?.productId, 0)
+                                const quantityOrdered = parseSafeNumber(row?.quantityOrdered, 0)
+                                if (!productId || quantityOrdered <= 0) return null
+                                return {
+                                    key: `${order.orderId}-${productId}-${idx}`,
+                                    productId,
+                                    productName: row?.product?.productName || row?.product?.name || productNameMap[productId] || `Product #${productId}`,
+                                    quantityOrdered,
+                                }
+                            })
+                            .filter(Boolean)
+
+                        return { orderId: order.orderId, details }
+                    }),
+                )
+
+                hydratedMap = new Map(
+                    detailResults
+                        .filter((result) => result.status === 'fulfilled')
+                        .map((result) => [result.value.orderId, result.value.details]),
+                )
+            }
+
+            const normalized = approvedOrders
+                .map((order) => {
+                    const hydratedDetails = hydratedMap.get(order.orderId)
+                    if (Array.isArray(hydratedDetails) && hydratedDetails.length > 0) {
+                        return { ...order, details: hydratedDetails }
+                    }
+                    return order
+                })
+                .filter((order) => Array.isArray(order.details) && order.details.length > 0)
+
+            if (approvedOrders.length > 0 && normalized.length === 0) {
+                setOrderError('Don da duyet co ton tai, nhung backend khong tra chi tiet san pham de tao me.')
+            }
+
+            setOrderRows(normalized)
+        } catch (e) {
+            setOrderRows([])
+            setOrderError(e.message || 'Tai danh sach don order that bai.')
+        } finally {
+            setOrderLoading(false)
+        }
+    }
+
+    const createProductionBatch = async (source = null) => {
         setBatchError('')
         setBatchNotice('')
 
@@ -327,18 +536,20 @@ export default function BatchTraceabilityPage() {
             return
         }
 
-        const productId = Number(batchProductId)
-        const quantityPlanned = Number(batchQuantityPlanned)
+        const productId = Number(source?.productId ?? batchProductId)
+        const quantityPlanned = Number(source?.quantityPlanned ?? batchQuantityPlanned)
+        const mfgDateValue = source?.mfgDate || batchMfgDate
         if (!productId || productId < 1 || !Number.isFinite(quantityPlanned) || quantityPlanned < 1) {
             setBatchError('productId va quantityPlanned phai lon hon 0.')
             return
         }
-        if (!batchMfgDate) {
+        if (!mfgDateValue) {
             setBatchError('Vui long nhap mfgDate.')
             return
         }
 
         setBatchLoading(true)
+        if (source?.key) setBatchCreateOrderKey(source.key)
         try {
             const response = await fetch(`${apiBase}/ProductionBatches`, {
                 method: 'POST',
@@ -350,7 +561,7 @@ export default function BatchTraceabilityPage() {
                 body: JSON.stringify({
                     productId,
                     quantityPlanned,
-                    mfgDate: new Date(batchMfgDate).toISOString(),
+                    mfgDate: new Date(mfgDateValue).toISOString(),
                 }),
             })
 
@@ -360,23 +571,174 @@ export default function BatchTraceabilityPage() {
             }
 
             setBatchNotice(data?.message || 'Tao me san xuat thanh cong.')
+            setShowCreateBatchForm(false)
 
             const productIdValue = Number(productId)
-            const createdAt = new Date(batchMfgDate).toISOString()
+            const createdAt = new Date(mfgDateValue).toISOString()
             const localRow = {
                 id: Date.now(),
                 productId: productIdValue,
                 productName: productNameMap[productIdValue] || `Product #${productIdValue}`,
+                storeId: parseSafeNumber(source?.storeId, 0),
+                storeName: source?.storeName || (source?.storeId ? `Store #${source.storeId}` : 'N/A'),
+                sourceOrderId: parseSafeNumber(source?.orderId, 0),
+                sourceOrderCode: source?.orderCode || (source?.orderId ? `#${source.orderId}` : 'N/A'),
                 quantityPlanned,
                 quantityProduced: 0,
                 status: 'CREATED',
                 mfgDate: createdAt,
             }
             setBatches((prev) => [localRow, ...prev].slice(0, 20))
+
+            if (source?.key) {
+                setBatchNotice(`Da tao me san xuat tu don ${source.orderCode || `#${source.orderId}`}.`)
+            }
         } catch (e) {
             setBatchError(e.message || 'Khong the tao me san xuat.')
         } finally {
             setBatchLoading(false)
+            setBatchCreateOrderKey('')
+        }
+    }
+
+    const createBatchFromOrderDetail = (order, detail) => {
+        const plannedQty = Math.max(1, Number(detail?.quantityOrdered || 0))
+        createProductionBatch({
+            key: detail?.key,
+            productId: detail?.productId,
+            quantityPlanned: plannedQty,
+            mfgDate: new Date().toISOString(),
+            storeId: order?.storeId,
+            storeName: order?.storeName,
+            orderId: order?.orderId,
+            orderCode: order?.orderCode,
+        })
+    }
+
+    const openBatchView = (batch) => {
+        setViewBatchRow(batch)
+        setShowViewBatchForm(true)
+    }
+
+    const openBatchEdit = (batch) => {
+        const batchId = Number(batch?.id)
+        if (!batchId) return
+        setEditBatchId(String(batchId))
+        setEditBatchProductId(String(batch?.productId || 1))
+        setEditBatchQuantityPlanned(String(batch?.quantityPlanned || 1))
+        const parsedMfgDate = batch?.mfgDate ? new Date(batch.mfgDate) : new Date()
+        const localDate = Number.isNaN(parsedMfgDate.getTime()) ? new Date() : parsedMfgDate
+        setEditBatchMfgDate(localDate.toISOString().slice(0, 16))
+        setBatchError('')
+        setBatchNotice('')
+        setShowEditBatchForm(true)
+    }
+
+    const updateProductionBatch = async () => {
+        const tk = token()
+        if (!tk) {
+            setBatchError('Thieu token dang nhap. Vui long dang nhap lai.')
+            return
+        }
+
+        const batchId = Number(editBatchId)
+        const productId = Number(editBatchProductId)
+        const quantityPlanned = Number(editBatchQuantityPlanned)
+        if (!batchId || batchId < 1) {
+            setBatchError('Batch ID khong hop le de cap nhat.')
+            return
+        }
+        if (!productId || productId < 1 || !Number.isFinite(quantityPlanned) || quantityPlanned < 1) {
+            setBatchError('productId va quantityPlanned phai lon hon 0.')
+            return
+        }
+        if (!editBatchMfgDate) {
+            setBatchError('Vui long nhap mfgDate.')
+            return
+        }
+
+        setBatchLoading(true)
+        setBatchError('')
+        setBatchNotice('')
+
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches/${batchId}`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    productId,
+                    quantityPlanned,
+                    mfgDate: new Date(editBatchMfgDate).toISOString(),
+                }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Khong the cap nhat me san xuat.')
+            }
+
+            setBatchNotice(data?.message || `Cap nhat me san xuat #${batchId} thanh cong.`)
+            setShowEditBatchForm(false)
+            setBatches((prev) => prev.map((item) => {
+                if (Number(item.id) !== batchId) return item
+                return {
+                    ...item,
+                    productId,
+                    productName: productNameMap[productId] || `Product #${productId}`,
+                    quantityPlanned,
+                    mfgDate: new Date(editBatchMfgDate).toISOString(),
+                }
+            }))
+        } catch (e) {
+            setBatchError(e.message || 'Cap nhat me san xuat that bai.')
+        } finally {
+            setBatchLoading(false)
+        }
+    }
+
+    const deleteProductionBatch = async (batch) => {
+        const tk = token()
+        if (!tk) {
+            setBatchError('Thieu token dang nhap. Vui long dang nhap lai.')
+            return
+        }
+
+        const batchId = Number(batch?.id)
+        if (!batchId) {
+            setBatchError('Batch ID khong hop le de xoa.')
+            return
+        }
+
+        if (!window.confirm(`Xac nhan xoa me san xuat #${batchId}?`)) return
+
+        setBatchDeleteLoadingId(batchId)
+        setBatchError('')
+        setBatchNotice('')
+
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches/${batchId}`, {
+                method: 'DELETE',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Khong the xoa me san xuat.')
+            }
+
+            setBatchNotice(data?.message || `Da xoa me san xuat #${batchId}.`)
+            setBatches((prev) => prev.filter((item) => Number(item.id) !== batchId))
+        } catch (e) {
+            setBatchError(e.message || 'Xoa me san xuat that bai.')
+        } finally {
+            setBatchDeleteLoadingId(null)
         }
     }
 
@@ -387,6 +749,11 @@ export default function BatchTraceabilityPage() {
     useEffect(() => {
         fetchInventoryData()
     }, [inventoryMode, storeId, Object.keys(productNameMap).length])
+
+    useEffect(() => {
+        if (!Object.keys(productNameMap).length) return
+        fetchOrdersForBatch()
+    }, [Object.keys(productNameMap).length])
 
     const stats = useMemo(() => ({
         total: rows.length,
@@ -510,52 +877,80 @@ export default function BatchTraceabilityPage() {
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
                     <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold">Production Batches</p>
+                        <div>
+                            <p className="text-sm font-semibold">Tao me theo don order</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Hien don da duyet (Approved) toan he thong de tao me.</p>
+                        </div>
                         <button
                             className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
-                            onClick={fetchProductionBatches}
+                            onClick={fetchOrdersForBatch}
                         >
-                            Tai lai batch
+                            Tai lai order
                         </button>
                     </div>
 
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                        <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Product ID</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={batchProductId}
-                                onChange={(e) => setBatchProductId(e.target.value)}
-                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quantity Planned</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={batchQuantityPlanned}
-                                onChange={(e) => setBatchQuantityPlanned(e.target.value)}
-                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MFG Date</span>
-                            <input
-                                type="datetime-local"
-                                value={batchMfgDate}
-                                onChange={(e) => setBatchMfgDate(e.target.value)}
-                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            />
-                        </label>
-                        <button
-                            className="h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
-                            onClick={createProductionBatch}
-                            disabled={batchLoading}
-                        >
-                            {batchLoading ? 'Dang xu ly...' : 'Tao batch'}
-                        </button>
+                    {orderError ? <p className="px-5 py-3 text-sm text-red-600 dark:text-red-400">{orderError}</p> : null}
+
+                    <table className="w-full min-w-[900px] text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                {['Order', 'Store', 'Trang thai', 'San pham', 'So luong order', 'Thao tac'].map((h) => (
+                                    <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {orderLoading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Dang tai order...</td>
+                                </tr>
+                            ) : null}
+
+                            {!orderLoading && orderRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Khong co order phu hop de tao me.</td>
+                                </tr>
+                            ) : null}
+
+                            {!orderLoading && orderRows.flatMap((order) => order.details.map((detail) => ({ order, detail }))).map(({ order, detail }) => (
+                                <tr key={detail.key} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                    <td className="px-5 py-3 text-sm font-semibold">{order.orderCode}</td>
+                                    <td className="px-5 py-3 text-sm">{order.storeName}</td>
+                                    <td className="px-5 py-3 text-sm">{order.status}</td>
+                                    <td className="px-5 py-3 text-sm">{detail.productName}</td>
+                                    <td className="px-5 py-3 text-sm">{detail.quantityOrdered}</td>
+                                    <td className="px-5 py-3 text-sm">
+                                        <button
+                                            className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-60"
+                                            onClick={() => createBatchFromOrderDetail(order, detail)}
+                                            disabled={batchLoading && batchCreateOrderKey === detail.key}
+                                        >
+                                            {batchLoading && batchCreateOrderKey === detail.key ? 'Dang tao...' : 'Tao me tu order'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+                    <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold">Production Batches</p>
+                        <div className="flex items-center gap-2">
+                            <button
+                                className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                onClick={fetchProductionBatches}
+                            >
+                                Tai lai batch
+                            </button>
+                            <button
+                                className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90"
+                                onClick={() => { setBatchError(''); setBatchNotice(''); setShowCreateBatchForm(true) }}
+                            >
+                                Tao me san xuat
+                            </button>
+                        </div>
                     </div>
 
                     {batchError ? <p className="px-5 py-3 text-sm text-red-600 dark:text-red-400">{batchError}</p> : null}
@@ -564,7 +959,7 @@ export default function BatchTraceabilityPage() {
                     <table className="w-full min-w-[860px] text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                {['Batch ID', 'Product', 'So luong ke hoach', 'So luong da SX', 'Trang thai', 'MFG Date'].map((h) => (
+                                {['Batch ID', 'Order', 'Store', 'Product', 'So luong ke hoach', 'So luong da SX', 'Trang thai', 'MFG Date', 'Thao tac'].map((h) => (
                                     <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                                 ))}
                             </tr>
@@ -572,24 +967,52 @@ export default function BatchTraceabilityPage() {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {batchLoading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Dang tai production batches...</td>
+                                    <td colSpan={9} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Dang tai production batches...</td>
                                 </tr>
                             ) : null}
 
                             {!batchLoading && batches.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Chua co production batch nao.</td>
+                                    <td colSpan={9} className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Chua co production batch nao.</td>
                                 </tr>
                             ) : null}
 
                             {!batchLoading && batches.map((batch) => (
                                 <tr key={`${batch.id}-${batch.productId}-${batch.mfgDate || 'na'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                     <td className="px-5 py-3 text-sm font-semibold">#{batch.id || 'N/A'}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.sourceOrderCode || 'N/A'}</td>
+                                    <td className="px-5 py-3 text-sm">{batch.storeName || 'N/A'}</td>
                                     <td className="px-5 py-3 text-sm">{batch.productName}</td>
                                     <td className="px-5 py-3 text-sm">{batch.quantityPlanned}</td>
                                     <td className="px-5 py-3 text-sm">{batch.quantityProduced}</td>
                                     <td className="px-5 py-3 text-sm">{batch.status}</td>
                                     <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(batch.mfgDate)}</td>
+                                    <td className="px-5 py-3 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => openBatchView(batch)}
+                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                title="View"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                            </button>
+                                            <button
+                                                onClick={() => openBatchEdit(batch)}
+                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                title="Edit"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                                            </button>
+                                            <button
+                                                onClick={() => deleteProductionBatch(batch)}
+                                                disabled={batchDeleteLoadingId === Number(batch.id)}
+                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                                title="Delete"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -644,6 +1067,124 @@ export default function BatchTraceabilityPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {showCreateBatchForm ? (
+                    <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
+                        <div className="w-full max-w-2xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <p className="text-base font-semibold">Tao me san xuat (POST /ProductionBatches)</p>
+                                <button
+                                    onClick={() => setShowCreateBatchForm(false)}
+                                    className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    disabled={batchLoading}
+                                >
+                                    Dong
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Product ID</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={batchProductId}
+                                        onChange={(e) => setBatchProductId(e.target.value)}
+                                        className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quantity Planned</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={batchQuantityPlanned}
+                                        onChange={(e) => setBatchQuantityPlanned(e.target.value)}
+                                        className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MFG Date</span>
+                                    <input
+                                        type="datetime-local"
+                                        value={batchMfgDate}
+                                        onChange={(e) => setBatchMfgDate(e.target.value)}
+                                        className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-3">
+                                <button
+                                    className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+                                    onClick={createProductionBatch}
+                                    disabled={batchLoading}
+                                >
+                                    {batchLoading ? 'Dang xu ly...' : 'Tao batch'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
+                {showEditBatchForm ? (
+                    <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
+                        <div className="w-full max-w-2xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <p className="text-base font-semibold">Cap nhat me san xuat (PUT /ProductionBatches/{editBatchId})</p>
+                                <button
+                                    onClick={() => setShowEditBatchForm(false)}
+                                    className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    disabled={batchLoading}
+                                >
+                                    Dong
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Product ID</span>
+                                    <input type="number" min="1" value={editBatchProductId} onChange={(e) => setEditBatchProductId(e.target.value)} className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quantity Planned</span>
+                                    <input type="number" min="1" value={editBatchQuantityPlanned} onChange={(e) => setEditBatchQuantityPlanned(e.target.value)} className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MFG Date</span>
+                                    <input type="datetime-local" value={editBatchMfgDate} onChange={(e) => setEditBatchMfgDate(e.target.value)} className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm" />
+                                </label>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-3">
+                                <button onClick={updateProductionBatch} disabled={batchLoading} className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60">
+                                    {batchLoading ? 'Dang cap nhat...' : 'Luu cap nhat'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
+                {showViewBatchForm && viewBatchRow ? (
+                    <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
+                        <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <p className="text-base font-semibold">Chi tiet me san xuat #{viewBatchRow.id}</p>
+                                <button onClick={() => setShowViewBatchForm(false)} className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Dong</button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                <p><span className="font-semibold">Batch ID:</span> #{viewBatchRow.id}</p>
+                                <p><span className="font-semibold">Order:</span> {viewBatchRow.sourceOrderCode || 'N/A'}</p>
+                                <p><span className="font-semibold">Store:</span> {viewBatchRow.storeName || 'N/A'}</p>
+                                <p><span className="font-semibold">Product:</span> {viewBatchRow.productName}</p>
+                                <p><span className="font-semibold">Quantity Planned:</span> {viewBatchRow.quantityPlanned}</p>
+                                <p><span className="font-semibold">Quantity Produced:</span> {viewBatchRow.quantityProduced}</p>
+                                <p><span className="font-semibold">Status:</span> {viewBatchRow.status}</p>
+                                <p><span className="font-semibold">MFG Date:</span> {toReadableDate(viewBatchRow.mfgDate)}</p>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </div>
     )

@@ -72,7 +72,7 @@ export default function OrderManagementPage() {
     const [productNameMap, setProductNameMap] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
-    const [storeIdFilter, setStoreIdFilter] = useState(resolveDefaultStoreId)
+    const [storeIdFilter, setStoreIdFilter] = useState('')
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
     const [transferLoadingId, setTransferLoadingId] = useState(null)
@@ -154,19 +154,15 @@ export default function OrderManagementPage() {
         }
 
         const storeId = String(storeIdFilter || '').trim()
-        if (!storeId) {
-            openNotice('error', 'Vui lòng nhập Store ID để tải danh sách đơn hàng nội bộ.')
-            return
+        const headers = {
+            accept: '*/*',
+            Authorization: `Bearer ${tk}`,
         }
 
-        setLoading(true)
-        try {
-            const response = await fetch(`${apiBase}/internal-orders?storeId=${encodeURIComponent(storeId)}`, {
+        const fetchOrderRecords = async (url) => {
+            const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
+                headers,
             })
 
             const data = await response.json().catch(() => [])
@@ -174,7 +170,57 @@ export default function OrderManagementPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách đơn hàng nội bộ.')
             }
 
-            const records = Array.isArray(data) ? data : data?.items || []
+            return Array.isArray(data) ? data : data?.items || []
+        }
+
+        setLoading(true)
+        try {
+            let records = []
+
+            if (storeId) {
+                records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(storeId)}`)
+            } else {
+                let allOrdersError = ''
+                try {
+                    records = await fetchOrderRecords(`${apiBase}/internal-orders`)
+                } catch (error) {
+                    allOrdersError = error.message || 'Không thể tải danh sách order toàn hệ thống.'
+                }
+
+                if (!records.length) {
+                    const storesRes = await fetch(`${apiBase}/Organization/stores`, {
+                        method: 'GET',
+                        headers,
+                    })
+                    const storesData = await storesRes.json().catch(() => [])
+                    const stores = storesRes.ok ? (Array.isArray(storesData) ? storesData : storesData?.items || []) : []
+
+                    const storeIds = stores
+                        .map((item) => Number(item?.storeId ?? item?.id))
+                        .filter((id) => Number.isFinite(id) && id > 0)
+
+                    if (storeIds.length) {
+                        const results = await Promise.allSettled(
+                            storeIds.map((id) => fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(id)}`)),
+                        )
+
+                        const dedupeMap = new Map()
+                        results.forEach((result) => {
+                            if (result.status !== 'fulfilled') return
+                            result.value.forEach((order) => {
+                                const orderId = Number(order?.orderId || order?.internalOrderId || order?.id)
+                                if (orderId > 0) dedupeMap.set(orderId, order)
+                            })
+                        })
+                        records = Array.from(dedupeMap.values())
+                    }
+                }
+
+                if (!records.length && allOrdersError) {
+                    throw new Error(allOrdersError)
+                }
+            }
+
             setOrders(normalizeOrders(records))
         } catch (error) {
             setOrders([])
@@ -482,17 +528,17 @@ export default function OrderManagementPage() {
                                 value={storeIdFilter}
                                 onChange={(e) => setStoreIdFilter(e.target.value)}
                                 className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                                placeholder="Nhập Store ID"
+                                placeholder="Để trống = toàn bộ"
                             />
                         </label>
                         <button
                             className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
                             onClick={fetchOrders}
                         >
-                            Tải theo Store
+                            Tải danh sách
                         </button>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">API mới hiện hỗ trợ danh sách ổn định theo storeId (ví dụ: 1).</p>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Mặc định hiển thị toàn bộ đơn. Bạn có thể nhập Store ID để lọc sau.</p>
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
