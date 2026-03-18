@@ -1,15 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
-import BatchTraceabilityPage from './pages/BatchTraceabilityPage'
-import FranchiseNetworkPage from './pages/FranchiseNetworkPage'
-import RecipeBOMPage from './pages/RecipeBOMPage'
-import StoreDeliveryPage from './pages/StoreDeliveryPage'
-import SupplyDispatchPage from './pages/SupplyDispatchPage'
-import UserRolesPage from './pages/UserRolesPage'
-import StoreOrderPage from './pages/StoreOrderPage'
-import OrderManagementPage from './pages/OrderManagementPage'
-import SystemConfigPage from './pages/SystemConfigPage'
+import CategoriesPage from './pages/CategoriesPage'
+import OrganizationPage from './pages/OrganizationPage'
+import RecipesPage from './pages/RecipesPage'
+import InventoryPage from './pages/InventoryPage'
+import InternalOrdersPage from './pages/InternalOrdersPage'
+import ProductionBatchesPage from './pages/ProductionBatchesPage'
+import UsersPage from './pages/UsersPage'
 import Layout from './components/Layout'
 
 function App() {
@@ -19,16 +17,13 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/inventory" element={<BatchTraceabilityPage />} />
-          <Route path="/network" element={<FranchiseNetworkPage />} />
-          <Route path="/recipes" element={<RecipeBOMPage />} />
-          <Route path="/delivery" element={<StoreDeliveryPage />} />
-          <Route path="/dispatch" element={<SupplyDispatchPage />} />
-          <Route path="/users" element={<UserRolesPage />} />
-          {/* New pages */}
-          <Route path="/store-orders" element={<StoreOrderPage />} />
-          <Route path="/order-management" element={<OrderManagementPage />} />
-          <Route path="/system-config" element={<SystemConfigPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/organization" element={<OrganizationPage />} />
+          <Route path="/recipes" element={<RecipesPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/internal-orders" element={<InternalOrdersPage />} />
+          <Route path="/production-batches" element={<ProductionBatchesPage />} />
+          <Route path="/users" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

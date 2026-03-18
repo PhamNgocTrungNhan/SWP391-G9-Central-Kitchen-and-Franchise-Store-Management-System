@@ -1,99 +1,70 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function LoginPage() {
-    const navigate = useNavigate()
+const modules = [
+  'Dashboard summaries',
+  'Category CRUD',
+  'Stores and kitchens',
+  'Inventory operations',
+  'Internal order actions',
+  'Production batches',
+  'User CRUD',
+]
 
-    return (
-        <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-center relative overflow-x-hidden">
-            {/* Decorative Background */}
-            <div
-                className="absolute inset-0 z-0 opacity-10 dark:opacity-5 pointer-events-none"
-                style={{
-                    backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBK-qcAWWe3g2LPAOINCMLMJzMo7Qzo2RYoL1WT55DfJ4yVIGtPvY5wx-Ogzw0E-EeKj3RjzTF-0GYK_IwXrz4duWYqZfIlxvmPDDBcgIR3mdFcjJKSyh0fK6KGBiX0nPvsL4wj0OayZbNDMmHUEB0mItp8e4TiXycKwwo8Wd7nPLk1SzwL17Czfcmg0Vo1qxn-lvrK6tf6gZMjD-SmRUvTlzNypxA04PnUZl-I2A2On6AZu4YhPpehkDCwTwJFOo4-ts4RYLVCgQ8')`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                }}
-            />
-            <div className="relative z-10 flex h-full grow flex-col px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-1 justify-center py-10 items-center">
-                    <div className="flex flex-col w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                        {/* Header */}
-                        <div className="flex flex-col gap-2 p-8 pb-6 border-b border-slate-100 dark:border-slate-800 text-center">
-                            <div className="mx-auto w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                                <span className="material-symbols-outlined text-primary text-3xl">corporate_fare</span>
-                            </div>
-                            <h1 className="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">Secure Enterprise Login</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Central Kitchen &amp; Franchise Management</p>
-                        </div>
-                        {/* Form */}
-                        <div className="p-8 pt-6 flex flex-col gap-5">
-                            {/* Username */}
-                            <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Username or Email</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">person</span>
-                                    <input
-                                        className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal"
-                                        placeholder="Enter your username"
-                                    />
-                                </div>
-                            </label>
-                            {/* Password */}
-                            <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Password</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">lock</span>
-                                    <input
-                                        type="password"
-                                        className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border-y border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal border-x-0"
-                                        placeholder="Enter your password"
-                                    />
-                                    <button className="text-slate-400 dark:text-slate-500 flex border border-l-0 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 items-center justify-center pr-3 pl-2 rounded-r-lg hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
-                                        <span className="material-symbols-outlined text-xl">visibility_off</span>
-                                    </button>
-                                </div>
-                            </label>
-                            {/* Branch Selection */}
-                            <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Branch / Location</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">storefront</span>
-                                    <select className="form-select flex w-full min-w-0 flex-1 overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 px-3 py-0 text-sm font-normal">
-                                        <option value="" disabled defaultValue="">Select assigned location...</option>
-                                        <option value="hq">Global Headquarters</option>
-                                        <option value="ck1">Central Kitchen - North</option>
-                                        <option value="ck2">Central Kitchen - South</option>
-                                        <option value="f101">Franchise #101 - Downtown</option>
-                                        <option value="f102">Franchise #102 - Westside</option>
-                                    </select>
-                                </div>
-                            </label>
-                            {/* Options Row */}
-                            <div className="flex items-center justify-between w-full mt-1">
-                                <label className="flex items-center gap-x-2 cursor-pointer group">
-                                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-1 focus:ring-primary focus:ring-offset-0 focus:outline-none transition-colors" />
-                                    <span className="text-slate-600 dark:text-slate-400 text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">Remember me</span>
-                                </label>
-                                <a href="#" className="text-primary hover:text-primary/80 text-sm font-medium transition-colors">Forgot password?</a>
-                            </div>
-                            {/* Sign In Button */}
-                            <div className="flex flex-col gap-3 mt-4">
-                                <button
-                                    onClick={() => navigate('/dashboard')}
-                                    className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold leading-normal tracking-wide transition-colors shadow-md shadow-primary/20"
-                                >
-                                    <span className="material-symbols-outlined mr-2 text-[20px]">login</span>
-                                    <span>Sign In to System</span>
-                                </button>
-                            </div>
-                        </div>
-                        {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-t border-slate-100 dark:border-slate-800 text-center">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Need access? Contact your IT Administrator.</p>
-                        </div>
-                    </div>
+export default function LoginPage() {
+  const navigate = useNavigate()
+
+  return (
+    <div className="min-h-screen bg-background-light px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1380px] gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="app-card relative overflow-hidden">
+          <div className="absolute -left-16 top-12 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-60 w-60 rounded-full bg-[#c98f47]/10 blur-3xl" />
+          <div className="relative">
+            <h1 className="max-w-xl font-display text-5xl font-bold tracking-tight text-[#213223]">
+              Shop2026 Operations Hub
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">
+              Sign in to manage categories, organization units, inventory, internal orders, production batches, recipes, and users.
+            </p>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {modules.map((item) => (
+                <div key={item} className="rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
+                  <p className="text-sm font-semibold text-[#2f4031]">{item}</p>
                 </div>
+              ))}
             </div>
-        </div>
-    )
+          </div>
+        </section>
+
+        <section className="app-card flex items-center justify-center">
+          <div className="w-full max-w-lg">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-[#223323]">Sign in</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              Use your account to access the system.
+            </p>
+
+            <div className="mt-8 space-y-5">
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7b6d54]">Username</span>
+                <input className="app-input" placeholder="admin" />
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7b6d54]">Password</span>
+                <input className="app-input" placeholder="password" type="password" />
+              </label>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <button className="app-button-primary" onClick={() => navigate('/dashboard')}>
+                <span className="material-symbols-outlined text-[18px]">login</span>
+                Sign in
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
 }

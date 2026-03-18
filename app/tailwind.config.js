@@ -1,4 +1,5 @@
-/** @type {import('tailwindcss').Config} */
+import forms from '@tailwindcss/forms'
+
 export default {
   darkMode: 'class',
   content: [
@@ -8,8 +9,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        'primary': '#135bec',
-        'background-light': '#f6f6f8',
+        'primary': '#2f6a3d',
+        'background-light': '#efe8da',
         'background-dark': '#101622',
         'surface-dark': '#1a2235',
         'surface-dark-alt': '#242e47',
@@ -25,7 +26,8 @@ export default {
         'status-danger-bg-dark': '#7f1d1d',
       },
       fontFamily: {
-        display: ['Inter', 'sans-serif'],
+        display: ['Space Grotesk', 'sans-serif'],
+        body: ['Manrope', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.25rem',
@@ -36,6 +38,6 @@ export default {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
+    forms,
   ],
 }
