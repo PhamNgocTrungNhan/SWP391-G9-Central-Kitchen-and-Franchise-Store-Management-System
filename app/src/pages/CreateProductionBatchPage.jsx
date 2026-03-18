@@ -109,7 +109,7 @@ export default function CreateProductionBatchPage() {
         const aggregate = new Map()
 
         orders.forEach((order) => {
-            ;(order.details || []).forEach((detail) => {
+            ; (order.details || []).forEach((detail) => {
                 const id = Number(detail.productId)
                 if (!id) return
 
