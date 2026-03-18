@@ -125,10 +125,12 @@ function toInventoryLogRow(item, productNameById) {
 
 export default function StoreOrderPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const ordersPerPage = 12
     const [tab, setTab] = useState(0) // 0=Place Order, 1=My Orders
     const [inventoryFilter, setInventoryFilter] = useState('store')
     const [showCreateOrderForm, setShowCreateOrderForm] = useState(false)
     const [orders, setOrders] = useState([])
+    const [ordersPage, setOrdersPage] = useState(1)
     const [ordersLoading, setOrdersLoading] = useState(false)
     const [ordersError, setOrdersError] = useState('')
     const [ordersStatusFilter, setOrdersStatusFilter] = useState('')
@@ -509,6 +511,10 @@ export default function StoreOrderPage() {
     }, [tab, formStoreId, ordersStatusFilter])
 
     useEffect(() => {
+        setOrdersPage(1)
+    }, [orders, tab, ordersStatusFilter, formStoreId])
+
+    useEffect(() => {
         if (tab === 2) {
             fetchInventory()
         }
@@ -610,8 +616,74 @@ export default function StoreOrderPage() {
         }
     }
 
+    const toastMessage = submitError
+        || detailError
+        || ordersError
+        || inventoryError
+        || optionsError
+        || submitSuccess
+        || inventoryInfo
+
+    const toastType = (submitError || detailError || ordersError || inventoryError)
+        ? 'error'
+        : (optionsError || inventoryInfo)
+            ? 'warning'
+            : toastMessage
+                ? 'success'
+                : ''
+
+    const totalOrderPages = Math.max(1, Math.ceil(orders.length / ordersPerPage))
+    const currentOrderPage = Math.min(Math.max(ordersPage, 1), totalOrderPages)
+    const pagedOrders = orders.slice((currentOrderPage - 1) * ordersPerPage, currentOrderPage * ordersPerPage)
+
+    const clearToast = () => {
+        setSubmitError('')
+        setDetailError('')
+        setOrdersError('')
+        setInventoryError('')
+        setOptionsError('')
+        setSubmitSuccess('')
+        setInventoryInfo('')
+    }
+
+    useEffect(() => {
+        if (!toastMessage) return undefined
+
+        const timer = window.setTimeout(() => {
+            clearToast()
+        }, 3200)
+
+        return () => window.clearTimeout(timer)
+    }, [toastMessage])
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
+            {toastMessage ? (
+                <div className="fixed top-4 right-4 z-[80] pointer-events-none">
+                    <div className="pointer-events-auto w-[min(92vw,24rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="px-4 py-3 flex items-start gap-3">
+                            <span className={`material-symbols-outlined mt-0.5 ${toastType === 'success' ? 'text-emerald-600 dark:text-emerald-400' : toastType === 'warning' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {toastType === 'success' ? 'check_circle' : toastType === 'warning' ? 'warning' : 'error'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold">
+                                    {toastType === 'success' ? 'Thao tác thành công' : toastType === 'warning' ? 'Thông báo' : 'Có lỗi xảy ra'}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{toastMessage}</p>
+                            </div>
+                            <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={clearToast}
+                                aria-label="Đóng thông báo"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+                        <div className={`h-1 rounded-b-xl ${toastType === 'success' ? 'bg-emerald-500/80' : toastType === 'warning' ? 'bg-amber-500/80' : 'bg-red-500/80'}`} />
+                    </div>
+                </div>
+            ) : null}
+
             {/* Header */}
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
@@ -700,12 +772,9 @@ export default function StoreOrderPage() {
                             </table>
                         </div>
 
-                        {submitSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{submitSuccess}</p>}
-                        {submitError && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{submitError}</p>}
-
                         {showCreateOrderForm && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
-                                <div className="w-full max-w-3xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+                                <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 mt-2 sm:mt-0">
                                     <div className="flex items-center justify-between gap-3 mb-4">
                                         <p className="text-base font-semibold">Form Tạo Đơn Hàng</p>
                                         <button
@@ -794,7 +863,6 @@ export default function StoreOrderPage() {
                                     {(optionsLoading || optionsError) && (
                                         <div className="mb-3 text-xs">
                                             {optionsLoading && <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách Store/Product...</p>}
-                                            {optionsError && <p className="text-amber-600 dark:text-amber-400">{optionsError}</p>}
                                         </div>
                                     )}
 
@@ -873,8 +941,6 @@ export default function StoreOrderPage() {
                             </div>
                         </div>
                         {ordersLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải danh sách đơn hàng...</p>}
-                        {ordersError && <p className="text-sm text-red-600 dark:text-red-400">{ordersError}</p>}
-                        {detailError && <p className="text-sm text-red-600 dark:text-red-400">{detailError}</p>}
                         {!ordersLoading && !ordersError && orders.length === 0 && (
                             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-slate-500 dark:text-slate-400 text-sm">
                                 Không có đơn hàng nào phù hợp bộ lọc hiện tại.
@@ -907,7 +973,7 @@ export default function StoreOrderPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {orders.map((order) => (
+                                        {pagedOrders.map((order) => (
                                             <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-5 py-3 text-sm font-semibold">{order.id}</td>
                                                 <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{order.storeName}</td>
@@ -947,11 +1013,32 @@ export default function StoreOrderPage() {
                                         ))}
                                     </tbody>
                                 </table>
+                                <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Trang {currentOrderPage}/{totalOrderPages} • {orders.length} đơn hàng
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setOrdersPage((prev) => Math.max(1, prev - 1))}
+                                            disabled={currentOrderPage <= 1}
+                                            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                        >
+                                            Trước
+                                        </button>
+                                        <button
+                                            onClick={() => setOrdersPage((prev) => Math.min(totalOrderPages, prev + 1))}
+                                            disabled={currentOrderPage >= totalOrderPages}
+                                            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                        >
+                                            Sau
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                         {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
-                                <div className="w-full max-w-2xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+                                <div className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 mt-2 sm:mt-0">
                                     <div className="flex items-center justify-between gap-3 mb-3">
                                         <p className="text-base font-semibold">Chi tiết đơn #{detailOrder.orderId || detailOrder.id}</p>
                                         <button
@@ -1050,9 +1137,6 @@ export default function StoreOrderPage() {
                                 </button>
                             </div>
                         </div>
-
-                        {inventoryError ? <p className="text-sm text-red-600 dark:text-red-400">{inventoryError}</p> : null}
-                        {inventoryInfo ? <p className="text-sm text-amber-700 dark:text-amber-400">{inventoryInfo}</p> : null}
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {[

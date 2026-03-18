@@ -34,6 +34,17 @@ const apiStatusToUi = {
     CANCELLED: 'Cancelled',
 }
 
+const uiStatusToApi = {
+    Pending: 'PENDING',
+    Approved: 'APPROVED',
+    Confirmed: 'CONFIRMED',
+    Processing: 'PROCESSING',
+    Shipped: 'SHIPPED',
+    Delivered: 'COMPLETED',
+    Rejected: 'REJECTED',
+    Cancelled: 'CANCELLED',
+}
+
 function normalizeStatus(rawStatus) {
     if (!rawStatus) return 'Pending'
     return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
@@ -72,17 +83,49 @@ export default function OrderManagementPage() {
     const [productNameMap, setProductNameMap] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
-    const [storeIdFilter, setStoreIdFilter] = useState('')
+    const [storeIdFilter, setStoreIdFilter] = useState(resolveDefaultStoreId())
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
     const [transferLoadingId, setTransferLoadingId] = useState(null)
     const [cancelLoadingId, setCancelLoadingId] = useState(null)
     const [detailLoadingId, setDetailLoadingId] = useState(null)
+    const [statusDraft, setStatusDraft] = useState({})
     const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
 
-    const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
+    const token = () => {
+        const candidates = [
+            localStorage.getItem('auth_token'),
+            localStorage.getItem('token'),
+            localStorage.getItem('access_token'),
+            sessionStorage.getItem('auth_token'),
+            sessionStorage.getItem('token'),
+            sessionStorage.getItem('access_token'),
+        ]
+        const first = candidates.find((item) => String(item || '').trim())
+        return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
+    }
+
+    const authHeaders = () => {
+        const tk = token()
+        return {
+            accept: '*/*',
+            ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+        }
+    }
+
+    const getDraftStatus = (order) => statusDraft[order.orderId] || uiStatusToApi[order.status] || 'PENDING'
     const openNotice = (type, message) => setNotice({ open: true, type, message })
     const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
+
+    useEffect(() => {
+        if (!notice.open) return undefined
+
+        const timer = window.setTimeout(() => {
+            setNotice((prev) => ({ ...prev, open: false }))
+        }, 2800)
+
+        return () => window.clearTimeout(timer)
+    }, [notice.open, notice.message])
 
     const normalizeOrders = (rawOrders) => {
         if (!Array.isArray(rawOrders)) return []
@@ -147,26 +190,26 @@ export default function OrderManagementPage() {
     }
 
     const fetchOrders = async () => {
+        const storeId = String(storeIdFilter || '').trim() || resolveDefaultStoreId()
         const tk = token()
-        if (!tk) {
-            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
-            return
-        }
 
-        const storeId = String(storeIdFilter || '').trim()
-        const headers = {
-            accept: '*/*',
-            Authorization: `Bearer ${tk}`,
+        if (!tk) {
+            setOrders([])
+            openNotice('error', 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+            return
         }
 
         const fetchOrderRecords = async (url) => {
             const response = await fetch(url, {
                 method: 'GET',
-                headers,
+                headers: authHeaders(),
             })
-
             const data = await response.json().catch(() => [])
+
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Bạn không có quyền xem danh sách đơn hàng. Vui lòng đăng nhập đúng tài khoản có quyền.')
+                }
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách đơn hàng nội bộ.')
             }
 
@@ -175,53 +218,10 @@ export default function OrderManagementPage() {
 
         setLoading(true)
         try {
-            let records = []
-
-            if (storeId) {
-                records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(storeId)}`)
-            } else {
-                let allOrdersError = ''
-                try {
-                    records = await fetchOrderRecords(`${apiBase}/internal-orders`)
-                } catch (error) {
-                    allOrdersError = error.message || 'Không thể tải danh sách order toàn hệ thống.'
-                }
-
-                if (!records.length) {
-                    const storesRes = await fetch(`${apiBase}/Organization/stores`, {
-                        method: 'GET',
-                        headers,
-                    })
-                    const storesData = await storesRes.json().catch(() => [])
-                    const stores = storesRes.ok ? (Array.isArray(storesData) ? storesData : storesData?.items || []) : []
-
-                    const storeIds = stores
-                        .map((item) => Number(item?.storeId ?? item?.id))
-                        .filter((id) => Number.isFinite(id) && id > 0)
-
-                    if (storeIds.length) {
-                        const results = await Promise.allSettled(
-                            storeIds.map((id) => fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(id)}`)),
-                        )
-
-                        const dedupeMap = new Map()
-                        results.forEach((result) => {
-                            if (result.status !== 'fulfilled') return
-                            result.value.forEach((order) => {
-                                const orderId = Number(order?.orderId || order?.internalOrderId || order?.id)
-                                if (orderId > 0) dedupeMap.set(orderId, order)
-                            })
-                        })
-                        records = Array.from(dedupeMap.values())
-                    }
-                }
-
-                if (!records.length && allOrdersError) {
-                    throw new Error(allOrdersError)
-                }
-            }
+            const records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(storeId)}`)
 
             setOrders(normalizeOrders(records))
+            setStatusDraft({})
         } catch (error) {
             setOrders([])
             openNotice('error', error.message || 'Tải đơn hàng thất bại.')
@@ -394,20 +394,23 @@ export default function OrderManagementPage() {
 
     const fetchOrderDetail = async (orderId) => {
         const tk = token()
-        if (!tk) return
+        if (!tk) {
+            openNotice('error', 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+            return
+        }
 
         setDetailLoadingId(orderId)
         try {
             const response = await fetch(`${apiBase}/internal-orders/${orderId}`, {
                 method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
+                headers: authHeaders(),
             })
-
             const data = await response.json().catch(() => ({}))
+
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Bạn không có quyền xem chi tiết đơn hàng này.')
+                }
                 throw new Error(data?.message || data?.title || 'Không thể tải chi tiết đơn hàng.')
             }
 
@@ -432,6 +435,67 @@ export default function OrderManagementPage() {
             openNotice('error', error.message || 'Tải chi tiết đơn hàng thất bại.')
         } finally {
             setDetailLoadingId(null)
+        }
+    }
+
+    const updateOrderStatus = async (order) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        const nextStatus = getDraftStatus(order)
+        if (!nextStatus) {
+            openNotice('error', 'Vui lòng chọn trạng thái cần cập nhật.')
+            return
+        }
+
+        setActionLoadingId(order.orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${order.orderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: nextStatus }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Bạn không có quyền cập nhật trạng thái đơn hàng.')
+                }
+                throw new Error(data?.message || data?.title || 'Không thể cập nhật trạng thái đơn hàng.')
+            }
+
+            const nextUiStatus = normalizeStatus(nextStatus)
+            setOrders((prev) => prev.map((item) => {
+                if (item.orderId !== order.orderId) return item
+                return {
+                    ...item,
+                    status: nextUiStatus,
+                    statusStyle: statusStyle[nextUiStatus] || statusStyle.Pending,
+                }
+            }))
+            setStatusDraft((prev) => {
+                const cloned = { ...prev }
+                delete cloned[order.orderId]
+                return cloned
+            })
+
+            openNotice('success', data?.message || 'Cập nhật trạng thái thành công.')
+
+            // Delay refresh a bit to avoid stale status from eventual-consistent backend.
+            setTimeout(() => {
+                fetchOrders()
+            }, 1200)
+        } catch (error) {
+            openNotice('error', error.message || 'Cập nhật trạng thái thất bại.')
+        } finally {
+            setActionLoadingId(null)
         }
     }
 
@@ -467,11 +531,12 @@ export default function OrderManagementPage() {
         cancelled: orders.filter((o) => o.status === 'Cancelled').length,
     }), [orders])
 
-    const canConfirmCompleted = (status) => status === 'Shipped'
-    const canCancelOrder = (status) => status === 'Pending'
-    const canApproveOrder = (status) => status === 'Pending'
-    const canRejectOrder = (status) => status === 'Pending'
-    const canTransferOrder = (status) => ['Approved', 'Confirmed'].includes(status)
+    // Let backend enforce business rules; keep UI actions available to avoid stale-gray states.
+    const canConfirmCompleted = (_status) => true
+    const canCancelOrder = (_status) => true
+    const canApproveOrder = (_status) => true
+    const canRejectOrder = (_status) => true
+    const canTransferOrder = (_status) => true
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)
@@ -604,6 +669,27 @@ export default function OrderManagementPage() {
                                                 <td colSpan={7} className="px-4 py-3">
                                                     {detailLoadingId === order.orderId ? <p className="mb-2 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
                                                     <div className="mb-3 flex items-center gap-2 flex-wrap">
+                                                        <select
+                                                            className="h-8 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs"
+                                                            value={getDraftStatus(order)}
+                                                            onChange={(e) => setStatusDraft((prev) => ({ ...prev, [order.orderId]: e.target.value }))}
+                                                        >
+                                                            <option value="PENDING">Chờ xác nhận</option>
+                                                            <option value="APPROVED">Đã duyệt</option>
+                                                            <option value="CONFIRMED">Đã xác nhận</option>
+                                                            <option value="PROCESSING">Đang xử lý</option>
+                                                            <option value="SHIPPED">Đang giao</option>
+                                                            <option value="COMPLETED">Hoàn tất</option>
+                                                            <option value="REJECTED">Từ chối</option>
+                                                            <option value="CANCELLED">Hủy</option>
+                                                        </select>
+                                                        <button
+                                                            className="h-8 px-3 rounded-lg bg-slate-700 text-white text-xs font-bold hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                                            disabled={actionLoadingId === order.orderId}
+                                                            onClick={() => updateOrderStatus(order)}
+                                                        >
+                                                            {actionLoadingId === order.orderId ? 'Đang cập nhật...' : 'Cập nhật trạng thái'}
+                                                        </button>
                                                         <button
                                                             className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60"
                                                             disabled={!canApproveOrder(order.status) || actionLoadingId === order.orderId}
@@ -677,16 +763,27 @@ export default function OrderManagementPage() {
             </div>
 
             {notice.open ? (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/35 p-4">
-                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
-                        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                            <span className={`material-symbols-outlined ${notice.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{notice.type === 'success' ? 'check_circle' : 'error'}</span>
-                            <h4 className="font-semibold text-sm">{notice.type === 'success' ? 'Thông báo thành công' : 'Thông báo lỗi'}</h4>
+                <div className="fixed top-4 right-4 z-[60] pointer-events-none">
+                    <div className="pointer-events-auto w-[min(92vw,24rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="px-4 py-3 flex items-start gap-3">
+                            <span className={`material-symbols-outlined mt-0.5 ${notice.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {notice.type === 'success' ? 'check_circle' : 'error'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold">
+                                    {notice.type === 'success' ? 'Thao tác thành công' : 'Có lỗi xảy ra'}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{notice.message}</p>
+                            </div>
+                            <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={closeNotice}
+                                aria-label="Đóng thông báo"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
                         </div>
-                        <div className="px-5 py-4 text-sm">{notice.message}</div>
-                        <div className="px-5 pb-5 flex justify-end">
-                            <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-white" onClick={closeNotice}>Đóng</button>
-                        </div>
+                        <div className={`h-1 rounded-b-xl ${notice.type === 'success' ? 'bg-emerald-500/80' : 'bg-red-500/80'}`} />
                     </div>
                 </div>
             ) : null}

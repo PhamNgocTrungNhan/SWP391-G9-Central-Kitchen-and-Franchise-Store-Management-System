@@ -42,7 +42,18 @@ export default function RecipeBOMPage() {
     const [quantityRequired, setQuantityRequired] = useState('1.5')
     const [wasteAllowancePercent, setWasteAllowancePercent] = useState('5')
 
-    const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
+    const token = () => {
+        const candidates = [
+            localStorage.getItem('auth_token'),
+            localStorage.getItem('token'),
+            localStorage.getItem('access_token'),
+            sessionStorage.getItem('auth_token'),
+            sessionStorage.getItem('token'),
+            sessionStorage.getItem('access_token'),
+        ]
+        const first = candidates.find((item) => String(item || '').trim())
+        return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
+    }
 
     const normalizeRecipeItem = (item) => {
         const id = Number(item?.recipeId || item?.id)
@@ -115,14 +126,13 @@ export default function RecipeBOMPage() {
 
     const fetchProducts = async () => {
         const tk = token()
-        if (!tk) return
 
         try {
             const response = await fetch(`${apiBase}/products`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
+                    ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
                 },
             })
 

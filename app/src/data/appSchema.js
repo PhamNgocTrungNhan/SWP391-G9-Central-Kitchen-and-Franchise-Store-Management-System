@@ -5,24 +5,29 @@ export const appSummary = {
 
 export const navigationGroups = [
   {
-    title: 'Overview',
-    items: [{ to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard' }],
+    title: 'Tổng quan',
+    items: [{ to: '/dashboard', key: 'dashboard', label: 'Bảng điều khiển', icon: 'dashboard' }],
   },
   {
-    title: 'Master Data',
+    title: 'Dữ liệu gốc',
     items: [
-      { to: '/categories', key: 'categories', label: 'Categories', icon: 'category' },
-      { to: '/organization', key: 'organization', label: 'Organization', icon: 'apartment' },
-      { to: '/recipes', key: 'recipes', label: 'Recipes', icon: 'menu_book' },
-      { to: '/users', key: 'users', label: 'Users', icon: 'group' },
+      { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory' },
+      { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront' },
+      { to: '/organization/kitchens', key: 'kitchens', label: 'Bếp trung tâm', icon: 'kitchen' },
+      { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book' },
+      { to: '/users', key: 'users', label: 'Người dùng', icon: 'group' },
     ],
   },
   {
-    title: 'Operations',
+    title: 'Vận hành',
     items: [
-      { to: '/inventory', key: 'inventory', label: 'Inventory', icon: 'inventory_2' },
-      { to: '/internal-orders', key: 'internalOrders', label: 'Internal Orders', icon: 'swap_horiz' },
-      { to: '/production-batches', key: 'productionBatches', label: 'Production Batches', icon: 'precision_manufacturing' },
+      { to: '/inventory', key: 'inventory', label: 'Tồn kho', icon: 'inventory_2' },
+      { to: '/store-orders', key: 'storeOrders', label: 'Đơn hàng cửa hàng', icon: 'shopping_cart' },
+      { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn hàng', icon: 'assignment' },
+      { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ sản xuất', icon: 'precision_manufacturing' },
+      { to: '/delivery', key: 'delivery', label: 'Giao hàng', icon: 'fact_check' },
+      { to: '/dispatch', key: 'dispatch', label: 'Điều phối', icon: 'local_shipping' },
+      { to: '/system-config', key: 'systemConfig', label: 'Cấu hình hệ thống', icon: 'settings' },
     ],
   },
 ]

@@ -12,6 +12,19 @@ const productColumns = [
 export default function ProductManagementPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
+    const getToken = () => {
+        const candidates = [
+            localStorage.getItem('auth_token'),
+            localStorage.getItem('token'),
+            localStorage.getItem('access_token'),
+            sessionStorage.getItem('auth_token'),
+            sessionStorage.getItem('token'),
+            sessionStorage.getItem('access_token'),
+        ]
+        const first = candidates.find((item) => String(item || '').trim())
+        return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
+    }
+
     const [products, setProducts] = useState([])
     const [categories, setCategories] = useState([])
     const [productsLoading, setProductsLoading] = useState(false)
@@ -100,13 +113,10 @@ export default function ProductManagementPage() {
         setProductsLoading(true)
         setProductsError('')
         try {
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
-            if (!token) {
-                throw new Error('Thiếu token đăng nhập. Vui lòng đăng nhập lại để tải danh sách sản phẩm.')
-            }
+            const token = getToken()
             const headers = {
                 accept: '*/*',
-                Authorization: `Bearer ${token}`,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
             }
 
             const response = await fetch(`${apiBase}/Products`, {
@@ -116,6 +126,9 @@ export default function ProductManagementPage() {
 
             const data = await response.json().catch(() => [])
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Không có quyền tải danh sách sản phẩm. Vui lòng đăng nhập lại.')
+                }
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách sản phẩm.')
             }
 
@@ -154,7 +167,7 @@ export default function ProductManagementPage() {
         setCreateError('')
         setCreateSuccess('')
 
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        const token = getToken()
         if (!token) {
             setCreateError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
@@ -223,7 +236,7 @@ export default function ProductManagementPage() {
         setEditError('')
         setEditSuccess('')
 
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        const token = getToken()
         if (!token) {
             setEditError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
@@ -284,7 +297,7 @@ export default function ProductManagementPage() {
         setDeleteError('')
         setDeleteSuccess('')
 
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        const token = getToken()
         if (!token) {
             setDeleteError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
