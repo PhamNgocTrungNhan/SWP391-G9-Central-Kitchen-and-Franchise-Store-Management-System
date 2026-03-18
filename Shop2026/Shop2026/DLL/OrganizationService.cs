@@ -12,6 +12,7 @@ namespace Shop2026.DLL
             _repository = repository;
         }
 
+        // ================= STORE =================
         public List<Store> GetAllStores()
         {
             return _repository.GetAllStores();
@@ -25,7 +26,7 @@ namespace Shop2026.DLL
             if (string.IsNullOrWhiteSpace(store.Address))
                 throw new ArgumentException("Địa chỉ không được để trống.");
 
-            store.IsActive = true; 
+            store.IsActive = true;
             _repository.AddStore(store);
         }
 
@@ -45,24 +46,19 @@ namespace Shop2026.DLL
             _repository.DeleteStore(storeId);
         }
 
-       //Kitchen
+        // ================= KITCHEN (CHỈ ĐỌC & CẬP NHẬT) =================
         public List<Kitchen> GetAllKitchens()
         {
             return _repository.GetAllKitchens();
-        }
-
-        public void CreateKitchen(Kitchen kitchen)
-        {
-            if (string.IsNullOrWhiteSpace(kitchen.KitchenName))
-                throw new ArgumentException("Tên bếp trung tâm không được để trống.");
-
-            _repository.AddKitchen(kitchen);
         }
 
         public void UpdateKitchen(Kitchen kitchen)
         {
             if (kitchen.KitchenId <= 0)
                 throw new ArgumentException("ID bếp không hợp lệ.");
+
+            if (string.IsNullOrWhiteSpace(kitchen.KitchenName))
+                throw new ArgumentException("Tên bếp trung tâm không được để trống.");
 
             _repository.UpdateKitchen(kitchen);
         }

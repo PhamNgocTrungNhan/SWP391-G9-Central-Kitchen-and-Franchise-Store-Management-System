@@ -16,6 +16,20 @@ namespace Shop2026.Controllers
         [HttpGet]
         public IActionResult GetAll() => Ok(_service.GetAll());
 
+        // Lấy nguyên liệu
+        [HttpGet("raw")]
+        public IActionResult GetRawMaterials()
+        {
+            return Ok(_service.GetRawMaterials());
+        }
+
+        //  Lấy sản phẩm chế biến
+        [HttpGet("manufactured")]
+        public IActionResult GetManufacturedProducts()
+        {
+            return Ok(_service.GetManufacturedProducts());
+        }
+
         [HttpPost]
         public IActionResult Create([FromBody] ProductRequest request)
         {

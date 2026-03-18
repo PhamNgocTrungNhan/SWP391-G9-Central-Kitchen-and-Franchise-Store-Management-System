@@ -28,6 +28,10 @@ namespace Shop2026.DAL
             return _context.RecipesBoms.Where(r => r.ParentProductId == productId).ToList();
         }
 
+        public Product GetProduct(int productId)
+        {
+            return _context.Products.Find(productId);
+        }
         // Hỗ trợ Transaction để đảm bảo an toàn dữ liệu
         public ApplicationDbContext GetContext() => _context;
     }

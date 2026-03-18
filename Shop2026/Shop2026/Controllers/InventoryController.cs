@@ -6,7 +6,7 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] // Yêu cầu quyền quản lý kho
+    [Authorize(Roles = "ADMIN, MANAGER")] 
     public class InventoryController : ControllerBase
     {
         private readonly InventoryService _service;
@@ -15,7 +15,7 @@ namespace Shop2026.Controllers
         // Xem danh sách tồn kho hiện tại
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
-        //Get Store Inventory
+
         [HttpGet("store/{storeId}")]
         public IActionResult GetStoreInventory(int storeId)
         {

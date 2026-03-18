@@ -9,7 +9,20 @@ namespace Shop2026.DLL
         private readonly ProductRepository _repo;
         public ProductService(ProductRepository repo) => _repo = repo;
 
+        // Lấy tất cả (Dành cho Admin tổng)
         public IEnumerable<Product> GetAll() => _repo.GetAll();
+
+        // Chỉ lấy Nguyên liệu thô (RAW)
+        public IEnumerable<Product> GetRawMaterials()
+        {
+            return _repo.GetAll().Where(p => p.ProductType == "RAW").ToList();
+        }
+
+        // Lấy Bán thành phẩm & Thành phẩm (Khác RAW)
+        public IEnumerable<Product> GetManufacturedProducts()
+        {
+            return _repo.GetAll().Where(p => p.ProductType != "RAW").ToList();
+        }
 
         public void Create(ProductRequest request)
         {

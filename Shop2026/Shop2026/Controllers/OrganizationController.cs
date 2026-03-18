@@ -7,7 +7,7 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] 
+    [Authorize(Roles = "ADMIN, MANAGER")]
     public class OrganizationController : ControllerBase
     {
         private readonly OrganizationService _service;
@@ -17,7 +17,7 @@ namespace Shop2026.Controllers
             _service = service;
         }
 
-        //Store api
+        // ================= STORE API (Thoải mái CRUD) =================
 
         [HttpGet("stores")]
         public IActionResult GetStores()
@@ -27,17 +27,23 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("stores")]
-        [Authorize(Roles = "ADMIN")] 
+        [Authorize(Roles = "ADMIN")]
         public IActionResult CreateStore([FromBody] Store store)
         {
             try
             {
                 _service.CreateStore(store);
-                return Ok(new { message = "Tạo cửa hàng thành công." });
+                return Ok(new
+                {
+                    message = "Tạo cửa hàng thành công."
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
 
@@ -47,13 +53,19 @@ namespace Shop2026.Controllers
         {
             try
             {
-                store.StoreId = id; 
+                store.StoreId = id;
                 _service.UpdateStore(store);
-                return Ok(new { message = "Cập nhật thông tin cửa hàng thành công." });
+                return Ok(new
+                {
+                    message = "Cập nhật thông tin cửa hàng thành công."
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
 
@@ -64,37 +76,27 @@ namespace Shop2026.Controllers
             try
             {
                 _service.DeleteStore(id);
-                return Ok(new { message = "Đã vô hiệu hóa cửa hàng (Soft Delete)." });
+                return Ok(new
+                {
+                    message = "Đã vô hiệu hóa cửa hàng (Soft Delete)."
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
 
-     
-        // KITCHENS api
+        // ================= KITCHEN API (Độc nhất, không có POST) =================
 
         [HttpGet("kitchens")]
         public IActionResult GetKitchens()
         {
             var kitchens = _service.GetAllKitchens();
             return Ok(kitchens);
-        }
-
-        [HttpPost("kitchens")]
-        [Authorize(Roles = "ADMIN")]
-        public IActionResult CreateKitchen([FromBody] Kitchen kitchen)
-        {
-            try
-            {
-                _service.CreateKitchen(kitchen);
-                return Ok(new { message = "Tạo bếp trung tâm thành công." });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
         }
 
         [HttpPut("kitchens/{id}")]
@@ -105,11 +107,17 @@ namespace Shop2026.Controllers
             {
                 kitchen.KitchenId = id;
                 _service.UpdateKitchen(kitchen);
-                return Ok(new { message = "Cập nhật thông tin bếp trung tâm thành công." });
+                return Ok(new
+                {
+                    message = "Cập nhật thông tin bếp trung tâm thành công."
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
     }

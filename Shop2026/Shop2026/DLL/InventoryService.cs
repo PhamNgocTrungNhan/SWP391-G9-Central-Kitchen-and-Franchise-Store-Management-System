@@ -10,24 +10,29 @@ namespace Shop2026.DLL
 
         public InventoryService(InventoryRepository repo) => _repo = repo;
 
-        // Task BE2-08: Trừ nguyên liệu khi bắt đầu mẻ (Trạng thái chuyển sang IN_PROGRESS)
+        // Trừ nguyên liệu khi bắt đầu mẻ (Trừ xuyên thủng đến tận lớp RAW)
         public void DeductMaterialForBatch(ProductionBatch batch, int kitchenId)
         {
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
-                var recipes = _repo.GetRecipeByProduct(batch.ProductId ?? 0);
-                if (!recipes.Any())
-                    throw new Exception($"Sản phẩm chưa có công thức BOM để trừ kho.");
 
-                foreach (var item in recipes)
+                var rawMaterialsToDeduct = new Dictionary<int, decimal>();
+
+                // Gọi đệ quy để phân rã công thức từ sản phẩm gốc
+                CalculateRawMaterialsRecursive(batch.ProductId ?? 0, batch.QuantityPlanned ?? 0, rawMaterialsToDeduct);
+
+                if (!rawMaterialsToDeduct.Any())
+                    throw new Exception("Không tìm thấy nguyên liệu RAW nào trong cây công thức.");
+
+                // Tiến hành trừ kho hàng loạt các nguyên liệu RAW đã gom được
+                foreach (var item in rawMaterialsToDeduct)
                 {
-                    // Tính số lượng cần trừ = (Số lượng dự kiến mẻ) * (Định mức) * (1 + % Hao hụt)
-                    decimal quantityToDeduct = (batch.QuantityPlanned ?? 0) * item.QuantityRequired
-                                               * (1 + (item.WasteAllowancePercent ?? 0) / 100);
+                    int rawMaterialId = item.Key;
+                    decimal qtyToDeduct = item.Value;
 
-                    // Trừ kho (Dấu âm)
-                    UpdateStockAndLog(item.MaterialId ?? 0, "KITCHEN", kitchenId, -quantityToDeduct,
+                    // Trừ kho 
+                    UpdateStockAndLog(rawMaterialId, "KITCHEN", kitchenId, -qtyToDeduct,
                                       "Sản xuất mẻ", batch.BatchId, "PRODUCTION_BATCH");
                 }
 
@@ -38,6 +43,38 @@ namespace Shop2026.DLL
             {
                 transaction.Rollback();
                 throw;
+            }
+        }
+
+        // THUẬT TOÁN ĐỆ QUY PHÂN RÃ CÔNG THỨC (BOM EXPLOSION)
+        private void CalculateRawMaterialsRecursive(int productId, decimal requiredQty, Dictionary<int, decimal> aggregatedRawMaterials)
+        {
+            var product = _repo.GetProduct(productId) ?? throw new Exception($"Không tìm thấy sản phẩm ID {productId}");
+
+
+            if (product.ProductType == "RAW")
+            {
+                if (aggregatedRawMaterials.ContainsKey(productId))
+                    aggregatedRawMaterials[productId] += requiredQty;
+                else
+                    aggregatedRawMaterials[productId] = requiredQty;
+
+                return;
+            }
+
+            // NẾU CHƯA PHẢI RAW: Lấy công thức (BOM) của sản phẩm này ra để đi tiếp xuống dưới
+            var recipes = _repo.GetRecipeByProduct(productId);
+            if (!recipes.Any())
+                throw new Exception($"Sản phẩm '{product.ProductName}' cần được sản xuất nhưng chưa cấu hình công thức (BOM).");
+
+            foreach (var recipe in recipes)
+            {
+                // Tính số lượng cho lớp con = (Số lượng cha) * (Định mức) * (1 + % Hao hụt)
+                // Lưu ý: Chia cho 100m để ép kiểu decimal trong C# tránh sai số
+                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
+
+                // Tự gọi lại chính mình để đi sâu xuống lớp tiếp theo
+                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }
 
@@ -71,7 +108,6 @@ namespace Shop2026.DLL
             {
                 foreach (var detail in details)
                 {
-
                     decimal quantityToShip = detail.QuantityConfirmed ?? detail.QuantityOrdered ?? 0;
 
                     // 1. Trừ kho Bếp (KITCHEN)
@@ -123,7 +159,7 @@ namespace Shop2026.DLL
                 _repo.UpdateInventory(stock);
             }
 
-            //  Ghi Log ngay lập tức
+            // Ghi Log ngay lập tức
             var log = new StockLog
             {
                 ProductId = productId,
@@ -137,6 +173,7 @@ namespace Shop2026.DLL
             };
             _repo.AddStockLog(log);
         }
+
         public IEnumerable<Inventory> GetAllStock()
         {
             return _repo.GetContext().Inventories.ToList();
@@ -147,7 +184,8 @@ namespace Shop2026.DLL
         {
             return _repo.GetContext().StockLogs.OrderByDescending(x => x.CreatedAt).ToList();
         }
-        //Get Store Inventory
+
+        // Get Store Inventory
         public IEnumerable<Inventory> GetStoreInventory(int storeId)
         {
             return _repo.GetContext().Inventories
@@ -155,7 +193,7 @@ namespace Shop2026.DLL
                 .ToList();
         }
 
-        // (Xuất kho dựa trên ID đơn hàng)
+        // Xuất kho dựa trên ID đơn hàng
         public void TransferOrderToStore(int orderId)
         {
             var order = _repo.GetContext().InternalOrders
