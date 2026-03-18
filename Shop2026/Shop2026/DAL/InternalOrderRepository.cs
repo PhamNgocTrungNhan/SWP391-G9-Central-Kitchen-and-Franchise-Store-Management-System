@@ -91,7 +91,7 @@ namespace Shop2026.DAL
             return order;
         }
         //Reject Order
-        public InternalOrder? RejectOrder(int orderId, string reason)
+        public InternalOrder? RejectOrder(int orderId, string reason, int rejectedBy)
         {
             var order = _context.InternalOrders
                         .FirstOrDefault(o => o.OrderId == orderId);
@@ -104,6 +104,7 @@ namespace Shop2026.DAL
 
             order.OrderStatus = "REJECTED";
             order.RejectionReason = reason;
+            order.ApprovedBy = rejectedBy;
             order.UpdatedAt = DateTime.Now;
 
             _context.SaveChanges();

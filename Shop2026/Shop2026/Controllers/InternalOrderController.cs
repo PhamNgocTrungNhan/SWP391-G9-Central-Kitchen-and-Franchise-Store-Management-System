@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Shop2026.DLL;
 using Shop2026.DTOs;
 
@@ -6,6 +7,7 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/internal-orders")]
+    [Authorize]
     public class InternalOrderController : ControllerBase
     {
         private readonly InternalOrderService _orderService;
@@ -15,9 +17,32 @@ namespace Shop2026.Controllers
             _orderService = orderService;
         }
 
+        // ================= HELPER =================
+        private bool TryGetStoreId(out int storeId)
+        {
+            storeId = 0;
+            var claim = User.FindFirst("StoreId")?.Value;
+            return claim != null && int.TryParse(claim, out storeId);
+        }
+
+        private bool TryGetUserId(out int userId)
+        {
+            userId = 0;
+            var claim = User.FindFirst("UserId")?.Value;
+            return claim != null && int.TryParse(claim, out userId);
+        }
+
+        // ================= STORE STAFF =================
+        //Create Order
         [HttpPost]
+        [Authorize(Roles = "STORE_STAFF")]
         public IActionResult CreateOrder([FromBody] CreateInternalOrderRequest request)
         {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new { message = "Invalid StoreId" });
+
+            request.StoreId = storeId;
+
             var order = _orderService.CreateInternalOrder(request);
 
             return Ok(new
@@ -26,76 +51,71 @@ namespace Shop2026.Controllers
                 orderId = order.OrderId
             });
         }
-        //Get Store Orders
+        //Ger Store Orders
         [HttpGet]
-        public IActionResult GetStoreOrders(
-        [FromQuery] int storeId,
-        [FromQuery] string? status)
+        [Authorize(Roles = "STORE_STAFF")]
+        public IActionResult GetStoreOrders([FromQuery] string? status)
         {
-            var orders = _orderService.GetStoreOrders(storeId, status);
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new { message = "Invalid StoreId" });
 
+            var orders = _orderService.GetStoreOrders(storeId, status);
             return Ok(orders);
         }
         //Get Order Detail
         [HttpGet("{orderId}")]
+        [Authorize(Roles = "STORE_STAFF")]
         public IActionResult GetOrderDetail(int orderId)
         {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new { message = "Invalid StoreId" });
+
             var order = _orderService.GetOrderDetail(orderId);
 
             if (order == null)
-            {
-                return NotFound(new
-                {
-                    message = "Order not found"
-                });
-            }
+                return NotFound(new { message = "Order not found" });
+
+            if (order.StoreId != storeId)
+                return Forbid();
 
             return Ok(order);
         }
         //Cancel Order
         [HttpPut("{orderId}/cancel")]
+        [Authorize(Roles = "STORE_STAFF")]
         public IActionResult CancelOrder(int orderId)
         {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new { message = "Invalid StoreId" });
+
             try
             {
-                var result = _orderService.CancelOrder(orderId);
+                var result = _orderService.CancelOrder(orderId, storeId);
 
                 if (!result)
-                {
-                    return NotFound(new
-                    {
-                        message = "Order not found"
-                    });
-                }
+                    return NotFound(new { message = "Order not found" });
 
-                return Ok(new
-                {
-                    message = "Order cancelled successfully"
-                });
+                return Ok(new { message = "Order cancelled successfully" });
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
+                return BadRequest(new { message = ex.Message });
             }
         }
-        // Confirm Order Completed
+        //Confirm Order Completed
         [HttpPut("{orderId}/confirm-completed")]
+        [Authorize(Roles = "STORE_STAFF")]
         public IActionResult ConfirmOrderCompleted(int orderId)
         {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new { message = "Invalid StoreId" });
+
             try
             {
-                var order = _orderService.ConfirmOrderCompleted(orderId);
+                var order = _orderService.ConfirmOrderCompleted(orderId, storeId);
 
                 if (order == null)
-                {
-                    return NotFound(new
-                    {
-                        message = "Order not found"
-                    });
-                }
+                    return NotFound(new { message = "Order not found" });
 
                 return Ok(new
                 {
@@ -105,32 +125,37 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
+                return BadRequest(new { message = ex.Message });
             }
         }
-        //Approve Order
+
+        // ================= SUPPLY COORDINATOR =================
+        //Get All Orders
         [HttpPut("{orderId}/approve")]
+        [Authorize(Roles = "SUPPLY_COORDINATOR")]
         public IActionResult ApproveOrder(int orderId)
         {
-            int approvedBy = 1; // tạm thời hardcode (sau này lấy từ JWT user)
+            if (!TryGetUserId(out int userId))
+                return Unauthorized(new { message = "Invalid UserId" });
 
-            var order = _orderService.ApproveOrder(orderId, approvedBy);
+            var order = _orderService.ApproveOrder(orderId, userId);
 
             if (order == null)
-                return NotFound("Order not found");
+                return NotFound(new { message = "Order not found" });
 
             return Ok(order);
         }
         //Reject Order
         [HttpPut("{orderId}/reject")]
+        [Authorize(Roles = "SUPPLY_COORDINATOR")]
         public IActionResult RejectOrder(int orderId, [FromBody] RejectOrderRequest request)
         {
+            if (!TryGetUserId(out int userId))
+                return Unauthorized(new { message = "Invalid UserId" });
+
             try
             {
-                var order = _orderService.RejectOrder(orderId, request.Reason);
+                var order = _orderService.RejectOrder(orderId, request.Reason, userId);
 
                 if (order == null)
                     return NotFound(new { message = "Order not found" });
@@ -143,14 +168,12 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
+                return BadRequest(new { message = ex.Message });
             }
         }
-        // Update Order Status
+        //Update Order Status
         [HttpPut("{orderId}/status")]
+        [Authorize(Roles = "SUPPLY_COORDINATOR")]
         public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
             try
@@ -158,12 +181,7 @@ namespace Shop2026.Controllers
                 var order = _orderService.UpdateOrderStatus(orderId, request.Status);
 
                 if (order == null)
-                {
-                    return NotFound(new
-                    {
-                        message = "Order not found"
-                    });
-                }
+                    return NotFound(new { message = "Order not found" });
 
                 return Ok(new
                 {
@@ -173,10 +191,7 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
+                return BadRequest(new { message = ex.Message });
             }
         }
     }
