@@ -53,7 +53,7 @@ namespace Shop2026.Controllers
         }
         //Ger Store Orders
         [HttpGet]
-        [Authorize(Roles = "STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult GetStoreOrders([FromQuery] string? status)
         {
             if (!TryGetStoreId(out int storeId))
@@ -64,7 +64,7 @@ namespace Shop2026.Controllers
         }
         //Get Order Detail
         [HttpGet("{orderId}")]
-        [Authorize(Roles = "STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult GetOrderDetail(int orderId)
         {
             if (!TryGetStoreId(out int storeId))
@@ -82,7 +82,7 @@ namespace Shop2026.Controllers
         }
         //Cancel Order
         [HttpPut("{orderId}/cancel")]
-        [Authorize(Roles = "STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult CancelOrder(int orderId)
         {
             if (!TryGetStoreId(out int storeId))
@@ -104,7 +104,7 @@ namespace Shop2026.Controllers
         }
         //Confirm Order Completed
         [HttpPut("{orderId}/confirm-completed")]
-        [Authorize(Roles = "STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult ConfirmOrderCompleted(int orderId)
         {
             if (!TryGetStoreId(out int storeId))
@@ -132,7 +132,7 @@ namespace Shop2026.Controllers
         // ================= SUPPLY COORDINATOR =================
         //Get All Orders
         [HttpPut("{orderId}/approve")]
-        [Authorize(Roles = "SUPPLY_COORDINATOR")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult ApproveOrder(int orderId)
         {
             if (!TryGetUserId(out int userId))
@@ -147,7 +147,7 @@ namespace Shop2026.Controllers
         }
         //Reject Order
         [HttpPut("{orderId}/reject")]
-        [Authorize(Roles = "SUPPLY_COORDINATOR")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult RejectOrder(int orderId, [FromBody] RejectOrderRequest request)
         {
             if (!TryGetUserId(out int userId))
@@ -173,7 +173,7 @@ namespace Shop2026.Controllers
         }
         //Update Order Status
         [HttpPut("{orderId}/status")]
-        [Authorize(Roles = "SUPPLY_COORDINATOR")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
         public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
             try
