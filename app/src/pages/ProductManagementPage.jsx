@@ -9,7 +9,38 @@ const productColumns = [
     { key: 'baseUnit', label: 'Đơn vị gốc' },
 ]
 
-export default function ProductManagementPage() {
+const scopeConfig = {
+    finished: {
+        title: 'Quản Lý Thành Phẩm',
+        listTitle: 'Danh sách thành phẩm',
+        createLabel: 'Tạo thành phẩm',
+        icon: 'inventory_2',
+        allowedTypes: ['FINISHED'],
+        defaultType: 'FINISHED',
+    },
+    ingredient: {
+        title: 'Quản Lý Nguyên Liệu',
+        listTitle: 'Danh sách nguyên liệu và bán thành phẩm',
+        createLabel: 'Tạo nguyên liệu',
+        icon: 'nutrition',
+        allowedTypes: ['RAW', 'SEMI_FINISHED'],
+        defaultType: 'RAW',
+    },
+}
+
+function normalizeProductType(rawType) {
+    const value = String(rawType || '').toUpperCase().trim()
+    if (value === 'RAW') return 'RAW'
+    if (value === 'FINISHED') return 'FINISHED'
+    if (value === 'SEMI_FINISHED' || value === 'SEMI-FINISHED' || value === 'SEMI_FINISH' || value === 'SEMIFINISHED') {
+        return 'SEMI_FINISHED'
+    }
+    return value || 'N/A'
+}
+
+export default function ProductManagementPage({ scope = 'finished' }) {
+    const normalizedScope = scope === 'ingredient' ? 'ingredient' : 'finished'
+    const scopeMeta = scopeConfig[normalizedScope]
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
     const getToken = () => {
@@ -39,7 +70,7 @@ export default function ProductManagementPage() {
     const [formProductName, setFormProductName] = useState('')
     const [formCategoryId, setFormCategoryId] = useState('')
     const [formBaseUnit, setFormBaseUnit] = useState('')
-    const [formProductType, setFormProductType] = useState('RAW')
+    const [formProductType, setFormProductType] = useState(scopeMeta.defaultType)
 
     const [showEditModal, setShowEditModal] = useState(false)
     const [editLoading, setEditLoading] = useState(false)
@@ -50,7 +81,7 @@ export default function ProductManagementPage() {
     const [editProductName, setEditProductName] = useState('')
     const [editCategoryId, setEditCategoryId] = useState('')
     const [editBaseUnit, setEditBaseUnit] = useState('')
-    const [editProductType, setEditProductType] = useState('RAW')
+    const [editProductType, setEditProductType] = useState(scopeMeta.defaultType)
 
     const [showViewModal, setShowViewModal] = useState(false)
     const [viewProduct, setViewProduct] = useState(null)
@@ -82,7 +113,7 @@ export default function ProductManagementPage() {
                     name: item?.productName || item?.name || `Sản phẩm #${id}`,
                     categoryId: Number(item?.categoryId ?? 0),
                     categoryName: item?.category?.name || 'N/A',
-                    productType: item?.productType || 'N/A',
+                    productType: normalizeProductType(item?.productType),
                     baseUnit: item?.baseUnit || 'N/A',
                 }
             })
@@ -133,8 +164,9 @@ export default function ProductManagementPage() {
             }
 
             const normalized = normalizeProducts(data)
-            setProducts(normalized)
-            const normalizedCategories = extractCategories(data)
+            const scopedProducts = normalized.filter((item) => scopeMeta.allowedTypes.includes(item.productType))
+            setProducts(scopedProducts)
+            const normalizedCategories = extractCategories(scopedProducts)
             setCategories(normalizedCategories)
             if (!formCategoryId && normalizedCategories.length > 0) {
                 setFormCategoryId(String(normalizedCategories[0].categoryId))
@@ -153,7 +185,7 @@ export default function ProductManagementPage() {
         setFormProductName('')
         setFormCategoryId(categories.length > 0 ? String(categories[0].categoryId) : '')
         setFormBaseUnit('')
-        setFormProductType('RAW')
+        setFormProductType(scopeMeta.defaultType)
     }
 
     const openCreateModal = () => {
@@ -178,7 +210,7 @@ export default function ProductManagementPage() {
             productName: formProductName.trim(),
             categoryId: Number(formCategoryId),
             baseUnit: formBaseUnit.trim(),
-            productType: formProductType.trim(),
+            productType: normalizedScope === 'finished' ? 'FINISHED' : normalizeProductType(formProductType.trim()),
         }
 
         if (!payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
@@ -228,7 +260,11 @@ export default function ProductManagementPage() {
         setEditProductName(item.name || '')
         setEditCategoryId(item.categoryId > 0 ? String(item.categoryId) : (categories[0] ? String(categories[0].categoryId) : ''))
         setEditBaseUnit(item.baseUnit === 'N/A' ? '' : item.baseUnit)
-        setEditProductType(item.productType && item.productType !== 'N/A' ? item.productType : 'RAW')
+        setEditProductType(
+            normalizedScope === 'finished'
+                ? 'FINISHED'
+                : (item.productType && item.productType !== 'N/A' ? normalizeProductType(item.productType) : scopeMeta.defaultType),
+        )
         setShowEditModal(true)
     }
 
@@ -248,7 +284,7 @@ export default function ProductManagementPage() {
             productName: editProductName.trim(),
             categoryId: Number(editCategoryId),
             baseUnit: editBaseUnit.trim(),
-            productType: editProductType.trim(),
+            productType: normalizedScope === 'finished' ? 'FINISHED' : normalizeProductType(editProductType.trim()),
         }
 
         if (!productId || !payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
@@ -352,8 +388,8 @@ export default function ProductManagementPage() {
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-primary text-[24px]">inventory_2</span>
-                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Quản Lý Sản Phẩm</h2>
+                    <span className="material-symbols-outlined text-primary text-[24px]">{scopeMeta.icon}</span>
+                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">{scopeMeta.title}</h2>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
@@ -366,15 +402,15 @@ export default function ProductManagementPage() {
                         onClick={openCreateModal}
                         className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
                     >
-                        + Tạo sản phẩm
+                        + {scopeMeta.createLabel}
                     </button>
                 </div>
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Danh sách sản phẩm</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý sản phẩm với các thao tác xem, sửa, xóa.</p>
+                    <h1 className="text-2xl font-bold">{scopeMeta.listTitle}</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý dữ liệu với các thao tác xem, sửa, xóa.</p>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
@@ -461,7 +497,7 @@ export default function ProductManagementPage() {
                 <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <p className="text-base font-semibold">Tạo sản phẩm mới</p>
+                            <p className="text-base font-semibold">{normalizedScope === 'finished' ? 'Tạo thành phẩm mới' : 'Tạo nguyên liệu mới'}</p>
                             <button
                                 onClick={() => setShowCreateModal(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -521,18 +557,28 @@ export default function ProductManagementPage() {
                                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
                             </label>
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
-                                <select
-                                    value={formProductType}
-                                    onChange={(e) => setFormProductType(e.target.value)}
-                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                >
-                                    <option value="RAW">RAW</option>
-                                    <option value="SEMI_FINISHED">SEMI_FINISHED</option>
-                                    <option value="FINISHED">FINISHED</option>
-                                </select>
-                            </label>
+                            {normalizedScope === 'ingredient' ? (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
+                                    <select
+                                        value={formProductType}
+                                        onChange={(e) => setFormProductType(e.target.value)}
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    >
+                                        <option value="RAW">RAW</option>
+                                        <option value="SEMI_FINISHED">SEMI_FINISHED</option>
+                                    </select>
+                                </label>
+                            ) : (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
+                                    <input
+                                        value="FINISHED"
+                                        readOnly
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            )}
                         </div>
 
                         <div className="mt-4 flex justify-end gap-2">
@@ -558,7 +604,7 @@ export default function ProductManagementPage() {
                 <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <p className="text-base font-semibold">Cập nhật sản phẩm #{editProductId}</p>
+                            <p className="text-base font-semibold">Cập nhật #{editProductId}</p>
                             <button
                                 onClick={() => setShowEditModal(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -615,18 +661,28 @@ export default function ProductManagementPage() {
                                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
                             </label>
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
-                                <select
-                                    value={editProductType}
-                                    onChange={(e) => setEditProductType(e.target.value)}
-                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                >
-                                    <option value="RAW">RAW</option>
-                                    <option value="SEMI_FINISHED">SEMI_FINISHED</option>
-                                    <option value="FINISHED">FINISHED</option>
-                                </select>
-                            </label>
+                            {normalizedScope === 'ingredient' ? (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
+                                    <select
+                                        value={editProductType}
+                                        onChange={(e) => setEditProductType(e.target.value)}
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    >
+                                        <option value="RAW">RAW</option>
+                                        <option value="SEMI_FINISHED">SEMI_FINISHED</option>
+                                    </select>
+                                </label>
+                            ) : (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
+                                    <input
+                                        value="FINISHED"
+                                        readOnly
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            )}
                         </div>
 
                         <div className="mt-4 flex justify-end gap-2">

@@ -13,6 +13,7 @@ import StoreOrderPage from './pages/StoreOrderPage'
 import OrderManagementPage from './pages/OrderManagementPage'
 import SystemConfigPage from './pages/SystemConfigPage'
 import ProductManagementPage from './pages/ProductManagementPage'
+import IngredientManagementPage from './pages/IngredientManagementPage'
 import CategoriesPage from './pages/CategoriesPage'
 import OrganizationPage from './pages/OrganizationPage'
 import RecipesPage from './pages/RecipesPage'
@@ -66,6 +67,7 @@ function App() {
           <Route path="/order-management" element={<OrderManagementPage />} />
           <Route path="/system-config" element={<SystemConfigPage />} />
           <Route path="/products" element={<ProductManagementPage />} />
+          <Route path="/ingredients" element={<IngredientManagementPage />} />
 
           {/* FE route set (kept under separate paths) */}
           <Route path="/fe/categories" element={<CategoriesPage />} />

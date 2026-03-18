@@ -12,6 +12,7 @@ export const navigationGroups = [
     title: 'Dữ liệu gốc',
     items: [
       { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory' },
+      { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition' },
       { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront' },
       { to: '/organization/kitchens', key: 'kitchens', label: 'Bếp trung tâm', icon: 'kitchen' },
       { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book' },

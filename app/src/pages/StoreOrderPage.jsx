@@ -30,6 +30,7 @@ const apiStatusToUi = {
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
     SHIPPED: 'Shipped',
+    SHIPPING: 'Shipped',
     DELIVERED: 'Delivered',
     COMPLETED: 'Delivered',
     CANCELLED: 'Cancelled',
@@ -139,6 +140,8 @@ export default function StoreOrderPage() {
     const [detailError, setDetailError] = useState('')
     const [detailOrder, setDetailOrder] = useState(null)
     const [cancelLoading, setCancelLoading] = useState(false)
+    const [receiveLoading, setReceiveLoading] = useState(false)
+    const [returnLoading, setReturnLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [submitError, setSubmitError] = useState('')
     const [submitSuccess, setSubmitSuccess] = useState('')
@@ -344,6 +347,11 @@ export default function StoreOrderPage() {
         return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
     }
 
+    const isShippedLikeStatus = (rawStatus) => {
+        const normalized = String(normalizeStatus(rawStatus)).toUpperCase()
+        return normalized === 'SHIPPED' || normalized === 'IN TRANSIT'
+    }
+
     const getStoreNameById = (storeId) => {
         const id = Number(storeId)
         if (!id || id < 1) return 'N/A'
@@ -500,6 +508,76 @@ export default function StoreOrderPage() {
             setDetailError(error.message || 'Hủy đơn thất bại.')
         } finally {
             setCancelLoading(false)
+        }
+    }
+
+    const confirmReceivedById = async (orderId) => {
+        setDetailError('')
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            setReceiveLoading(true)
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/confirm-completed`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể xác nhận đã nhận hàng.')
+            }
+
+            const updatedStatus = normalizeStatus('DELIVERED')
+            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setSubmitSuccess(data?.message || `Đơn #${orderId} đã được xác nhận nhận hàng.`)
+            fetchMyOrders()
+        } catch (error) {
+            setDetailError(error.message || 'Xác nhận nhận hàng thất bại.')
+        } finally {
+            setReceiveLoading(false)
+        }
+    }
+
+    const returnOrderById = async (orderId) => {
+        setDetailError('')
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            const reason = window.prompt('Nhập lý do trả hàng (có thể bỏ trống):', '')
+
+            setReturnLoading(true)
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/reject`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reason: reason || 'Store trả hàng sau khi nhận lô giao.' }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể trả hàng cho đơn này.')
+            }
+
+            const updatedStatus = normalizeStatus('REJECTED')
+            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setSubmitSuccess(data?.message || `Đã gửi yêu cầu trả hàng cho đơn #${orderId}.`)
+            fetchMyOrders()
+        } catch (error) {
+            setDetailError(error.message || 'Trả hàng thất bại.')
+        } finally {
+            setReturnLoading(false)
         }
     }
 
@@ -920,6 +998,7 @@ export default function StoreOrderPage() {
                                         <option value="PENDING">PENDING</option>
                                         <option value="APPROVED">APPROVED</option>
                                         <option value="PROCESSING">PROCESSING</option>
+                                        <option value="SHIPPED">SHIPPED</option>
                                         <option value="SHIPPING">SHIPPING</option>
                                         <option value="COMPLETED">COMPLETED</option>
                                         <option value="CANCELLED">CANCELLED</option>
@@ -997,10 +1076,30 @@ export default function StoreOrderPage() {
                                                         >
                                                             <span className="material-symbols-outlined text-[18px]">visibility</span>
                                                         </button>
+                                                        {isShippedLikeStatus(order.status) && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => confirmReceivedById(order.orderId)}
+                                                                    disabled={receiveLoading || returnLoading}
+                                                                    className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                                                                    title="Xác nhận đã nhận hàng"
+                                                                >
+                                                                    Đã nhận hàng
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => returnOrderById(order.orderId)}
+                                                                    disabled={receiveLoading || returnLoading}
+                                                                    className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors disabled:opacity-60"
+                                                                    title="Trả hàng"
+                                                                >
+                                                                    Trả hàng
+                                                                </button>
+                                                            </>
+                                                        )}
                                                         {order.status !== 'Cancelled' && (
                                                             <button
                                                                 onClick={() => cancelOrderById(order.orderId)}
-                                                                disabled={cancelLoading}
+                                                                disabled={cancelLoading || receiveLoading || returnLoading}
                                                                 className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
                                                                 title="Hủy đơn"
                                                             >
@@ -1064,9 +1163,27 @@ export default function StoreOrderPage() {
                                     {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Cancelled' && (
                                         <div className="mt-3">
                                             <div className="flex items-center gap-2 flex-wrap">
+                                                {isShippedLikeStatus(detailOrder.orderStatus || detailOrder.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
+                                                            disabled={receiveLoading || returnLoading}
+                                                            className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-60"
+                                                        >
+                                                            {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
+                                                            disabled={receiveLoading || returnLoading}
+                                                            className="h-8 px-3 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 disabled:opacity-60"
+                                                        >
+                                                            {returnLoading ? 'Đang gửi trả hàng...' : 'Trả hàng'}
+                                                        </button>
+                                                    </>
+                                                )}
                                                 <button
                                                     onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
-                                                    disabled={cancelLoading}
+                                                    disabled={cancelLoading || receiveLoading || returnLoading}
                                                     className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60"
                                                 >
                                                     {cancelLoading ? 'Đang hủy đơn...' : 'Hủy Đơn Hàng Này'}

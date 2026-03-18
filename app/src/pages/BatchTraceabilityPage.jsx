@@ -1330,6 +1330,7 @@ export default function BatchTraceabilityPage() {
                         </div>
                     </div>
                 ) : null}
+
             </div>
         </div>
     )
