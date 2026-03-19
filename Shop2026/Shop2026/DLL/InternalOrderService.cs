@@ -90,6 +90,7 @@ namespace Shop2026.DLL
 
             return order;
         }
+
         //Approve Order
         public InternalOrder? ApproveOrder(int orderId, int approvedBy)
         {
@@ -109,6 +110,9 @@ namespace Shop2026.DLL
                 return null;
 
             var currentStatus = order.OrderStatus;
+
+            if (string.IsNullOrWhiteSpace(currentStatus))
+                throw new Exception("Order status is invalid");
 
             var validTransitions = new Dictionary<string, List<string>>
             {

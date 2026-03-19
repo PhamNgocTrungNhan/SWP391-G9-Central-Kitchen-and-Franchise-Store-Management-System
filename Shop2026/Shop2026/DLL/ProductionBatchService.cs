@@ -14,8 +14,14 @@ namespace Shop2026.DLL
             _repo = repo;
             _inventoryService = inventoryService;
         }
+
+        public ProductionBatch? GetById(int batchId)
+        {
+            return _repo.GetById(batchId);
+        }
+
         // BE2-04: Tạo mẻ sản xuất
-        public void CreateBatch(BatchCreateRequest request)
+        public ProductionBatch CreateBatch(BatchCreateRequest request)
         {
             if (request.QuantityPlanned <= 0)
                 throw new Exception("Số lượng dự kiến phải lớn hơn 0");
@@ -33,6 +39,7 @@ namespace Shop2026.DLL
             };
 
             _repo.Add(batch);
+            return batch;
         }
 
         // BE2-05: Cập nhật trạng thái

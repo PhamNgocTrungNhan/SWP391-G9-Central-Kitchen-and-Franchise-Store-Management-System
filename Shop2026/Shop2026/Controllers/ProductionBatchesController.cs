@@ -13,15 +13,37 @@ namespace Shop2026.Controllers
         private readonly ProductionBatchService _service;
         public ProductionBatchesController(ProductionBatchService service) => _service = service;
 
+        [HttpGet("{id}")]
+        public IActionResult GetById(int id)
+        {
+            var batch = _service.GetById(id);
+            if (batch == null)
+            {
+                return NotFound(new
+                {
+                    message = "Không tìm thấy mẻ sản xuất"
+                });
+            }
+
+            return Ok(batch);
+        }
+
         [HttpPost]
         public IActionResult Create([FromBody] BatchCreateRequest request)
         {
             try
             {
-                _service.CreateBatch(request);
-                return Ok(new
+                var createdBatch = _service.CreateBatch(request);
+                return CreatedAtAction(nameof(GetById), new
                 {
-                    message = "Tạo mẻ sản xuất thành công"
+                    id = createdBatch.BatchId
+                }, new
+                {
+                    message = "Tạo mẻ sản xuất thành công",
+                    productionBatchId = createdBatch.BatchId,
+                    id = createdBatch.BatchId,
+                    batchCode = createdBatch.BatchCode,
+                    status = createdBatch.Status
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
