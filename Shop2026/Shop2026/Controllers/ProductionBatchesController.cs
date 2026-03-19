@@ -33,17 +33,11 @@ namespace Shop2026.Controllers
         {
             try
             {
-                var createdBatch = _service.CreateBatch(request);
-                return CreatedAtAction(nameof(GetById), new
-                {
-                    id = createdBatch.BatchId
-                }, new
+                var newBatch = _service.CreateBatch(request); 
+                return Ok(new
                 {
                     message = "Tạo mẻ sản xuất thành công",
-                    productionBatchId = createdBatch.BatchId,
-                    id = createdBatch.BatchId,
-                    batchCode = createdBatch.BatchCode,
-                    status = createdBatch.Status
+                    batchId = newBatch.BatchId 
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }

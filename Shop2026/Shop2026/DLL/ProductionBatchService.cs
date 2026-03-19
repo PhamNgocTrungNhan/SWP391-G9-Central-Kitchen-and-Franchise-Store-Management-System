@@ -20,7 +20,7 @@ namespace Shop2026.DLL
             return _repo.GetById(batchId);
         }
 
-        // BE2-04: Tạo mẻ sản xuất
+        // Đổi từ void sang trả về ProductionBatch
         public ProductionBatch CreateBatch(BatchCreateRequest request)
         {
             if (request.QuantityPlanned <= 0)
@@ -29,17 +29,14 @@ namespace Shop2026.DLL
             var batch = new ProductionBatch
             {
                 ProductId = request.ProductId,
-                // Tự động sinh mã mẻ sản xuất (BCH + NămThángNgàyGiờPhútGiây)
                 BatchCode = "BCH" + DateTime.Now.ToString("yyyyMMddHHmmss"),
                 QuantityPlanned = request.QuantityPlanned,
-
-                // EF Core 8 chuyển SQL DATE thành kiểu DateOnly
                 MfgDate = DateOnly.FromDateTime(request.MfgDate),
-                Status = "SCHEDULED" // Trạng thái mặc định ban đầu
+                Status = "SCHEDULED"
             };
 
             _repo.Add(batch);
-            return batch;
+            return batch; // <-- Trả về batch để lấy ID
         }
 
         // BE2-05: Cập nhật trạng thái
