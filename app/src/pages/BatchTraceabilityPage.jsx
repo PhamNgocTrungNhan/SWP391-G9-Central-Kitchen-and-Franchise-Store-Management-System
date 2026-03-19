@@ -379,39 +379,9 @@ export default function BatchTraceabilityPage() {
             return
         }
 
-        setBatchLoading(true)
-        try {
-            const response = await fetch(`${apiBase}/ProductionBatches`, {
-                method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
-            })
-
-            const data = await response.json().catch(() => [])
-            if (!response.ok) {
-                if (response.status === 405) {
-                    setBatchInfo('Backend chua ho tro GET /ProductionBatches (405). Ban van tao batch bang POST; neu backend tra ID khi tao thi co the thao tac ngay.')
-                    return
-                }
-                throw new Error(data?.message || data?.title || 'Khong the tai danh sach Production Batches.')
-            }
-
-            const records = parseArrayData(data)
-            const normalized = records
-                .map((item) => toProductionBatchRow(item, productNameMap))
-                .filter((item) => item.id > 0 || item.productId > 0)
-                .sort((a, b) => new Date(b.mfgDate || 0).getTime() - new Date(a.mfgDate || 0).getTime())
-                .slice(0, 20)
-
-            setBatches(normalized)
-        } catch (e) {
-            setBatches([])
-            setBatchError(e.message || 'Tai Production Batches that bai.')
-        } finally {
-            setBatchLoading(false)
-        }
+        // Backend currently does not expose GET /ProductionBatches list.
+        // Keep local created batches and avoid noisy 405 requests in console.
+        setBatchInfo('Backend chua ho tro GET /ProductionBatches. Danh sach batch o day se hien cac me duoc tao trong phien hien tai.')
     }
 
     const fetchOrdersForBatch = async () => {

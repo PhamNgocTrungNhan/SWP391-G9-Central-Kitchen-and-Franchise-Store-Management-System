@@ -25,24 +25,16 @@ export default function KitchenManagementPage() {
     const [keyword, setKeyword] = useState('')
     const [notice, setNotice] = useState({ open: false, type: 'error', message: '' })
 
-    const [showCreate, setShowCreate] = useState(false)
     const [showEdit, setShowEdit] = useState(false)
-    const [showDelete, setShowDelete] = useState(false)
     const [submitting, setSubmitting] = useState(false)
 
     const [editingKitchen, setEditingKitchen] = useState(null)
-    const [deletingKitchen, setDeletingKitchen] = useState(null)
     const [formKitchenName, setFormKitchenName] = useState('')
     const [formAddress, setFormAddress] = useState('')
 
     const openNotice = (type, message) => setNotice({ open: true, type, message })
     const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
     const token = () => localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
-
-    const resetForm = () => {
-        setFormKitchenName('')
-        setFormAddress('')
-    }
 
     const fetchKitchens = async () => {
         const tk = token()
@@ -78,16 +70,11 @@ export default function KitchenManagementPage() {
         }
     }
 
-    const buildKitchenPayload = (kitchenId) => {
-        const payload = {
-            kitchenName: formKitchenName.trim(),
-            address: formAddress.trim(),
-        }
-        if (Number(kitchenId) > 0) {
-            payload.kitchenId = Number(kitchenId)
-        }
-        return payload
-    }
+    const buildKitchenPayload = (kitchenId) => ({
+        kitchenId: Number(kitchenId),
+        kitchenName: formKitchenName.trim(),
+        address: formAddress.trim(),
+    })
 
     const sendKitchenWrite = async (method, url, payload) => {
         const tk = token()
@@ -103,23 +90,16 @@ export default function KitchenManagementPage() {
             body: JSON.stringify(payload),
         })
 
-        // Keep fallback only for create flows; PUT contract is confirmed as flat payload.
-        if (method !== 'PUT' && !res.ok && (res.status === 400 || res.status === 415)) {
-            const wrapped = { kitchen: payload }
-            res = await fetch(url, {
-                method,
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(wrapped),
-            })
-        }
-
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
-            throw new Error(data?.message || data?.title || data?.errors?.kitchen?.[0] || 'Yêu cầu thất bại.')
+            throw new Error(
+                data?.message
+                || data?.title
+                || data?.errors?.kitchenName?.[0]
+                || data?.errors?.KitchenName?.[0]
+                || data?.errors?.kitchen?.[0]
+                || 'Yêu cầu thất bại.',
+            )
         }
 
         return data
@@ -133,27 +113,6 @@ export default function KitchenManagementPage() {
         const normalize = (value) => String(value || '').trim().toLowerCase()
         return normalize(row.name) === normalize(expected.kitchenName)
             && normalize(row.address) === normalize(expected.address)
-    }
-
-    const handleCreateKitchen = async () => {
-        const payload = buildKitchenPayload(0)
-        if (!payload.kitchenName || !payload.address) {
-            openNotice('error', 'Vui lòng nhập đầy đủ tên bếp và địa chỉ.')
-            return
-        }
-
-        setSubmitting(true)
-        try {
-            const data = await sendKitchenWrite('POST', `${apiBase}/Organization/kitchens`, payload)
-            setShowCreate(false)
-            resetForm()
-            await fetchKitchens()
-            openNotice('success', data?.message || 'Tạo bếp trung tâm thành công.')
-        } catch (error) {
-            openNotice('error', error.message || 'Tạo bếp trung tâm thất bại.')
-        } finally {
-            setSubmitting(false)
-        }
     }
 
     const startEditKitchen = (kitchen) => {
@@ -191,47 +150,6 @@ export default function KitchenManagementPage() {
         }
     }
 
-    const startDeleteKitchen = (kitchen) => {
-        setDeletingKitchen(kitchen)
-        setShowDelete(true)
-    }
-
-    const handleDeleteKitchen = async () => {
-        const id = Number(deletingKitchen?.id)
-        if (!id) return
-
-        const tk = token()
-        if (!tk) {
-            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
-            return
-        }
-
-        setSubmitting(true)
-        try {
-            const res = await fetch(`${apiBase}/Organization/kitchens/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
-            })
-
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) {
-                throw new Error(data?.message || data?.title || 'Xóa bếp trung tâm thất bại.')
-            }
-
-            await fetchKitchens()
-            setShowDelete(false)
-            setDeletingKitchen(null)
-            openNotice('success', data?.message || 'Xóa bếp trung tâm thành công.')
-        } catch (error) {
-            openNotice('error', error.message || 'Không thể xóa bếp trung tâm.')
-        } finally {
-            setSubmitting(false)
-        }
-    }
-
     useEffect(() => {
         fetchKitchens()
     }, [])
@@ -257,7 +175,6 @@ export default function KitchenManagementPage() {
                 <h2 className="text-lg font-bold">Quản lý bếp trung tâm</h2>
                 <div className="flex items-center gap-2">
                     <button className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm" onClick={fetchKitchens}>Tải lại</button>
-                    <button className="h-10 px-4 rounded-lg bg-primary text-white text-sm" onClick={() => { resetForm(); setShowCreate(true) }}>Thêm bếp</button>
                 </div>
             </header>
 
@@ -315,9 +232,6 @@ export default function KitchenManagementPage() {
                                             <button className="text-slate-400 hover:text-primary p-1" onClick={() => startEditKitchen(k)}>
                                                 <span className="material-symbols-outlined text-[20px]">edit</span>
                                             </button>
-                                            <button className="text-slate-400 hover:text-red-500 p-1 ml-1" onClick={() => startDeleteKitchen(k)}>
-                                                <span className="material-symbols-outlined text-[20px]">delete</span>
-                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -327,12 +241,12 @@ export default function KitchenManagementPage() {
                 </div>
             </main>
 
-            {(showCreate || showEdit) ? (
+            {showEdit ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
                     <div className="w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
                         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4">
-                            <h3 className="text-lg font-semibold">{showCreate ? 'Thêm bếp trung tâm' : 'Cập nhật bếp trung tâm'}</h3>
-                            <button className="text-slate-500" onClick={() => { setShowCreate(false); setShowEdit(false); }} disabled={submitting}><span className="material-symbols-outlined">close</span></button>
+                            <h3 className="text-lg font-semibold">Cập nhật bếp trung tâm</h3>
+                            <button className="text-slate-500" onClick={() => { setShowEdit(false); setEditingKitchen(null) }} disabled={submitting}><span className="material-symbols-outlined">close</span></button>
                         </div>
                         <div className="grid grid-cols-1 gap-4 px-6 py-5">
                             <label className="flex flex-col gap-1">
@@ -355,25 +269,10 @@ export default function KitchenManagementPage() {
                             </label>
                         </div>
                         <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
-                            <button className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm" onClick={() => { setShowCreate(false); setShowEdit(false); }} disabled={submitting}>Hủy</button>
-                            <button className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-white disabled:opacity-60" onClick={showCreate ? handleCreateKitchen : handleUpdateKitchen} disabled={submitting}>
-                                {submitting ? 'Đang xử lý...' : showCreate ? 'Tạo bếp' : 'Lưu thay đổi'}
+                            <button className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm" onClick={() => { setShowEdit(false); setEditingKitchen(null) }} disabled={submitting}>Hủy</button>
+                            <button className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-white disabled:opacity-60" onClick={handleUpdateKitchen} disabled={submitting}>
+                                {submitting ? 'Đang xử lý...' : 'Lưu thay đổi'}
                             </button>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
-
-            {showDelete ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-                    <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
-                        <div className="border-b border-slate-200 dark:border-slate-800 px-6 py-4">
-                            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">Xác nhận xóa</h3>
-                        </div>
-                        <div className="px-6 py-5 text-sm">Bạn có chắc muốn xóa bếp {deletingKitchen?.name}?</div>
-                        <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
-                            <button className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm" onClick={() => setShowDelete(false)} disabled={submitting}>Hủy</button>
-                            <button className="h-10 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-60" onClick={handleDeleteKitchen} disabled={submitting}>{submitting ? 'Đang xóa...' : 'Xóa bếp'}</button>
                         </div>
                     </div>
                 </div>

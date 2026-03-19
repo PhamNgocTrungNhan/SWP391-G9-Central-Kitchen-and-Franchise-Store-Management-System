@@ -1,5 +1,5 @@
 export const appSummary = {
-  activeApiCount: 39,
+  activeApiCount: 38,
   inactiveControllers: ['ProductsController'],
 }
 
@@ -14,7 +14,6 @@ export const navigationGroups = [
       { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory' },
       { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition' },
       { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront' },
-      { to: '/organization/kitchens', key: 'kitchens', label: 'Bếp trung tâm', icon: 'kitchen' },
       { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book' },
       { to: '/users', key: 'users', label: 'Người dùng', icon: 'group' },
     ],
@@ -26,6 +25,7 @@ export const navigationGroups = [
       { to: '/store-orders', key: 'storeOrders', label: 'Đơn hàng cửa hàng', icon: 'shopping_cart' },
       { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn hàng', icon: 'assignment' },
       { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ sản xuất', icon: 'precision_manufacturing' },
+      { to: '/production-batches/ongoing', key: 'ongoingProductionBatches', label: 'Batch đang thực hiện', icon: 'manufacturing' },
       { to: '/delivery', key: 'delivery', label: 'Giao hàng', icon: 'fact_check' },
       { to: '/dispatch', key: 'dispatch', label: 'Điều phối', icon: 'local_shipping' },
       { to: '/system-config', key: 'systemConfig', label: 'Cấu hình hệ thống', icon: 'settings' },
@@ -60,7 +60,7 @@ export const pageCatalog = {
   organization: {
     controller: 'OrganizationController',
     title: 'Stores And Kitchens',
-    description: 'Stores and kitchens are split into separate workspaces that mirror the seven OrganizationController endpoints. Kitchens do not show a delete action because no such API exists.',
+    description: 'Stores and kitchens are split into separate workspaces that mirror the six OrganizationController endpoints. Kitchens now support only read and update actions.',
     authorize: 'Stores: ADMIN/MANAGER view, ADMIN mutate | Kitchens: ADMIN/MANAGER view, ADMIN mutate',
     endpoints: [
       { method: 'GET', path: '/api/Organization/stores' },
@@ -68,7 +68,6 @@ export const pageCatalog = {
       { method: 'PUT', path: '/api/Organization/stores/{id}', body: 'Store' },
       { method: 'DELETE', path: '/api/Organization/stores/{id}' },
       { method: 'GET', path: '/api/Organization/kitchens' },
-      { method: 'POST', path: '/api/Organization/kitchens', body: 'Kitchen' },
       { method: 'PUT', path: '/api/Organization/kitchens/{id}', body: 'Kitchen' },
     ],
   },
@@ -115,7 +114,7 @@ export const pageCatalog = {
   productionBatches: {
     controller: 'ProductionBatchesController',
     title: 'Production Batches',
-    description: 'This controller has no GET list endpoint. The UI therefore focuses on batch creation and an id-based workspace for status, allocation, and cancel actions.',
+    description: 'This controller has no GET list endpoint. The UI therefore focuses on batch creation and an id-based workspace for status, allocation, and cancel actions. When status is moved to IN_PROGRESS, backend recursively explodes BOM down to RAW materials and deducts inventory by aggregated raw demand.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'POST', path: '/api/ProductionBatches', body: 'BatchCreateRequest' },

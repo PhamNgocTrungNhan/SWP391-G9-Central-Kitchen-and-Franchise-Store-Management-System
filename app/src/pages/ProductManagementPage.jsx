@@ -150,7 +150,9 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             }
 
-            const response = await fetch(`${apiBase}/Products`, {
+            const listEndpoint = normalizedScope === 'ingredient' ? `${apiBase}/Products/raw` : `${apiBase}/Products`
+
+            const response = await fetch(listEndpoint, {
                 method: 'GET',
                 headers,
             })

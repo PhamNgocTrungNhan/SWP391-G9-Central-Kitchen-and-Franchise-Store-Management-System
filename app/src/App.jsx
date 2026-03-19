@@ -4,7 +4,6 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import BatchTraceabilityPage from './pages/BatchTraceabilityPage'
 import FranchiseNetworkPage from './pages/FranchiseNetworkPage'
-import KitchenManagementPage from './pages/KitchenManagementPage'
 import RecipeBOMPage from './pages/RecipeBOMPage'
 import StoreDeliveryPage from './pages/StoreDeliveryPage'
 import SupplyDispatchPage from './pages/SupplyDispatchPage'
@@ -21,6 +20,7 @@ import InventoryPage from './pages/InventoryPage'
 import InternalOrdersPage from './pages/InternalOrdersPage'
 import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
+import OngoingProductionBatchesPage from './pages/OngoingProductionBatchesPage'
 import UsersPage from './pages/UsersPage'
 import Layout from './components/Layout'
 
@@ -55,7 +55,7 @@ function App() {
           {/* API-first route set */}
           <Route path="/inventory" element={<BatchTraceabilityPage />} />
           <Route path="/organization/stores" element={<FranchiseNetworkPage />} />
-          <Route path="/organization/kitchens" element={<KitchenManagementPage />} />
+          <Route path="/organization/kitchens" element={<Navigate to="/organization/stores" replace />} />
           <Route path="/organization" element={<Navigate to="/organization/stores" replace />} />
           <Route path="/network" element={<Navigate to="/organization/stores" replace />} />
           <Route path="/recipes" element={<RecipeBOMPage />} />
@@ -66,6 +66,7 @@ function App() {
           <Route path="/store-orders" element={<StoreOrderPage />} />
           <Route path="/order-management" element={<OrderManagementPage />} />
           <Route path="/system-config" element={<SystemConfigPage />} />
+          <Route path="/production-batches/ongoing" element={<OngoingProductionBatchesPage />} />
           <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/ingredients" element={<IngredientManagementPage />} />
 

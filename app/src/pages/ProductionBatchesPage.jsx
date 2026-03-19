@@ -157,7 +157,11 @@ export default function ProductionBatchesPage() {
         Status: payload.status,
         QuantityActual: payload.quantityActual,
       }))
-      setSuccess((data && data.message) || 'Cập nhật trạng thái thành công.')
+      if (payload.status === 'IN_PROGRESS') {
+        setSuccess((data && data.message) || 'Đã chuyển IN_PROGRESS. Backend sẽ đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.')
+      } else {
+        setSuccess((data && data.message) || 'Cập nhật trạng thái thành công.')
+      }
     } catch (requestError) {
       setError(requestError.message || 'Cập nhật trạng thái thất bại.')
     } finally {
@@ -317,6 +321,9 @@ export default function ProductionBatchesPage() {
 
               <div className="rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
                 <p className="text-sm font-semibold text-[#2e3f30]">Cập Nhật Trạng Thái</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Khi chuyển sang IN_PROGRESS, backend sẽ đệ quy BOM đến RAW, gom theo nguyên liệu và trừ tồn kho.
+                </p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Trạng Thái">
                     <select

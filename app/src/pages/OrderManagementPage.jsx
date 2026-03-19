@@ -28,6 +28,11 @@ const apiStatusToUi = {
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
     SHIPPED: 'Shipped',
+    SHIPPING: 'Shipped',
+    IN_TRANSIT: 'Shipped',
+    INTRANSIT: 'Shipped',
+    DELIVERING: 'Shipped',
+    ON_THE_WAY: 'Shipped',
     DELIVERED: 'Delivered',
     COMPLETED: 'Delivered',
     REJECTED: 'Rejected',
@@ -37,6 +42,19 @@ const apiStatusToUi = {
 function normalizeStatus(rawStatus) {
     if (!rawStatus) return 'Pending'
     return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
+}
+
+function isShippingStatus(status) {
+    if (!status) return false
+
+    const raw = String(status).trim()
+    if (!raw) return false
+
+    const normalized = normalizeStatus(raw)
+    if (normalized === 'Shipped') return true
+
+    const upper = raw.toUpperCase().replace(/[\s-]+/g, '_')
+    return upper === 'SHIPPING' || upper === 'IN_TRANSIT' || upper === 'INTRANSIT' || upper === 'DELIVERING' || upper === 'ON_THE_WAY' || raw === 'Đang giao'
 }
 
 function toReadableDate(dateString) {
@@ -272,7 +290,20 @@ export default function OrderManagementPage() {
         }
     }
 
-    const confirmCompleted = async (orderId) => {
+    const confirmCompleted = async (order) => {
+        const orderId = Number(order?.orderId)
+        const status = String(order?.status || '')
+
+        if (!orderId) {
+            openNotice('error', 'Order ID không hợp lệ.')
+            return
+        }
+
+        if (!isShippingStatus(status)) {
+            openNotice('error', 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.')
+            return
+        }
+
         const tk = token()
         if (!tk) {
             openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
@@ -506,14 +537,13 @@ export default function OrderManagementPage() {
         pending: orders.filter((o) => o.status === 'Pending').length,
         approved: orders.filter((o) => o.status === 'Approved').length,
         processing: orders.filter((o) => o.status === 'Processing').length,
-        shipped: orders.filter((o) => o.status === 'Shipped').length,
+        shipped: orders.filter((o) => isShippingStatus(o.status)).length,
         delivered: orders.filter((o) => o.status === 'Delivered').length,
         rejected: orders.filter((o) => o.status === 'Rejected').length,
         cancelled: orders.filter((o) => o.status === 'Cancelled').length,
     }), [orders])
 
-    // Let backend enforce business rules; keep UI actions available to avoid stale-gray states.
-    const canConfirmCompleted = (_status) => true
+    const canConfirmCompleted = (status) => isShippingStatus(status)
     const canCancelOrder = (_status) => true
     const canApproveOrder = (_status) => true
     const canRejectOrder = (_status) => true
@@ -677,7 +707,7 @@ export default function OrderManagementPage() {
                                                         <button
                                                             className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
                                                             disabled={!canConfirmCompleted(order.status) || actionLoadingId === order.orderId}
-                                                            onClick={() => confirmCompleted(order.orderId)}
+                                                            onClick={() => confirmCompleted(order)}
                                                             title={!canConfirmCompleted(order.status) ? 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.' : ''}
                                                         >
                                                             {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Hoàn tất'}
