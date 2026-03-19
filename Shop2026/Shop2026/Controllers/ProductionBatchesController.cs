@@ -7,7 +7,7 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] 
+    [Authorize(Roles = "ADMIN, MANAGER")]
     public class ProductionBatchesController : ControllerBase
     {
         private readonly ProductionBatchService _service;
