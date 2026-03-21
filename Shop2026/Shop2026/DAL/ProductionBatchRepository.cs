@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore; // Nhớ có using này
 using Shop2026.Context;
 using Shop2026.Models;
 
@@ -9,7 +9,16 @@ namespace Shop2026.DAL
         private readonly ApplicationDbContext _context;
         public ProductionBatchRepository(ApplicationDbContext context) => _context = context;
 
-        public ProductionBatch GetById(int id) => _context.ProductionBatches.Find(id);
+        public IEnumerable<ProductionBatch> GetAll()
+        {
+            // Include để Frontend có Tên sản phẩm, Mã SKU mà hiển thị
+            return _context.ProductionBatches.Include(b => b.Product).OrderByDescending(b => b.BatchId).ToList();
+        }
+
+        public ProductionBatch? GetById(int id)
+        {
+            return _context.ProductionBatches.Include(b => b.Product).FirstOrDefault(b => b.BatchId == id);
+        }
 
         public void Add(ProductionBatch batch)
         {
@@ -23,7 +32,6 @@ namespace Shop2026.DAL
             _context.SaveChanges();
         }
 
-        // Dành cho BE2-06: Insert nhiều dòng gán order cùng lúc
         public void AllocateOrders(List<ProductionBatchOrder> allocations)
         {
             _context.ProductionBatchOrders.AddRange(allocations);

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Shop2026.DLL;
+using Shop2026.DTOs;
 
 namespace Shop2026.Controllers
 {
@@ -36,6 +37,29 @@ namespace Shop2026.Controllers
                 return Ok(new
                 {
                     message = $"Đã xuất kho thành công cho đơn hàng #{orderId}. Trạng thái cập nhật thành SHIPPING."
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("import")]
+        public IActionResult ImportRawMaterial([FromBody] ImportMaterialRequest request)
+        {
+            try
+            {
+                // Mặc định nhập vào Bếp trung tâm (KitchenId = 1). 
+                // Sau này nếu có lấy từ Token ra thì bạn sửa ở đây.
+                _service.ImportRawMaterial(request.ProductId, request.Quantity, kitchenId: 1);
+
+                return Ok(new
+                {
+                    message = "Đã nhập kho nguyên liệu thành công!"
                 });
             }
             catch (Exception ex)

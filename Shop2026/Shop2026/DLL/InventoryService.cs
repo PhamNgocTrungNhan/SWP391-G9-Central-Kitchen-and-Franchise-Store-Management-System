@@ -176,7 +176,7 @@ namespace Shop2026.DLL
 
         public IEnumerable<Inventory> GetAllStock()
         {
-            return _repo.GetContext().Inventories.ToList();
+            return _repo.GetContext().Inventories.Include(i => i.Product).ToList();
         }
 
         // Hàm hỗ trợ xem lịch sử Log 
@@ -205,6 +205,36 @@ namespace Shop2026.DLL
                 throw new Exception("Đơn hàng chưa được duyệt hoặc chưa sẵn sàng để xuất kho!");
 
             TransferToStore(order, order.InternalOrderDetails.ToList());
+        }
+
+        // ================= TÍNH NĂNG MỚI: NHẬP KHO NGUYÊN LIỆU =================
+        public void ImportRawMaterial(int productId, decimal quantity, int kitchenId)
+        {
+            if (quantity <= 0)
+                throw new Exception("Số lượng nhập kho phải lớn hơn 0.");
+
+            // 1. Kéo thông tin sản phẩm ra để kiểm tra
+            var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
+
+            // 2. CHỐT CHẶN: Ép buộc chỉ được nhập loại RAW
+            if (product.ProductType != "RAW")
+                throw new Exception($"Lỗi: Sản phẩm '{product.ProductName}' đang là loại {product.ProductType}. Hệ thống chỉ cho phép nhập kho đối với Nguyên liệu thô (RAW)!");
+
+            using var transaction = _repo.GetContext().Database.BeginTransaction();
+            try
+            {
+                // 3. Thực hiện cộng kho (truyền quantity mang dấu dương) và ghi Log
+                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity,
+                                  "Nhập mua nguyên liệu thô", 0, "IMPORT_PO");
+
+                _repo.GetContext().SaveChanges();
+                transaction.Commit();
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
     }
 }

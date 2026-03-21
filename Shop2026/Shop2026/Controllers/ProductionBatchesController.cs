@@ -28,6 +28,12 @@ namespace Shop2026.Controllers
             return Ok(batch);
         }
 
+        [HttpGet]
+        public IActionResult GetAll()
+        {
+            return Ok(_service.GetAll());
+        }
+
         [HttpPost]
         public IActionResult Create([FromBody] BatchCreateRequest request)
         {

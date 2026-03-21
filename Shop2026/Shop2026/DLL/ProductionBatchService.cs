@@ -15,11 +15,16 @@ namespace Shop2026.DLL
             _inventoryService = inventoryService;
         }
 
+
         public ProductionBatch? GetById(int batchId)
         {
             return _repo.GetById(batchId);
         }
 
+        public IEnumerable<ProductionBatch> GetAll()
+        {
+            return _repo.GetAll();
+        }
         // Đổi từ void sang trả về ProductionBatch
         public ProductionBatch CreateBatch(BatchCreateRequest request)
         {
