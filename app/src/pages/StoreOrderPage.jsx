@@ -387,14 +387,14 @@ export default function StoreOrderPage() {
 
             const normalizedLogs = logsRes.ok
                 ? parseArrayData(logsJson)
-                .map((item) => toInventoryLogRow(item, productNameById))
-                .filter((item) => item.id > 0 || item.inventoryId > 0)
-                .filter((item) => {
-                    if (inventoryFilter !== 'store') return true
-                    return item.locationTypeRaw === 'STORE' && item.locationId === parsedStoreId
-                })
-                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                .slice(0, 20)
+                    .map((item) => toInventoryLogRow(item, productNameById))
+                    .filter((item) => item.id > 0 || item.inventoryId > 0)
+                    .filter((item) => {
+                        if (inventoryFilter !== 'store') return true
+                        return item.locationTypeRaw === 'STORE' && item.locationId === parsedStoreId
+                    })
+                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                    .slice(0, 20)
                 : []
 
             if (inventoryFilter === 'store' && normalizedLogs.length === 0 && !inventoryInfo) {
