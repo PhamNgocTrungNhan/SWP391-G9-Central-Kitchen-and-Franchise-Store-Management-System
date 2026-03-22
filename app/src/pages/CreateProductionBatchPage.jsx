@@ -551,12 +551,12 @@ export default function CreateProductionBatchPage() {
             let statusWarning = ''
             {
                 const payloadVariants = [
-                    { status: 'completed', quantityActual: qty },
-                    { Status: 'completed', QuantityActual: qty },
-                    { status: 'COMPLETED', quantityActual: qty },
-                    { Status: 'COMPLETED', QuantityActual: qty },
-                    { request: { status: 'completed', quantityActual: qty } },
-                    { request: { Status: 'completed', QuantityActual: qty } },
+                    { status: 'in_progress' },
+                    { Status: 'in_progress' },
+                    { status: 'IN_PROGRESS' },
+                    { Status: 'IN_PROGRESS' },
+                    { request: { status: 'in_progress' } },
+                    { request: { Status: 'IN_PROGRESS' } },
                 ]
 
                 let updateSuccess = false
@@ -582,7 +582,7 @@ export default function CreateProductionBatchPage() {
                     lastErrorMessage = resolveApiErrorMessage(
                         progressData,
                         rawProgressText,
-                        'Tạo mẻ thành công nhưng không thể chuyển COMPLETED.',
+                        'Tạo mẻ thành công nhưng không thể chuyển IN_PROGRESS.',
                     )
 
                     const isLastVariant = index === payloadVariants.length - 1
@@ -593,46 +593,18 @@ export default function CreateProductionBatchPage() {
                 }
 
                 if (!updateSuccess) {
-                    statusWarning = lastErrorMessage || 'Không thể tự chuyển mẻ sang COMPLETED.'
-                }
-            }
-
-            let deductionHint = ''
-            if (!statusWarning) {
-                const logsRes = await fetch(`${apiBase}/Inventory/logs`, {
-                    method: 'GET',
-                    headers: {
-                        accept: '*/*',
-                        Authorization: `Bearer ${tk}`,
-                    },
-                })
-                const logsJson = await logsRes.json().catch(() => [])
-                if (logsRes.ok) {
-                    const hasDeductionLog = parseArrayData(logsJson).some((item) => {
-                        const referenceType = String(item?.referenceType || '').toUpperCase()
-                        const referenceId = String(item?.referenceId ?? '').trim()
-                        const quantityChange = Number(item?.changeQuantity ?? item?.quantityChanged ?? item?.quantity ?? item?.amount ?? 0)
-
-                        return referenceType.includes('PRODUCTION_BATCH')
-                            && referenceId === String(createdBatchId)
-                            && quantityChange < 0
-                    })
-
-                    if (!hasDeductionLog) {
-                        deductionHint = ' Chưa thấy log trừ kho cho batch này trong /Inventory/logs. Vui lòng kiểm tra BOM của sản phẩm và logic trừ kho backend.'
-                    }
+                    statusWarning = lastErrorMessage || 'Không thể tự chuyển mẻ sang IN_PROGRESS.'
                 }
             }
 
             const inventoryHint = statusWarning
-                ? ` Đã tạo mẻ và gán đơn thành công, nhưng chuyển COMPLETED thất bại: ${statusWarning}`
-                : ' Đã tự chuyển trạng thái mẻ sang COMPLETED theo contract backend.'
+                ? ` Đã tạo mẻ và gán đơn thành công, nhưng chuyển IN_PROGRESS thất bại: ${statusWarning}`
+                : ' Mẻ đã vào IN_PROGRESS. Kho nguyên liệu sẽ chỉ được trừ khi kitchen hoàn thành sản xuất.'
 
             setSuccess(
                 (data?.message || 'Tạo mẻ sản xuất thành công.')
                 + ` (Mẻ #${createdBatchId}, Đơn: ${row.orderCode}, Sản phẩm: ${row.productName}, SL: ${qty}).`
-                + inventoryHint
-                + deductionHint,
+                + inventoryHint,
             )
 
             await fetchApprovedOrders()
@@ -687,7 +659,7 @@ export default function CreateProductionBatchPage() {
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
                         Trang này chỉ dùng để tạo mẻ từ đơn hàng đã phê duyệt. Mỗi dòng sản phẩm có nút tạo mẻ riêng.
-                        Sau khi tạo, hệ thống tự chuyển COMPLETED theo contract backend hiện tại.
+                        Sau khi tạo, hệ thống sẽ chuyển mẻ sang IN_PROGRESS để kitchen xử lý tiếp.
                     </p>
                     <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
                         <label className="flex flex-col gap-1">
@@ -700,7 +672,7 @@ export default function CreateProductionBatchPage() {
                             />
                         </label>
                         <p className="text-xs text-emerald-700 dark:text-emerald-300 pt-1 sm:pt-6">
-                            Mặc định: sau khi tạo mẻ hệ thống sẽ tự chuyển COMPLETED.
+                            Mặc định: sau khi tạo mẻ hệ thống sẽ chuyển IN_PROGRESS.
                         </p>
                     </div>
                 </div>
