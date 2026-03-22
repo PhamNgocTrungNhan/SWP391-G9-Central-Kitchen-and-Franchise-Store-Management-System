@@ -176,7 +176,7 @@ namespace Shop2026.DLL
 
         public IEnumerable<Inventory> GetAllStock()
         {
-            return _repo.GetContext().Inventories.Include(i => i.Product).ToList();
+            return _repo.GetContext().Inventories.ToList();
         }
 
         // Hàm hỗ trợ xem lịch sử Log 
@@ -207,25 +207,32 @@ namespace Shop2026.DLL
             TransferToStore(order, order.InternalOrderDetails.ToList());
         }
 
-        // ================= TÍNH NĂNG MỚI: NHẬP KHO NGUYÊN LIỆU =================
-        public void ImportRawMaterial(int productId, decimal quantity, int kitchenId)
+        // TÍNH NĂNG NHẬP KHO NGUYÊN LIỆU TỪ NHÀ CUNG CẤP CÓ CHECK BLACKLIST
+        public void ImportRawMaterial(int productId, decimal quantity, int kitchenId, int supplierId)
         {
             if (quantity <= 0)
                 throw new Exception("Số lượng nhập kho phải lớn hơn 0.");
 
-            // 1. Kéo thông tin sản phẩm ra để kiểm tra
             var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
 
-            // 2. CHỐT CHẶN: Ép buộc chỉ được nhập loại RAW
+            // Ép buộc chỉ nhập RAW
             if (product.ProductType != "RAW")
-                throw new Exception($"Lỗi: Sản phẩm '{product.ProductName}' đang là loại {product.ProductType}. Hệ thống chỉ cho phép nhập kho đối với Nguyên liệu thô (RAW)!");
+                throw new Exception($"Lỗi: Chỉ được nhập Nguyên liệu thô (RAW). Sản phẩm này là {product.ProductType}.");
+
+            // Kiểm tra nhà cung cấp & Blacklist
+            var supplier = _repo.GetContext().Suppliers.Find(supplierId)
+                           ?? throw new Exception("Không tìm thấy nhà cung cấp.");
+
+            if (!supplier.IsActive)
+                throw new Exception($"Lỗi: Nhà cung cấp '{supplier.SupplierName}' đang nằm trong Blacklist! Từ chối nhập hàng.");
 
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
-                // 3. Thực hiện cộng kho (truyền quantity mang dấu dương) và ghi Log
-                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity,
-                                  "Nhập mua nguyên liệu thô", 0, "IMPORT_PO");
+                string logReason = $"Nhập nguyên liệu từ NCC: {supplier.SupplierName}";
+
+                // Gọi hàm UpdateStockAndLog có truyền thêm supplierId
+                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, 0, "IMPORT_SUPPLIER", supplierId);
 
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
@@ -235,6 +242,43 @@ namespace Shop2026.DLL
                 transaction.Rollback();
                 throw;
             }
+        }
+
+        // CẬP NHẬT HÀM DÙNG CHUNG ĐỂ LƯU THÊM SUPPLIER_ID
+        private void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
+        {
+            var stock = _repo.GetStock(productId, locationType, locationId);
+
+            if (stock == null)
+            {
+                if (changeQty < 0)
+                    throw new Exception($"Sản phẩm ID {productId} không đủ tồn kho để xuất.");
+                stock = new Inventory { ProductId = productId, LocationType = locationType, LocationId = locationId, CurrentQuantity = changeQty, LastUpdated = DateTime.Now };
+                _repo.AddInventory(stock);
+            }
+            else
+            {
+                if (stock.CurrentQuantity + changeQty < 0)
+                    throw new Exception($"Tồn kho sản phẩm bị âm.");
+                stock.CurrentQuantity += changeQty;
+                stock.LastUpdated = DateTime.Now;
+                _repo.UpdateInventory(stock);
+            }
+
+            // Ghi Log kèm SupplierId
+            var log = new StockLog
+            {
+                ProductId = productId,
+                LocationType = locationType,
+                LocationId = locationId,
+                ChangeQuantity = changeQty,
+                Reason = reason,
+                ReferenceId = refId,
+                ReferenceType = refType,
+                SupplierId = supplierId, // <--- LƯU VÀO ĐÂY
+                CreatedAt = DateTime.Now
+            };
+            _repo.AddStockLog(log);
         }
     }
 }

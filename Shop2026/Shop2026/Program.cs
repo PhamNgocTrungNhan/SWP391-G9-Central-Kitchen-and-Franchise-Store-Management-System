@@ -78,6 +78,7 @@ builder.Services.AddScoped<RecipeRepository>();
 builder.Services.AddScoped<ProductionBatchRepository>();
 builder.Services.AddScoped<InventoryRepository>();
 builder.Services.AddScoped<DashboardRepository>();
+builder.Services.AddScoped<SupplierRepository>();
 // DLL O DAY
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
@@ -89,6 +90,7 @@ builder.Services.AddScoped<RecipeService>();
 builder.Services.AddScoped<ProductionBatchService>();
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<SupplierService>();
 
 
 var app = builder.Build();

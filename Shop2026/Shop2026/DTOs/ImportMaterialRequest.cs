@@ -10,5 +10,9 @@
         {
             get; set;
         }
+        public int SupplierId
+        {
+            get; set;
+        } 
     }
 }

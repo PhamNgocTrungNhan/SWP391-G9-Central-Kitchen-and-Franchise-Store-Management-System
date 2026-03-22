@@ -53,9 +53,8 @@ namespace Shop2026.Controllers
         {
             try
             {
-                // Mặc định nhập vào Bếp trung tâm (KitchenId = 1). 
-                // Sau này nếu có lấy từ Token ra thì bạn sửa ở đây.
-                _service.ImportRawMaterial(request.ProductId, request.Quantity, kitchenId: 1);
+                // Truyền thêm request.SupplierId vào cuối cùng
+                _service.ImportRawMaterial(request.ProductId, request.Quantity, 1, request.SupplierId);
 
                 return Ok(new
                 {
