@@ -75,11 +75,21 @@ export default function ProductionBatchesPage() {
       : await response.text().catch(() => '')
 
     if (!response.ok) {
+      let validationMessage = ''
+      if (typeof data === 'object' && data?.errors && typeof data.errors === 'object') {
+        validationMessage = Object.values(data.errors)
+          .flatMap((value) => (Array.isArray(value) ? value : [value]))
+          .filter(Boolean)
+          .join(' ')
+      }
+
       const message =
-        (typeof data === 'object' && (data?.message || data?.title || data?.error)) ||
+        (typeof data === 'object' && (data?.message || data?.title || data?.error || validationMessage)) ||
         (typeof data === 'string' && data) ||
         `Yêu cầu thất bại (${response.status})`
-      throw new Error(message)
+      const error = new Error(message)
+      error.status = response.status
+      throw error
     }
 
     return data
@@ -141,23 +151,45 @@ export default function ProductionBatchesPage() {
 
     setStatusLoading(true)
     try {
-      const payload = {
-        status: statusForm.Status,
-        quantityActual: Number(statusForm.QuantityActual),
+      const statusValue = statusForm.Status
+      const quantityActualValue = Number(statusForm.QuantityActual)
+
+      const payloadVariants = [
+        { status: statusValue, quantityActual: quantityActualValue },
+        { Status: statusValue, QuantityActual: quantityActualValue },
+        { request: { status: statusValue, quantityActual: quantityActualValue } },
+        { request: { Status: statusValue, QuantityActual: quantityActualValue } },
+      ]
+
+      let data = null
+      let lastError = null
+
+      for (let index = 0; index < payloadVariants.length; index += 1) {
+        try {
+          data = await callApi(`/ProductionBatches/${managedBatchId}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadVariants[index]),
+          })
+          lastError = null
+          break
+        } catch (requestError) {
+          lastError = requestError
+          const isLastVariant = index === payloadVariants.length - 1
+          if (requestError?.status !== 400 || isLastVariant) {
+            throw requestError
+          }
+        }
       }
 
-      const data = await callApi(`/ProductionBatches/${managedBatchId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      if (lastError) throw lastError
 
       setBatchSnapshot((current) => ({
         ...(current && current.id === managedBatchId ? current : { id: managedBatchId }),
-        Status: payload.status,
-        QuantityActual: payload.quantityActual,
+        Status: statusValue,
+        QuantityActual: quantityActualValue,
       }))
-      if (payload.status === 'IN_PROGRESS') {
+      if (statusValue === 'IN_PROGRESS') {
         setSuccess((data && data.message) || 'Đã chuyển IN_PROGRESS. Backend sẽ đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.')
       } else {
         setSuccess((data && data.message) || 'Cập nhật trạng thái thành công.')

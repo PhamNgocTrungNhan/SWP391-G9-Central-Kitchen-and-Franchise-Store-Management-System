@@ -110,7 +110,11 @@ async function discoverBatchIdByProbe(apiBase, token, plannedQty, mfgDate) {
         const rowDate = String(row?.mfgDate || '').slice(0, 10)
         const status = String(row?.status || '').toUpperCase()
 
-        if (qty === Number(plannedQty) && rowDate === normalizedDate && (status === 'PLANNED' || status === 'IN_PROGRESS')) {
+        if (
+            qty === Number(plannedQty)
+            && rowDate === normalizedDate
+            && (status === 'PLANNED' || status === 'SCHEDULED' || status === 'IN_PROGRESS')
+        ) {
             localStorage.setItem('last_known_batch_id', String(id))
             return String(id)
         }
@@ -137,6 +141,23 @@ function extractBatchIdFromText(rawText) {
     }
 
     return ''
+}
+
+function resolveApiErrorMessage(data, text, fallbackMessage) {
+    const validationMessage = data?.errors && typeof data.errors === 'object'
+        ? Object.values(data.errors)
+            .flatMap((value) => (Array.isArray(value) ? value : [value]))
+            .filter(Boolean)
+            .join(' ')
+        : ''
+
+    return data?.message || data?.title || data?.error || validationMessage || text || fallbackMessage
+}
+
+function shouldRetryOnValidation400(message) {
+    const normalized = String(message || '').toLowerCase()
+    if (!normalized) return false
+    return normalized.includes('validation') || normalized.includes('required') || normalized.includes('field')
 }
 
 async function readResponsePayload(response) {
@@ -257,7 +278,7 @@ export default function CreateProductionBatchPage() {
         const tk = getToken()
         setProductsLoading(true)
         try {
-            const response = await fetch(`${apiBase}/products`, {
+            const response = await fetch(`${apiBase}/Products/manufactured`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
@@ -482,47 +503,130 @@ export default function CreateProductionBatchPage() {
             localStorage.setItem('last_known_batch_id', String(createdBatchId))
 
             {
-                const progressRes = await fetch(`${apiBase}/ProductionBatches/${encodeURIComponent(createdBatchId)}/status`, {
-                    method: 'PUT',
-                    headers: {
-                        accept: '*/*',
-                        Authorization: `Bearer ${tk}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ status: 'IN_PROGRESS', quantityActual: qty }),
-                })
-                const { json: progressData, text: rawProgressText } = await readResponsePayload(progressRes)
-                if (!progressRes.ok) {
-                    throw new Error(progressData?.message || progressData?.title || rawProgressText || 'Tạo mẻ thành công nhưng không thể chuyển IN_PROGRESS để trừ kho nguyên liệu.')
+                const allocationVariants = [
+                    [{ orderId: Number(row.orderId), allocatedQuantity: qty }],
+                    [{ OrderId: Number(row.orderId), AllocatedQuantity: qty }],
+                    { requests: [{ orderId: Number(row.orderId), allocatedQuantity: qty }] },
+                    { requests: [{ OrderId: Number(row.orderId), AllocatedQuantity: qty }] },
+                ]
+
+                let allocationSuccess = false
+                let allocationErrorMessage = ''
+
+                for (let index = 0; index < allocationVariants.length; index += 1) {
+                    const allocationRes = await fetch(`${apiBase}/ProductionBatches/${encodeURIComponent(createdBatchId)}/allocate`, {
+                        method: 'POST',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${tk}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(allocationVariants[index]),
+                    })
+
+                    const { json: allocationData, text: allocationRawText } = await readResponsePayload(allocationRes)
+                    if (allocationRes.ok) {
+                        allocationSuccess = true
+                        break
+                    }
+
+                    allocationErrorMessage = resolveApiErrorMessage(
+                        allocationData,
+                        allocationRawText,
+                        'Tạo mẻ thành công nhưng không thể gán đơn vào mẻ.',
+                    )
+
+                    const isLastVariant = index === allocationVariants.length - 1
+                    const shouldRetry = allocationRes.status === 400 && shouldRetryOnValidation400(allocationErrorMessage)
+                    if (!shouldRetry || isLastVariant) {
+                        throw new Error(allocationErrorMessage)
+                    }
+                }
+
+                if (!allocationSuccess) {
+                    throw new Error(allocationErrorMessage || 'Tạo mẻ thành công nhưng không thể gán đơn vào mẻ.')
+                }
+            }
+
+            let statusWarning = ''
+            {
+                const payloadVariants = [
+                    { status: 'completed', quantityActual: qty },
+                    { Status: 'completed', QuantityActual: qty },
+                    { status: 'COMPLETED', quantityActual: qty },
+                    { Status: 'COMPLETED', QuantityActual: qty },
+                    { request: { status: 'completed', quantityActual: qty } },
+                    { request: { Status: 'completed', QuantityActual: qty } },
+                ]
+
+                let updateSuccess = false
+                let lastErrorMessage = ''
+
+                for (let index = 0; index < payloadVariants.length; index += 1) {
+                    const progressRes = await fetch(`${apiBase}/ProductionBatches/${encodeURIComponent(createdBatchId)}/status`, {
+                        method: 'PUT',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${tk}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payloadVariants[index]),
+                    })
+
+                    const { json: progressData, text: rawProgressText } = await readResponsePayload(progressRes)
+                    if (progressRes.ok) {
+                        updateSuccess = true
+                        break
+                    }
+
+                    lastErrorMessage = resolveApiErrorMessage(
+                        progressData,
+                        rawProgressText,
+                        'Tạo mẻ thành công nhưng không thể chuyển COMPLETED.',
+                    )
+
+                    const isLastVariant = index === payloadVariants.length - 1
+                    const shouldRetry = progressRes.status === 400 && shouldRetryOnValidation400(lastErrorMessage)
+                    if (!shouldRetry || isLastVariant) {
+                        break
+                    }
+                }
+
+                if (!updateSuccess) {
+                    statusWarning = lastErrorMessage || 'Không thể tự chuyển mẻ sang COMPLETED.'
                 }
             }
 
             let deductionHint = ''
-            const logsRes = await fetch(`${apiBase}/Inventory/logs`, {
-                method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
-            })
-            const logsJson = await logsRes.json().catch(() => [])
-            if (logsRes.ok) {
-                const hasDeductionLog = parseArrayData(logsJson).some((item) => {
-                    const referenceType = String(item?.referenceType || '').toUpperCase()
-                    const referenceId = String(item?.referenceId ?? '').trim()
-                    const quantityChange = Number(item?.changeQuantity ?? item?.quantityChanged ?? item?.quantity ?? item?.amount ?? 0)
-
-                    return referenceType.includes('PRODUCTION_BATCH')
-                        && referenceId === String(createdBatchId)
-                        && quantityChange < 0
+            if (!statusWarning) {
+                const logsRes = await fetch(`${apiBase}/Inventory/logs`, {
+                    method: 'GET',
+                    headers: {
+                        accept: '*/*',
+                        Authorization: `Bearer ${tk}`,
+                    },
                 })
+                const logsJson = await logsRes.json().catch(() => [])
+                if (logsRes.ok) {
+                    const hasDeductionLog = parseArrayData(logsJson).some((item) => {
+                        const referenceType = String(item?.referenceType || '').toUpperCase()
+                        const referenceId = String(item?.referenceId ?? '').trim()
+                        const quantityChange = Number(item?.changeQuantity ?? item?.quantityChanged ?? item?.quantity ?? item?.amount ?? 0)
 
-                if (!hasDeductionLog) {
-                    deductionHint = ' Chưa thấy log trừ kho cho batch này trong /Inventory/logs. Vui lòng kiểm tra BOM của sản phẩm và logic trừ kho backend.'
+                        return referenceType.includes('PRODUCTION_BATCH')
+                            && referenceId === String(createdBatchId)
+                            && quantityChange < 0
+                    })
+
+                    if (!hasDeductionLog) {
+                        deductionHint = ' Chưa thấy log trừ kho cho batch này trong /Inventory/logs. Vui lòng kiểm tra BOM của sản phẩm và logic trừ kho backend.'
+                    }
                 }
             }
 
-            const inventoryHint = ' Đã gửi chuyển trạng thái IN_PROGRESS để backend đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.'
+            const inventoryHint = statusWarning
+                ? ` Đã tạo mẻ và gán đơn thành công, nhưng chuyển COMPLETED thất bại: ${statusWarning}`
+                : ' Đã tự chuyển trạng thái mẻ sang COMPLETED theo contract backend.'
 
             setSuccess(
                 (data?.message || 'Tạo mẻ sản xuất thành công.')
@@ -583,7 +687,7 @@ export default function CreateProductionBatchPage() {
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
                         Trang này chỉ dùng để tạo mẻ từ đơn hàng đã phê duyệt. Mỗi dòng sản phẩm có nút tạo mẻ riêng.
-                        Sau khi tạo, hệ thống tự chuyển IN_PROGRESS để backend trừ nguyên liệu RAW theo BOM đệ quy.
+                        Sau khi tạo, hệ thống tự chuyển COMPLETED theo contract backend hiện tại.
                     </p>
                     <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
                         <label className="flex flex-col gap-1">
@@ -596,7 +700,7 @@ export default function CreateProductionBatchPage() {
                             />
                         </label>
                         <p className="text-xs text-emerald-700 dark:text-emerald-300 pt-1 sm:pt-6">
-                            Mặc định: sau khi tạo mẻ hệ thống sẽ tự chuyển IN_PROGRESS để trừ RAW theo BOM.
+                            Mặc định: sau khi tạo mẻ hệ thống sẽ tự chuyển COMPLETED.
                         </p>
                     </div>
                 </div>

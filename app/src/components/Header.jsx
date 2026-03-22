@@ -5,7 +5,7 @@ export default function Header({ title }) {
                 <div className="size-6 text-primary">
                     <span className="material-symbols-outlined text-2xl">restaurant</span>
                 </div>
-                <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Central Kitchen Analytics'}</h2>
+                <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Phân tích bếp trung tâm'}</h2>
             </div>
             <div className="flex flex-1 justify-end gap-6 items-center">
                 <label className="flex flex-col min-w-40 h-10 max-w-64">
@@ -15,7 +15,7 @@ export default function Header({ title }) {
                         </div>
                         <input
                             className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg focus:outline-0 focus:ring-0 border-none bg-transparent h-full placeholder:text-slate-400 px-4 rounded-l-none border-l-0 pl-2 text-sm font-normal leading-normal"
-                            placeholder="Search..."
+                            placeholder="Tìm kiếm..."
                         />
                     </div>
                 </label>

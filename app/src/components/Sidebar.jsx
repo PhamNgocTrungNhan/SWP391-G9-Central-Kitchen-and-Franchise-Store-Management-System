@@ -1,7 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { navigationGroups } from '../data/appSchema'
+import { getNavigationByRole } from '../data/appSchema'
+import { getCurrentUserRole } from '../utils/auth'
 
 export default function Sidebar() {
+  const role = getCurrentUserRole()
+  const navigationGroups = getNavigationByRole(role)
+
   return (
     <aside className="sticky top-2 hidden h-[calc(100vh-1rem)] min-h-0 w-[248px] flex-shrink-0 flex-col overflow-hidden rounded-[1.8rem] border border-[#d9cfbf] bg-[#f7f0e4]/90 p-4 shadow-[0_18px_40px_rgba(94,77,52,0.08)] backdrop-blur-sm xl:flex 2xl:w-[260px]">
       <div className="flex min-h-0 flex-1 flex-col">
@@ -11,7 +15,7 @@ export default function Sidebar() {
               <span className="material-symbols-outlined text-[22px]">storefront</span>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#887654]">Dashboard</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#887654]">Hệ thống</p>
               <h2 className="mt-1 font-display text-lg font-bold text-[#223223]">Shop2026</h2>
             </div>
           </div>
@@ -53,6 +57,12 @@ export default function Sidebar() {
               </div>
             </div>
           ))}
+
+          {navigationGroups.length === 0 && (
+            <div className="rounded-2xl border border-[#e0d5c5] bg-[#fff9ef] p-3 text-sm text-[#6f644f]">
+              Bạn chưa có quyền truy cập màn hình nào.
+            </div>
+          )}
         </nav>
       </div>
     </aside>

@@ -3,41 +3,67 @@ export const appSummary = {
   inactiveControllers: ['ProductsController'],
 }
 
+export const roles = {
+  ADMIN: 'ADMIN',
+  MANAGER: 'MANAGER',
+  KITCHEN_STAFF: 'KITCHEN_STAFF',
+  STORE_STAFF: 'STORE_STAFF',
+  SUPPLY_COORDINATOR: 'SUPPLY_COORDINATOR',
+}
+
+const operationalRoles = [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR]
+
 export const navigationGroups = [
   {
     title: 'Tổng quan',
-    items: [{ to: '/dashboard', key: 'dashboard', label: 'Bảng điều khiển', icon: 'dashboard' }],
+    items: [{ to: '/dashboard', key: 'dashboard', label: 'Bảng điều khiển', icon: 'dashboard', roles: operationalRoles }],
   },
   {
     title: 'Dữ liệu gốc',
     items: [
-      { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory' },
-      { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition' },
-      { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront' },
-      { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book' },
-      { to: '/users', key: 'users', label: 'Người dùng', icon: 'group' },
+      { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory', roles: [roles.ADMIN, roles.MANAGER] },
+      { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition', roles: [roles.ADMIN, roles.MANAGER] },
+      { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront', roles: [roles.ADMIN, roles.MANAGER] },
+      { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+      { to: '/suppliers', key: 'suppliers', label: 'Nhà cung cấp', icon: 'local_shipping', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/users', key: 'users', label: 'Người dùng', icon: 'group', roles: [roles.ADMIN] },
     ],
   },
   {
     title: 'Vận hành',
     items: [
-      { to: '/inventory', key: 'inventory', label: 'Tồn kho', icon: 'inventory_2' },
-      { to: '/store-orders', key: 'storeOrders', label: 'Đơn hàng cửa hàng', icon: 'shopping_cart' },
-      { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn hàng', icon: 'assignment' },
-      { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ sản xuất', icon: 'precision_manufacturing' },
-      { to: '/production-batches/ongoing', key: 'ongoingProductionBatches', label: 'Batch đang thực hiện', icon: 'manufacturing' },
-      { to: '/delivery', key: 'delivery', label: 'Giao hàng', icon: 'fact_check' },
-      { to: '/dispatch', key: 'dispatch', label: 'Điều phối', icon: 'local_shipping' },
-      { to: '/system-config', key: 'systemConfig', label: 'Cấu hình hệ thống', icon: 'settings' },
+      { to: '/inventory', key: 'inventory', label: 'Tồn kho', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/store-orders', key: 'storeOrders', label: 'Đơn hàng cửa hàng', icon: 'shopping_cart', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+      { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn nội bộ', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ sản xuất', icon: 'precision_manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+      { to: '/production-batches/ongoing', key: 'ongoingProductionBatches', label: 'Mẻ đang thực hiện', icon: 'manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+      { to: '/delivery', key: 'delivery', label: 'Giao hàng', icon: 'fact_check', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/dispatch', key: 'dispatch', label: 'Điều phối', icon: 'local_shipping', roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
+      { to: '/system-config', key: 'systemConfig', label: 'Cấu hình hệ thống', icon: 'settings', roles: [roles.ADMIN] },
     ],
   },
 ]
 
+export function getNavigationByRole(role) {
+  return navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.roles || item.roles.includes(role)),
+    }))
+    .filter((group) => group.items.length > 0)
+}
+
+export function getDefaultPathByRole(role) {
+  const firstGroup = getNavigationByRole(role)[0]
+  const firstItem = firstGroup?.items?.[0]
+  return firstItem?.to || '/'
+}
+
 export const pageCatalog = {
   dashboard: {
     controller: 'DashboardController',
-    title: 'Operational Dashboard',
-    description: 'A single overview screen for the three Dashboard endpoints: production, orders, and inventory. Filters are limited to the real query params days and locationType.',
+    title: 'Bảng điều khiển vận hành',
+    description: 'Màn hình tổng quan cho ba nhóm API Dashboard: sản xuất, đơn hàng và tồn kho. Bộ lọc chỉ dùng đúng query params days và locationType.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'GET', path: '/api/Dashboard/production', params: 'days?' },
@@ -47,8 +73,8 @@ export const pageCatalog = {
   },
   categories: {
     controller: 'CategoryController',
-    title: 'Category Management',
-    description: 'A focused category CRUD screen mapped only to the four /api/Category endpoints. No search, export, or extra actions beyond the API.',
+    title: 'Quản lý danh mục',
+    description: 'Màn hình CRUD danh mục bám đúng bốn endpoint /api/Category, không bổ sung thao tác ngoài phạm vi API.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'GET', path: '/api/Category' },
@@ -59,8 +85,8 @@ export const pageCatalog = {
   },
   organization: {
     controller: 'OrganizationController',
-    title: 'Stores And Kitchens',
-    description: 'Stores and kitchens are split into separate workspaces that mirror the six OrganizationController endpoints. Kitchens now support only read and update actions.',
+    title: 'Cửa hàng và bếp trung tâm',
+    description: 'Không gian cho cửa hàng và bếp tách riêng theo sáu endpoint của OrganizationController. Bếp hiện chỉ hỗ trợ đọc và cập nhật.',
     authorize: 'Stores: ADMIN/MANAGER view, ADMIN mutate | Kitchens: ADMIN/MANAGER view, ADMIN mutate',
     endpoints: [
       { method: 'GET', path: '/api/Organization/stores' },
@@ -73,8 +99,8 @@ export const pageCatalog = {
   },
   recipes: {
     controller: 'RecipesController',
-    title: 'Recipe Lines',
-    description: 'This page manages recipe lines by parentProductId only. Product-management UI stays hidden because ProductsController is inactive.',
+    title: 'Quản lý công thức',
+    description: 'Trang này quản lý dòng công thức theo parentProductId. Phần quản lý sản phẩm bị ẩn vì ProductsController đang không hoạt động.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'GET', path: '/api/Recipes/parent/{parentProductId}' },
@@ -85,8 +111,8 @@ export const pageCatalog = {
   },
   inventory: {
     controller: 'InventoryController',
-    title: 'Inventory Operations',
-    description: 'The inventory UI is limited to four real flows: overall stock, store inventory by storeId, inventory logs, and transfer by orderId.',
+    title: 'Nghiệp vụ tồn kho',
+    description: 'Giao diện tồn kho giới hạn trong bốn luồng chính: tồn tổng, tồn theo storeId, nhật ký tồn kho và chuyển hàng theo orderId.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'GET', path: '/api/Inventory/stock' },
@@ -97,8 +123,8 @@ export const pageCatalog = {
   },
   internalOrders: {
     controller: 'InternalOrderController',
-    title: 'Internal Orders',
-    description: 'This workspace covers order creation, list filtering by storeId and status, detail view, and the cancel, approve, reject, confirm-completed, and status-update actions.',
+    title: 'Đơn hàng nội bộ',
+    description: 'Không gian này bao gồm tạo đơn, lọc danh sách theo storeId và trạng thái, xem chi tiết, cùng các thao tác hủy, duyệt, từ chối, xác nhận hoàn tất và cập nhật trạng thái.',
     authorize: 'No [Authorize] attribute on controller/actions',
     endpoints: [
       { method: 'POST', path: '/api/internal-orders', body: 'CreateInternalOrderRequest' },
@@ -113,8 +139,8 @@ export const pageCatalog = {
   },
   productionBatches: {
     controller: 'ProductionBatchesController',
-    title: 'Production Batches',
-    description: 'This controller has no GET list endpoint. The UI therefore focuses on batch creation and an id-based workspace for status, allocation, and cancel actions. When status is moved to IN_PROGRESS, backend recursively explodes BOM down to RAW materials and deducts inventory by aggregated raw demand.',
+    title: 'Mẻ sản xuất',
+    description: 'Controller này chưa có endpoint GET danh sách, nên UI tập trung vào tạo mẻ và thao tác theo id gồm đổi trạng thái, phân bổ và hủy. Khi chuyển sang IN_PROGRESS, backend sẽ bung BOM đệ quy đến nguyên liệu RAW và trừ tồn kho theo tổng nhu cầu.',
     authorize: 'ADMIN, MANAGER',
     endpoints: [
       { method: 'POST', path: '/api/ProductionBatches', body: 'BatchCreateRequest' },
@@ -125,8 +151,8 @@ export const pageCatalog = {
   },
   users: {
     controller: 'UserController',
-    title: 'User Administration',
-    description: 'User administration is limited to the four /api/User CRUD endpoints. The old permission matrix is gone because the backend does not expose role-management APIs.',
+    title: 'Quản trị người dùng',
+    description: 'Quản trị người dùng hiện giới hạn ở bốn endpoint CRUD /api/User. Ma trận phân quyền cũ đã bỏ vì backend chưa cung cấp API quản lý role.',
     authorize: 'ADMIN',
     endpoints: [
       { method: 'GET', path: '/api/User' },

@@ -168,7 +168,7 @@ export default function OrderManagementPage() {
     const fetchProductMap = async () => {
         const tk = token()
         try {
-            const response = await fetch(`${apiBase}/products`, {
+            const response = await fetch(`${apiBase}/Products/manufactured`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
@@ -195,7 +195,8 @@ export default function OrderManagementPage() {
     }
 
     const fetchOrders = async () => {
-        const storeId = String(storeIdFilter || '').trim()
+        const typedStoreId = String(storeIdFilter || '').trim()
+        const effectiveStoreId = typedStoreId || resolveDefaultStoreId()
         const tk = token()
 
         if (!tk) {
@@ -262,22 +263,11 @@ export default function OrderManagementPage() {
 
         setLoading(true)
         try {
-            let records = []
-
-            if (storeId) {
-                records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(storeId)}`)
-            } else {
-                try {
-                    records = await fetchOrderRecords(`${apiBase}/internal-orders`)
-                } catch (error) {
-                    // Some backends require storeId and return 400 for unscoped list.
-                    const fallbackStoreId = resolveDefaultStoreId()
-                    if (String(error?.message || '').trim()) {
-                        openNotice('error', 'Backend yêu cầu storeId khi tải danh sách. Hệ thống tự chuyển sang store mặc định.')
-                    }
-                    records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(fallbackStoreId)}`)
-                }
+            if (!typedStoreId) {
+                openNotice('warning', `Đang dùng Store ID mặc định: ${effectiveStoreId} để tránh lỗi 400 từ backend.`)
             }
+
+            const records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(effectiveStoreId)}`)
 
             const normalized = normalizeOrders(records)
             const hydrated = await hydrateOrdersWithDetails(normalized)
@@ -435,6 +425,17 @@ export default function OrderManagementPage() {
     }
 
     const transferOrder = async (orderId) => {
+        const targetOrder = orders.find((item) => Number(item?.orderId) === Number(orderId))
+        if (!targetOrder) {
+            openNotice('error', 'Không tìm thấy đơn hàng để xuất kho.')
+            return
+        }
+
+        if (!canTransferOrder(targetOrder.status)) {
+            openNotice('error', 'Chỉ đơn ở trạng thái Đã duyệt hoặc Đã xác nhận mới được xuất kho.')
+            return
+        }
+
         const tk = token()
         if (!tk) {
             openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
@@ -544,10 +545,10 @@ export default function OrderManagementPage() {
     }), [orders])
 
     const canConfirmCompleted = (status) => isShippingStatus(status)
-    const canCancelOrder = (_status) => true
-    const canApproveOrder = (_status) => true
-    const canRejectOrder = (_status) => true
-    const canTransferOrder = (_status) => true
+    const canCancelOrder = (status) => status === 'Pending'
+    const canApproveOrder = (status) => status === 'Pending'
+    const canRejectOrder = (status) => status === 'Pending'
+    const canTransferOrder = (status) => status === 'Approved' || status === 'Confirmed'
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)

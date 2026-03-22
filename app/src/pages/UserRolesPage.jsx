@@ -1,19 +1,19 @@
 import { useState } from 'react'
 
 const roles = [
-    { icon: 'admin_panel_settings', name: 'Admin', desc: 'Full access to all modules' },
-    { icon: 'manage_accounts', name: 'Manager', desc: 'Operational oversight' },
-    { icon: 'soup_kitchen', name: 'CK Staff', desc: 'Production & inventory' },
-    { icon: 'storefront', name: 'Store Staff', desc: 'Orders & receiving' },
-    { icon: 'local_shipping', name: 'Supply Coordinator', desc: 'Logistics & dispatch' },
+    { icon: 'admin_panel_settings', name: 'Quản trị viên', desc: 'Toàn quyền tất cả phân hệ' },
+    { icon: 'manage_accounts', name: 'Quản lý', desc: 'Giám sát vận hành' },
+    { icon: 'soup_kitchen', name: 'Nhân viên bếp', desc: 'Sản xuất và tồn kho' },
+    { icon: 'storefront', name: 'Nhân viên cửa hàng', desc: 'Đơn hàng và nhận hàng' },
+    { icon: 'local_shipping', name: 'Điều phối cung ứng', desc: 'Logistics và điều phối' },
 ]
 
 const modules = [
-    { icon: 'inventory_2', name: 'Inventory' },
-    { icon: 'receipt_long', name: 'Orders' },
-    { icon: 'conveyor_belt', name: 'Production' },
-    { icon: 'analytics', name: 'Reports' },
-    { icon: 'settings', name: 'System Settings' },
+    { icon: 'inventory_2', name: 'Tồn kho' },
+    { icon: 'receipt_long', name: 'Đơn hàng' },
+    { icon: 'conveyor_belt', name: 'Sản xuất' },
+    { icon: 'analytics', name: 'Báo cáo' },
+    { icon: 'settings', name: 'Cấu hình hệ thống' },
 ]
 
 export default function UserRolesPage() {
@@ -35,7 +35,7 @@ export default function UserRolesPage() {
                             </div>
                             <div className="flex flex-1 justify-end gap-8">
                                 <div className="hidden md:flex items-center gap-9">
-                                    {['Dashboard', 'Inventory', 'Orders', 'Production', 'Reports', 'Settings'].map((item, i) => (
+                                    {['Bảng điều khiển', 'Tồn kho', 'Đơn hàng', 'Sản xuất', 'Báo cáo', 'Cài đặt'].map((item, i) => (
                                         <a key={item} href="#" className={`text-sm font-medium leading-normal transition-colors ${i === 5 ? 'text-primary font-semibold' : 'text-slate-600 dark:text-slate-300 hover:text-primary'}`}>{item}</a>
                                     ))}
                                 </div>
@@ -47,15 +47,15 @@ export default function UserRolesPage() {
                             {/* Page Title */}
                             <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
                                 <div>
-                                    <h1 className="text-3xl font-bold leading-tight">User Roles &amp; Permissions</h1>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage roles, set granular permissions, and oversee user access levels.</p>
+                                    <h1 className="text-3xl font-bold leading-tight">Vai trò và phân quyền người dùng</h1>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý vai trò, thiết lập quyền chi tiết và kiểm soát mức truy cập.</p>
                                 </div>
                                 <div className="flex gap-3">
                                     <button className="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                        <span className="material-symbols-outlined mr-2 text-[20px]">person_add</span>Add User
+                                        <span className="material-symbols-outlined mr-2 text-[20px]">person_add</span>Thêm người dùng
                                     </button>
                                     <button className="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20">
-                                        <span className="material-symbols-outlined mr-2 text-[20px]">add</span>Add New Role
+                                        <span className="material-symbols-outlined mr-2 text-[20px]">add</span>Thêm vai trò mới
                                     </button>
                                 </div>
                             </div>
@@ -65,8 +65,8 @@ export default function UserRolesPage() {
                                 {/* Left: Roles */}
                                 <div className="w-full lg:w-1/3 xl:w-1/4 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
                                     <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                                        <h3 className="font-semibold">Defined Roles</h3>
-                                        <span className="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">5 Roles</span>
+                                        <h3 className="font-semibold">Danh sách vai trò</h3>
+                                        <span className="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">5 vai trò</span>
                                     </div>
                                     <div className="flex-1 overflow-y-auto">
                                         <div className="flex flex-col">
@@ -94,7 +94,7 @@ export default function UserRolesPage() {
                                 <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
                                     {/* Tabs */}
                                     <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 bg-slate-50 dark:bg-slate-800/50">
-                                        {['Permissions Matrix', `Assigned Users (12)`].map((tab, i) => (
+                                        {['Ma trận quyền', `Người dùng đã gán (12)`].map((tab, i) => (
                                             <button
                                                 key={tab}
                                                 onClick={() => setActiveTab(i)}
@@ -108,12 +108,12 @@ export default function UserRolesPage() {
                                             <div>
                                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                                     <span className="material-symbols-outlined text-primary">{roles[activeRole].icon}</span>
-                                                    {roles[activeRole].name} Permissions
+                                                    Quyền của {roles[activeRole].name}
                                                 </h2>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configure module access levels for this role.</p>
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Thiết lập mức truy cập theo từng phân hệ cho vai trò này.</p>
                                             </div>
                                             <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition-colors border border-slate-200 dark:border-slate-700">
-                                                Save Changes
+                                                Lưu thay đổi
                                             </button>
                                         </div>
 
@@ -122,8 +122,8 @@ export default function UserRolesPage() {
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
                                                         <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
-                                                            <th className="py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300 w-1/3">Module</th>
-                                                            {['View', 'Create', 'Edit', 'Delete'].map(h => (
+                                                            <th className="py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300 w-1/3">Phân hệ</th>
+                                                            {['Xem', 'Tạo', 'Sửa', 'Xóa'].map(h => (
                                                                 <th key={h} className="py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300 text-center">{h}</th>
                                                             ))}
                                                         </tr>
@@ -152,8 +152,8 @@ export default function UserRolesPage() {
                                         ) : (
                                             <div className="text-center py-16 text-slate-400">
                                                 <span className="material-symbols-outlined text-5xl mb-4 block">group</span>
-                                                <p className="font-medium">12 users assigned to {roles[activeRole].name}</p>
-                                                <p className="text-sm mt-1">User list management coming soon</p>
+                                                <p className="font-medium">Có 12 người dùng thuộc vai trò {roles[activeRole].name}</p>
+                                                <p className="text-sm mt-1">Chức năng quản lý danh sách người dùng sẽ cập nhật sớm</p>
                                             </div>
                                         )}
                                     </div>

@@ -85,7 +85,8 @@ export default function OngoingProductionBatchesPage() {
             const logsJson = await logsRes.json().catch(() => [])
 
             if (!logsRes.ok) {
-                throw new Error(logsJson?.message || logsJson?.title || 'Không thể tải lịch sử biến động kho để suy luận batch đang thực hiện.')
+                const backendMessage = logsJson?.message || logsJson?.title || ''
+                throw new Error(backendMessage || 'Endpoint /Inventory/logs đang trả lỗi nội bộ (500), nên chưa thể suy luận danh sách batch đang thực hiện.')
             }
 
             const productNameMap = {}

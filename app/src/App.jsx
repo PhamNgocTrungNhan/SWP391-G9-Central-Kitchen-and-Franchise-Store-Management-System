@@ -13,6 +13,7 @@ import OrderManagementPage from './pages/OrderManagementPage'
 import SystemConfigPage from './pages/SystemConfigPage'
 import ProductManagementPage from './pages/ProductManagementPage'
 import IngredientManagementPage from './pages/IngredientManagementPage'
+import SuppliersPage from './pages/SuppliersPage'
 import CategoriesPage from './pages/CategoriesPage'
 import OrganizationPage from './pages/OrganizationPage'
 import RecipesPage from './pages/RecipesPage'
@@ -23,6 +24,67 @@ import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import OngoingProductionBatchesPage from './pages/OngoingProductionBatchesPage'
 import UsersPage from './pages/UsersPage'
 import Layout from './components/Layout'
+import { getDefaultPathByRole, roles } from './data/appSchema'
+import { getCurrentUserRole, getStoredToken } from './utils/auth'
+
+function RequireAuth({ children }) {
+  const token = getStoredToken()
+  if (!token) {
+    return <Navigate to="/" replace />
+  }
+  return children
+}
+
+function RequireRole({ allowedRoles, children }) {
+  const role = getCurrentUserRole()
+
+  if (!allowedRoles || allowedRoles.length === 0) return children
+
+  if (!allowedRoles.includes(role)) {
+    const fallbackPath = getDefaultPathByRole(role)
+    return <Navigate to={fallbackPath} replace />
+  }
+
+  return children
+}
+
+function LoginOrHome() {
+  const token = getStoredToken()
+  if (!token) return <LoginPage />
+
+  const role = getCurrentUserRole()
+  return <Navigate to={getDefaultPathByRole(role)} replace />
+}
+
+const routeConfig = [
+  { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+
+  { path: '/inventory', element: <BatchTraceabilityPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/organization/stores', element: <FranchiseNetworkPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/organization/kitchens', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/organization', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/network', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/recipes', element: <RecipeBOMPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/delivery', element: <StoreDeliveryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/dispatch', element: <SupplyDispatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
+  { path: '/production-batches/create', element: <CreateProductionBatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/users', element: <UserRolesPage />, roles: [roles.ADMIN] },
+  { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+  { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
+  { path: '/production-batches/ongoing', element: <OngoingProductionBatchesPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/suppliers', element: <SuppliersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+
+  { path: '/fe/categories', element: <CategoriesPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/fe/organization', element: <OrganizationPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/fe/recipes', element: <RecipesPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/fe/inventory', element: <InventoryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/fe/internal-orders', element: <InternalOrdersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/fe/production-batches', element: <ProductionBatchesPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/fe/users', element: <UsersPage />, roles: [roles.ADMIN] },
+]
 
 function App() {
   useEffect(() => {
@@ -48,36 +110,21 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route element={<Layout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-
-          {/* API-first route set */}
-          <Route path="/inventory" element={<BatchTraceabilityPage />} />
-          <Route path="/organization/stores" element={<FranchiseNetworkPage />} />
-          <Route path="/organization/kitchens" element={<Navigate to="/organization/stores" replace />} />
-          <Route path="/organization" element={<Navigate to="/organization/stores" replace />} />
-          <Route path="/network" element={<Navigate to="/organization/stores" replace />} />
-          <Route path="/recipes" element={<RecipeBOMPage />} />
-          <Route path="/delivery" element={<StoreDeliveryPage />} />
-          <Route path="/dispatch" element={<SupplyDispatchPage />} />
-          <Route path="/production-batches/create" element={<CreateProductionBatchPage />} />
-          <Route path="/users" element={<UserRolesPage />} />
-          <Route path="/store-orders" element={<StoreOrderPage />} />
-          <Route path="/order-management" element={<OrderManagementPage />} />
-          <Route path="/system-config" element={<SystemConfigPage />} />
-          <Route path="/production-batches/ongoing" element={<OngoingProductionBatchesPage />} />
-          <Route path="/products" element={<ProductManagementPage />} />
-          <Route path="/ingredients" element={<IngredientManagementPage />} />
-
-          {/* FE route set (kept under separate paths) */}
-          <Route path="/fe/categories" element={<CategoriesPage />} />
-          <Route path="/fe/organization" element={<OrganizationPage />} />
-          <Route path="/fe/recipes" element={<RecipesPage />} />
-          <Route path="/fe/inventory" element={<InventoryPage />} />
-          <Route path="/fe/internal-orders" element={<InternalOrdersPage />} />
-          <Route path="/fe/production-batches" element={<ProductionBatchesPage />} />
-          <Route path="/fe/users" element={<UsersPage />} />
+        <Route path="/" element={<LoginOrHome />} />
+        <Route
+          element={(
+            <RequireAuth>
+              <Layout />
+            </RequireAuth>
+          )}
+        >
+          {routeConfig.map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={<RequireRole allowedRoles={route.roles}>{route.element}</RequireRole>}
+            />
+          ))}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
