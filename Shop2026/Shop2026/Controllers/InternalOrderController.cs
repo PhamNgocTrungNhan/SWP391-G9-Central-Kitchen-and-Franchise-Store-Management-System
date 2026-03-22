@@ -337,5 +337,76 @@ namespace Shop2026.Controllers
                 });
             }
         }
+
+        // ==========================================
+        // THÊM MỚI CHO LUỒNG 4
+        // ==========================================
+
+        [HttpPut("{orderId}/return")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        public IActionResult ReturnOrder(int orderId, [FromBody] RejectOrderRequest request)
+        {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new
+                {
+                    message = "Invalid StoreId"
+                });
+
+            try
+            {
+                var order = _orderService.ReturnOrder(orderId, storeId, request.Reason);
+                if (order == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+
+                return Ok(new
+                {
+                    message = "Đã báo trả hàng thành công",
+                    order
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("feedback")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        public IActionResult SubmitFeedback([FromBody] CreateFeedbackRequest request)
+        {
+            if (!TryGetStoreId(out int storeId))
+                return Unauthorized(new
+                {
+                    message = "Invalid StoreId"
+                });
+
+            try
+            {
+                var order = _orderService.SubmitFeedback(request, storeId);
+                if (order == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+
+                return Ok(new
+                {
+                    message = "Đã gửi Feedback thành công!"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
     }
 }

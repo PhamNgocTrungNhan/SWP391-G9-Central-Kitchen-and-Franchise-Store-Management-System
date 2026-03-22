@@ -16,32 +16,64 @@ public partial class ApplicationDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Category> Categories { get; set; }
+    public virtual DbSet<Category> Categories
+    {
+        get; set;
+    }
+    public virtual DbSet<InternalOrder> InternalOrders
+    {
+        get; set;
+    }
+    public virtual DbSet<InternalOrderDetail> InternalOrderDetails
+    {
+        get; set;
+    }
+    public virtual DbSet<Inventory> Inventories
+    {
+        get; set;
+    }
+    public virtual DbSet<Kitchen> Kitchens
+    {
+        get; set;
+    }
+    public virtual DbSet<Product> Products
+    {
+        get; set;
+    }
+    public virtual DbSet<ProductionBatch> ProductionBatches
+    {
+        get; set;
+    }
+    public virtual DbSet<ProductionBatchOrder> ProductionBatchOrders
+    {
+        get; set;
+    }
+    public virtual DbSet<RecipesBom> RecipesBoms
+    {
+        get; set;
+    }
+    public virtual DbSet<Role> Roles
+    {
+        get; set;
+    }
+    public virtual DbSet<StockLog> StockLogs
+    {
+        get; set;
+    }
+    public virtual DbSet<Store> Stores
+    {
+        get; set;
+    }
+    public virtual DbSet<User> Users
+    {
+        get; set;
+    }
 
-    public virtual DbSet<InternalOrder> InternalOrders { get; set; }
-
-    public virtual DbSet<InternalOrderDetail> InternalOrderDetails { get; set; }
-
-    public virtual DbSet<Inventory> Inventories { get; set; }
-
-    public virtual DbSet<Kitchen> Kitchens { get; set; }
-
-    public virtual DbSet<Product> Products { get; set; }
-
-    public virtual DbSet<ProductionBatch> ProductionBatches { get; set; }
-
-    public virtual DbSet<ProductionBatchOrder> ProductionBatchOrders { get; set; }
-
-    public virtual DbSet<RecipesBom> RecipesBoms { get; set; }
-
-    public virtual DbSet<Role> Roles { get; set; }
-
-    public virtual DbSet<StockLog> StockLogs { get; set; }
-
-    public virtual DbSet<Store> Stores { get; set; }
-
-    public virtual DbSet<User> Users { get; set; }
-    public virtual DbSet<Supplier> Suppliers { get; set; }
+    // Đã có DbSet Supplier
+    public virtual DbSet<Supplier> Suppliers
+    {
+        get; set;
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -99,6 +131,13 @@ public partial class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
+
+            // =====================================
+            // ✅ ĐÃ BỔ SUNG MAP 3 CỘT CHO LUỒNG 4
+            // =====================================
+            entity.Property(e => e.ReturnReason).HasColumnName("return_reason");
+            entity.Property(e => e.Rating).HasColumnName("rating");
+            entity.Property(e => e.FeedbackComment).HasColumnName("feedback_comment");
 
             entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.InternalOrders)
                 .HasForeignKey(d => d.ApprovedBy)
@@ -380,6 +419,27 @@ public partial class ApplicationDbContext : DbContext
             entity.HasOne(d => d.Store).WithMany(p => p.Users)
                 .HasForeignKey(d => d.StoreId)
                 .HasConstraintName("FK__Users__store_id__412EB0B6");
+        });
+
+        // =====================================
+        // ✅ ĐÃ BỔ SUNG MAP BẢNG SUPPLIERS
+        // =====================================
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.HasKey(e => e.SupplierId).HasName("PK_Suppliers");
+
+            entity.ToTable("Suppliers");
+
+            entity.Property(e => e.SupplierId).HasColumnName("supplier_id");
+            entity.Property(e => e.SupplierName)
+                .HasMaxLength(255)
+                .IsRequired()
+                .HasColumnName("supplier_name");
+            entity.Property(e => e.ContactInfo).HasColumnName("contact_info");
+            entity.Property(e => e.Address).HasColumnName("address");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
         });
 
         OnModelCreatingPartial(modelBuilder);

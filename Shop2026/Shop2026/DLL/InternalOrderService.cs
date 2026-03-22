@@ -125,7 +125,8 @@ namespace Shop2026.DLL
                 // LUỒNG 3: Cho phép Coordinator chuyển từ PRODUCED sang SHIPPING
                 { "PRODUCED", new List<string> { "SHIPPING" } },
 
-                { "SHIPPING", new List<string> { "COMPLETED" } }
+                // LUỒNG 4: Thêm trạng thái RETURNED
+                { "SHIPPING", new List<string> { "COMPLETED", "RETURNED" } }
             };
 
             if (!validTransitions.ContainsKey(currentStatus) ||
@@ -146,6 +147,45 @@ namespace Shop2026.DLL
         public List<InternalOrder> GetKitchenOrders(int kitchenId, string? status)
         {
             return _orderRepository.GetKitchenOrders(kitchenId, status);
+        }
+
+        // ==========================================
+        // THÊM MỚI CHO LUỒNG 4
+        // ==========================================
+
+        public InternalOrder? ReturnOrder(int orderId, int storeId, string reason)
+        {
+            var order = _orderRepository.GetOrderById(orderId);
+            if (order == null)
+                return null;
+            if (order.StoreId != storeId)
+                throw new Exception("Không có quyền thao tác đơn này");
+            if (order.OrderStatus != "SHIPPING")
+                throw new Exception("Chỉ có thể trả hàng khi đơn đang giao (SHIPPING)");
+
+            order.OrderStatus = "RETURNED";
+            order.ReturnReason = reason;
+            order.UpdatedAt = DateTime.Now;
+
+            _orderRepository.UpdateOrder(order);
+            return order;
+        }
+
+        public InternalOrder? SubmitFeedback(CreateFeedbackRequest request, int storeId)
+        {
+            var order = _orderRepository.GetOrderById(request.OrderId);
+            if (order == null)
+                return null;
+            if (order.StoreId != storeId)
+                throw new Exception("Không có quyền đánh giá đơn này");
+
+            if (order.OrderStatus != "COMPLETED" && order.OrderStatus != "RETURNED")
+                throw new Exception("Chỉ được gửi Feedback khi đơn đã Nhận hoặc Trả.");
+
+            if (request.Rating < 1 || request.Rating > 5)
+                throw new Exception("Rating phải từ 1 đến 5 sao.");
+
+            return _orderRepository.SubmitFeedback(request.OrderId, request.Rating, request.Comment);
         }
     }
 }

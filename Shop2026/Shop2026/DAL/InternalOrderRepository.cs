@@ -156,5 +156,22 @@ namespace Shop2026.DAL
 
             return query.OrderBy(o => o.ExpectedDeliveryDate).ToList();
         }
+
+        // ==========================================
+        // THÊM MỚI CHO LUỒNG 4
+        // ==========================================
+        public InternalOrder? SubmitFeedback(int orderId, int rating, string? comment)
+        {
+            var order = _context.InternalOrders.FirstOrDefault(o => o.OrderId == orderId);
+            if (order == null)
+                return null;
+
+            order.Rating = rating;
+            order.FeedbackComment = comment;
+            order.UpdatedAt = DateTime.Now;
+
+            _context.SaveChanges();
+            return order;
+        }
     }
 }
