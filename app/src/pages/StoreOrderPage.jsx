@@ -19,6 +19,7 @@ const orderStatusStyle = {
     Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    Produced: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
     Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     Approved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
@@ -32,6 +33,7 @@ const apiStatusToUi = {
     APPROVED: 'Approved',
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
+    PRODUCED: 'Produced',
     SHIPPED: 'Shipped',
     SHIPPING: 'Shipped',
     DELIVERED: 'Delivered',
@@ -184,6 +186,7 @@ export default function StoreOrderPage() {
     const [cancelLoading, setCancelLoading] = useState(false)
     const [receiveLoading, setReceiveLoading] = useState(false)
     const [returnLoading, setReturnLoading] = useState(false)
+    const [statusUpdating, setStatusUpdating] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [submitError, setSubmitError] = useState('')
     const [submitSuccess, setSubmitSuccess] = useState('')
@@ -423,6 +426,20 @@ export default function StoreOrderPage() {
         return normalized === 'SHIPPED' || normalized === 'IN TRANSIT'
     }
 
+    const getOrderStatusActions = (rawStatus) => {
+        const normalized = String(rawStatus || '').toUpperCase()
+        if (normalized === 'PENDING' || normalized === 'APPROVED') {
+            return [{ status: 'PROCESSING', label: 'Chuyển PROCESSING' }]
+        }
+        if (normalized === 'PROCESSING') {
+            return [{ status: 'PRODUCED', label: 'Chuyển PRODUCED' }]
+        }
+        if (normalized === 'PRODUCED') {
+            return [{ status: 'SHIPPING', label: 'Chuyển SHIPPING' }]
+        }
+        return []
+    }
+
     const getStoreNameById = (storeId) => {
         const id = Number(storeId)
         if (!id || id < 1) return 'N/A'
@@ -475,7 +492,7 @@ export default function StoreOrderPage() {
             const effectiveStoreId = parsedStoreId > 0 ? parsedStoreId : 1
             params.set('storeId', String(effectiveStoreId))
             if (ordersStatusFilter) {
-                params.set('status', ordersStatusFilter)
+                params.set('status', String(ordersStatusFilter).toLowerCase())
             }
 
             const query = params.toString() ? `?${params.toString()}` : ''
@@ -651,6 +668,49 @@ export default function StoreOrderPage() {
         }
     }
 
+    const updateOrderStatusById = async (orderId, nextStatus) => {
+        setDetailError('')
+        setSubmitError('')
+
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            setStatusUpdating(`${orderId}-${nextStatus}`)
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: nextStatus }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || `Không thể chuyển trạng thái sang ${nextStatus}.`)
+            }
+
+            const updatedOrder = data?.order
+            if (updatedOrder && Number(updatedOrder?.orderId || updatedOrder?.id) === Number(orderId)) {
+                setDetailOrder((prev) => (prev ? { ...prev, ...updatedOrder } : prev))
+            } else {
+                const updatedStatus = normalizeStatus(nextStatus)
+                setDetailOrder((prev) => (prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev))
+            }
+
+            setSubmitSuccess(data?.message || `Đơn #${orderId} đã chuyển sang ${nextStatus}.`)
+            fetchMyOrders()
+        } catch (error) {
+            setDetailError(error.message || 'Cập nhật trạng thái đơn hàng thất bại.')
+        } finally {
+            setStatusUpdating('')
+        }
+    }
+
 
     useEffect(() => {
         if (tab === 1) {
@@ -705,10 +765,10 @@ export default function StoreOrderPage() {
                 quantityConfirmed: 0,
                 quantityShipped: 0,
             }))
-            .filter((row) => row.productId > 0 && Number.isFinite(row.quantityOrdered) && row.quantityOrdered >= 0)
+            .filter((row) => row.productId > 0 && Number.isFinite(row.quantityOrdered) && row.quantityOrdered > 0)
 
         if (!orderDetails.length) {
-            setSubmitError('Vui lòng nhập ít nhất 1 dòng order detail hợp lệ (productId > 0 và quantityOrdered >= 0).')
+            setSubmitError('Vui lòng nhập ít nhất 1 dòng order detail hợp lệ (productId > 0 và quantityOrdered > 0).')
             return
         }
 
@@ -1106,6 +1166,7 @@ export default function StoreOrderPage() {
                                         <option value="PENDING">PENDING</option>
                                         <option value="APPROVED">APPROVED</option>
                                         <option value="PROCESSING">PROCESSING</option>
+                                        <option value="PRODUCED">PRODUCED</option>
                                         <option value="SHIPPED">SHIPPED</option>
                                         <option value="SHIPPING">SHIPPING</option>
                                         <option value="COMPLETED">COMPLETED</option>
@@ -1184,6 +1245,17 @@ export default function StoreOrderPage() {
                                                         >
                                                             <span className="material-symbols-outlined text-[18px]">visibility</span>
                                                         </button>
+                                                        {getOrderStatusActions(order.status).map((action) => (
+                                                            <button
+                                                                key={`${order.orderId}-${action.status}`}
+                                                                onClick={() => updateOrderStatusById(order.orderId, action.status)}
+                                                                disabled={statusUpdating === `${order.orderId}-${action.status}` || cancelLoading || receiveLoading || returnLoading}
+                                                                className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                                                                title={action.label}
+                                                            >
+                                                                {statusUpdating === `${order.orderId}-${action.status}` ? 'Đang cập nhật...' : action.label}
+                                                            </button>
+                                                        ))}
                                                         {isShippedLikeStatus(order.status) && (
                                                             <>
                                                                 <button
@@ -1289,6 +1361,16 @@ export default function StoreOrderPage() {
                                                         </button>
                                                     </>
                                                 )}
+                                                {getOrderStatusActions(detailOrder.orderStatus || detailOrder.status).map((action) => (
+                                                    <button
+                                                        key={`detail-${detailOrder.orderId || detailOrder.id}-${action.status}`}
+                                                        onClick={() => updateOrderStatusById(detailOrder.orderId || detailOrder.id, action.status)}
+                                                        disabled={statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` || cancelLoading || receiveLoading || returnLoading}
+                                                        className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60"
+                                                    >
+                                                        {statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` ? 'Đang cập nhật...' : action.label}
+                                                    </button>
+                                                ))}
                                                 <button
                                                     onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
                                                     disabled={cancelLoading || receiveLoading || returnLoading}
