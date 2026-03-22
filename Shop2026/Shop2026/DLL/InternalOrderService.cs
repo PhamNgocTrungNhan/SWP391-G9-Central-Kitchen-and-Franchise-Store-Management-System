@@ -118,7 +118,13 @@ namespace Shop2026.DLL
             {
                 { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
                 { "APPROVED", new List<string> { "PROCESSING" } },
-                { "PROCESSING", new List<string> { "SHIPPING" } },
+                
+                // LUỒNG 3: Cho phép Bếp chuyển từ PROCESSING sang PRODUCED
+                { "PROCESSING", new List<string> { "PRODUCED" } }, 
+                
+                // LUỒNG 3: Cho phép Coordinator chuyển từ PRODUCED sang SHIPPING
+                { "PRODUCED", new List<string> { "SHIPPING" } },
+
                 { "SHIPPING", new List<string> { "COMPLETED" } }
             };
 
@@ -129,6 +135,17 @@ namespace Shop2026.DLL
             }
 
             return _orderRepository.UpdateOrderStatus(orderId, newStatus);
+        }
+
+        // Lấy tất cả Order cho Coordinator
+        public List<InternalOrder> GetAllOrders(string? status)
+        {
+            return _orderRepository.GetAllOrders(status);
+        }
+        // Luồng 3: Lấy danh sách đơn cho Bếp
+        public List<InternalOrder> GetKitchenOrders(int kitchenId, string? status)
+        {
+            return _orderRepository.GetKitchenOrders(kitchenId, status);
         }
     }
 }

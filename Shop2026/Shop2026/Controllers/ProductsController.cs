@@ -71,5 +71,35 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
+
+        [HttpGet("{id}/production-info")]
+        [Authorize]
+        public IActionResult GetProductionHoverInfo(int id, [FromServices] Shop2026.Context.ApplicationDbContext _context)
+        {
+            var product = _context.Products.Find(id);
+            if (product == null)
+                return NotFound();
+
+            // Lấy tồn kho tại Bếp (KitchenId = 1)
+            var stock = _context.Inventories
+                .Where(i => i.ProductId == id && i.LocationType == "KITCHEN" && i.LocationId == 1)
+                .Select(i => i.CurrentQuantity).FirstOrDefault();
+
+            // Lấy công thức (BOM)
+            var recipe = _context.RecipesBoms
+                .Where(r => r.ParentProductId == id)
+                .Select(r => new {
+                    MaterialName = r.Material.ProductName,
+                    QuantityRequired = r.QuantityRequired,
+                    Unit = r.Material.BaseUnit
+                }).ToList();
+
+            return Ok(new
+            {
+                ProductName = product.ProductName,
+                CurrentKitchenStock = stock,
+                Recipe = recipe
+            });
+        }
     }
 }

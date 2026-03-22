@@ -273,7 +273,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{orderId}/status")]
-        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR, KITCHEN_STAFF")]
         public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
             try
@@ -291,6 +291,43 @@ namespace Shop2026.Controllers
                     message = "Order status updated successfully",
                     order
                 });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("all")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
+        public IActionResult GetAllOrdersForCoordinator([FromQuery] string? status)
+        {
+            try
+            {
+                var orders = _orderService.GetAllOrders(status);
+                return Ok(orders);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("kitchen")]
+        [Authorize(Roles = "ADMIN, KITCHEN_STAFF")]
+        public IActionResult GetKitchenOrders([FromQuery] string? status, [FromQuery] int kitchenId = 1)
+        {
+            try
+            {
+                // Mặc định lấy kitchenId = 1, nếu hệ thống có nhiều bếp thì Frontend truyền lên qua URL
+                var orders = _orderService.GetKitchenOrders(kitchenId, status);
+                return Ok(orders);
             }
             catch (Exception ex)
             {

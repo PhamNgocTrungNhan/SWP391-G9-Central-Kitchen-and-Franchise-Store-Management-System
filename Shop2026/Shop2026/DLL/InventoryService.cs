@@ -245,7 +245,7 @@ namespace Shop2026.DLL
         }
 
         // CẬP NHẬT HÀM DÙNG CHUNG ĐỂ LƯU THÊM SUPPLIER_ID
-        private void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
+        public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
             var stock = _repo.GetStock(productId, locationType, locationId);
 

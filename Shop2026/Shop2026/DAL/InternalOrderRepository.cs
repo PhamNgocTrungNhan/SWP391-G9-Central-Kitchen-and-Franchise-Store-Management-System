@@ -127,5 +127,34 @@ namespace Shop2026.DAL
 
             return order;
         }
+
+        // Dành cho Luồng 1: Kéo toàn bộ Order của TẤT CẢ các Store
+        public List<InternalOrder> GetAllOrders(string? status)
+        {
+            var query = _context.InternalOrders.AsQueryable();
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(o => o.OrderStatus == status);
+            }
+
+            return query
+                    .OrderByDescending(o => o.CreatedAt)
+                    .ToList();
+        }
+
+        // Luồng 3: Kéo đơn hàng theo KitchenId
+        public List<InternalOrder> GetKitchenOrders(int kitchenId, string? status)
+        {
+            // Lọc theo KitchenId (giả sử bảng InternalOrder có KitchenId, nếu ko có thì tạm bỏ điều kiện này)
+            var query = _context.InternalOrders.Where(o => o.KitchenId == kitchenId);
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(o => o.OrderStatus == status);
+            }
+
+            return query.OrderBy(o => o.ExpectedDeliveryDate).ToList();
+        }
     }
 }

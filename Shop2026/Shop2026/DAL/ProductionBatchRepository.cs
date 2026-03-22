@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore; // Nhớ có using này
+﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.Context;
 using Shop2026.Models;
 
@@ -9,9 +9,11 @@ namespace Shop2026.DAL
         private readonly ApplicationDbContext _context;
         public ProductionBatchRepository(ApplicationDbContext context) => _context = context;
 
+        // ĐÂY CHÍNH LÀ DÒNG BẠN ĐANG THIẾU ĐỂ SỬA LỖI ĐẦU TIÊN:
+        public ApplicationDbContext GetContext() => _context;
+
         public IEnumerable<ProductionBatch> GetAll()
         {
-            // Include để Frontend có Tên sản phẩm, Mã SKU mà hiển thị
             return _context.ProductionBatches.Include(b => b.Product).OrderByDescending(b => b.BatchId).ToList();
         }
 
