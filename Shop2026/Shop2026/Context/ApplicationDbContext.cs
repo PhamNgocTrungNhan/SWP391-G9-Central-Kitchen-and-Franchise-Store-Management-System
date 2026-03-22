@@ -366,9 +366,20 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(20)
                 .HasColumnName("reference_type");
 
+            // =====================================
+            // ✅ BỔ SUNG MAP CỘT SUPPLIER_ID CHO STOCK_LOGS
+            // =====================================
+            entity.Property(e => e.SupplierId).HasColumnName("supplier_id");
+
             entity.HasOne(d => d.Product).WithMany(p => p.StockLogs)
                 .HasForeignKey(d => d.ProductId)
                 .HasConstraintName("FK__Stock_Log__produ__70DDC3D8");
+
+            // ✅ BỔ SUNG MAP KHÓA NGOẠI VỚI BẢNG SUPPLIERS
+            entity.HasOne(d => d.Supplier)
+                .WithMany()
+                .HasForeignKey(d => d.SupplierId)
+                .HasConstraintName("FK_Stock_Logs_Suppliers");
         });
 
         modelBuilder.Entity<Store>(entity =>
