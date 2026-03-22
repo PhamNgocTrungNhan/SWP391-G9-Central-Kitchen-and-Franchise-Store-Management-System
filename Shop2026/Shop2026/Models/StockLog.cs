@@ -51,7 +51,7 @@ public partial class StockLog
     }
 
     public int? SupplierId
-    {
+    {   
         get; set;
     }
     public virtual Supplier? Supplier
