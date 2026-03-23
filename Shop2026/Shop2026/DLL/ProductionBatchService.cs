@@ -85,9 +85,9 @@ namespace Shop2026.DLL
                 _inventoryService.DeductMaterialForBatch(batch, kitchenId: 1);
 
                 // 2. Trừ nguyên liệu dùng thêm (Nếu có)
-                if (request.ExtraMaterials != null && request.ExtraMaterials.Any())
+                if (request.additionalMaterials != null && request.additionalMaterials.Any())
                 {
-                    foreach (var extra in request.ExtraMaterials)
+                    foreach (var extra in request.additionalMaterials)
                     {
                         _inventoryService.UpdateStockAndLog(
                             extra.ProductId, "KITCHEN", 1, -extra.QuantityUsed,

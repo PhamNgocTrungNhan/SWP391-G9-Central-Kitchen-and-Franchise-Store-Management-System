@@ -36,7 +36,7 @@ namespace Shop2026.DTOs
         } // Chỉ bắt buộc nhập khi chọn COMPLETED
 
         // LUỒNG 2.1: Mới thêm - Danh sách nguyên liệu dùng phát sinh ngoài công thức
-        public List<ExtraMaterialRequest>? ExtraMaterials
+        public List<ExtraMaterialRequest>? additionalMaterials
         {
             get; set;
         }
