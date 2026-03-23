@@ -9,7 +9,6 @@ namespace Shop2026.DAL
         private readonly ApplicationDbContext _context;
         public ProductionBatchRepository(ApplicationDbContext context) => _context = context;
 
-        // ĐÂY CHÍNH LÀ DÒNG BẠN ĐANG THIẾU ĐỂ SỬA LỖI ĐẦU TIÊN:
         public ApplicationDbContext GetContext() => _context;
 
         public IEnumerable<ProductionBatch> GetAll()

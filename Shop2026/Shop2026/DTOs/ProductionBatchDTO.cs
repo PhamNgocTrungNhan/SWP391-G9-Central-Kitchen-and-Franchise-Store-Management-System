@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace Shop2026.DTOs
 {
-    // Dùng cho BE2-04: Tạo mẻ
     public class BatchCreateRequest
     {
         public int ProductId
@@ -19,15 +18,12 @@ namespace Shop2026.DTOs
         {
             get; set;
         }
-
-        // LUỒNG 2: Mới thêm - Nhận OrderId từ FE nếu mẻ này làm cho đơn hàng
         public int? OrderId
         {
             get; set;
         }
     }
 
-    // Dùng cho BE2-05: Update Status
     public class BatchStatusUpdateRequest
     {
         [JsonPropertyName("status")]
@@ -46,7 +42,6 @@ namespace Shop2026.DTOs
         }
     }
 
-    // Dùng cho BE2-06: Allocate to Orders
     public class BatchAllocationRequest
     {
         public int OrderId
@@ -59,7 +54,6 @@ namespace Shop2026.DTOs
         }
     }
 
-    // Model phụ để hứng danh sách nguyên liệu dùng thêm
     public class ExtraMaterialRequest
     {
         public int ProductId

@@ -1,6 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.DAL;
 using Shop2026.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Shop2026.DLL
 {
@@ -11,44 +14,40 @@ namespace Shop2026.DLL
         public InventoryService(InventoryRepository repo) => _repo = repo;
 
         // Trừ nguyên liệu khi hoàn thành mẻ (Trừ xuyên thủng đến tận lớp RAW)
-        public void DeductMaterialForBatch(ProductionBatch batch, int kitchenId)
+        public void DeductMaterialForBatch(ProductionBatch batch, int kitchenId, bool useExternalTransaction = false)
         {
-            using var transaction = _repo.GetContext().Database.BeginTransaction();
+            var transaction = useExternalTransaction ? null : _repo.GetContext().Database.BeginTransaction();
             try
             {
                 var rawMaterialsToDeduct = new Dictionary<int, decimal>();
 
-                // 🚨 ĐÃ SỬA: Lấy số lượng THỰC TẾ (QuantityActual) để tính toán trừ nguyên liệu
+                // Lấy số lượng THỰC TẾ (QuantityActual) để tính toán trừ nguyên liệu
                 decimal actualQty = batch.QuantityActual ?? batch.QuantityPlanned ?? 0;
 
-                // Gọi đệ quy để phân rã công thức từ sản phẩm gốc
                 CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct);
 
                 if (!rawMaterialsToDeduct.Any())
                     throw new Exception("Không tìm thấy nguyên liệu RAW nào trong cây công thức.");
 
-                // Tiến hành trừ kho hàng loạt các nguyên liệu RAW đã gom được
                 foreach (var item in rawMaterialsToDeduct)
                 {
-                    int rawMaterialId = item.Key;
-                    decimal qtyToDeduct = item.Value;
-
-                    // Gọi hàm Public ở dưới cùng
-                    UpdateStockAndLog(rawMaterialId, "KITCHEN", kitchenId, -qtyToDeduct,
+                    UpdateStockAndLog(item.Key, "KITCHEN", kitchenId, -item.Value,
                                       "Sản xuất mẻ", batch.BatchId, "PRODUCTION_BATCH");
                 }
 
-                _repo.GetContext().SaveChanges();
-                transaction.Commit();
+                if (!useExternalTransaction)
+                {
+                    _repo.GetContext().SaveChanges();
+                    transaction?.Commit();
+                }
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
 
-        // THUẬT TOÁN ĐỆ QUY PHÂN RÃ CÔNG THỨC (BOM EXPLOSION)
         private void CalculateRawMaterialsRecursive(int productId, decimal requiredQty, Dictionary<int, decimal> aggregatedRawMaterials)
         {
             var product = _repo.GetProduct(productId) ?? throw new Exception($"Không tìm thấy sản phẩm ID {productId}");
@@ -59,7 +58,6 @@ namespace Shop2026.DLL
                     aggregatedRawMaterials[productId] += requiredQty;
                 else
                     aggregatedRawMaterials[productId] = requiredQty;
-
                 return;
             }
 
@@ -69,35 +67,37 @@ namespace Shop2026.DLL
 
             foreach (var recipe in recipes)
             {
-                // Chia cho 100m để ép kiểu decimal
+                // Ép kiểu chia 100m để chuẩn xác
                 decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
                 CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }
 
         // Cộng thành phẩm khi mẻ hoàn tất
-        public void AddFinishedProduct(ProductionBatch batch, int kitchenId)
+        public void AddFinishedProduct(ProductionBatch batch, int kitchenId, bool useExternalTransaction = false)
         {
             if (batch.QuantityActual == null || batch.QuantityActual <= 0)
                 throw new Exception("Chưa cập nhật số lượng thực tế cho mẻ sản xuất.");
 
-            using var transaction = _repo.GetContext().Database.BeginTransaction();
+            var transaction = useExternalTransaction ? null : _repo.GetContext().Database.BeginTransaction();
             try
             {
                 UpdateStockAndLog(batch.ProductId ?? 0, "KITCHEN", kitchenId, batch.QuantityActual.Value,
                                   "Nhập thành phẩm", batch.BatchId, "PRODUCTION_BATCH");
 
-                _repo.GetContext().SaveChanges();
-                transaction.Commit();
+                if (!useExternalTransaction)
+                {
+                    _repo.GetContext().SaveChanges();
+                    transaction?.Commit();
+                }
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
 
-        // Xuất kho giao cho Store
         public void TransferToStore(InternalOrder order, List<InternalOrderDetail> details)
         {
             using var transaction = _repo.GetContext().Database.BeginTransaction();
@@ -106,14 +106,12 @@ namespace Shop2026.DLL
                 foreach (var detail in details)
                 {
                     decimal quantityToShip = detail.QuantityConfirmed ?? detail.QuantityOrdered ?? 0;
-
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
                     order.OrderStatus = "SHIPPING";
                     detail.QuantityShipped = quantityToShip;
                 }
-
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -124,15 +122,8 @@ namespace Shop2026.DLL
             }
         }
 
-        public IEnumerable<Inventory> GetAllStock()
-        {
-            return _repo.GetContext().Inventories.ToList();
-        }
-
-        public IEnumerable<StockLog> GetStockLogs()
-        {
-            return _repo.GetContext().StockLogs.OrderByDescending(x => x.CreatedAt).ToList();
-        }
+        public IEnumerable<Inventory> GetAllStock() => _repo.GetContext().Inventories.ToList();
+        public IEnumerable<StockLog> GetStockLogs() => _repo.GetContext().StockLogs.OrderByDescending(x => x.CreatedAt).ToList();
 
         public IEnumerable<Inventory> GetStoreInventory(int storeId)
         {
@@ -160,22 +151,18 @@ namespace Shop2026.DLL
                 throw new Exception("Số lượng nhập kho phải lớn hơn 0.");
 
             var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
-
             if (product.ProductType != "RAW")
-                throw new Exception($"Lỗi: Chỉ được nhập Nguyên liệu thô (RAW). Sản phẩm này là {product.ProductType}.");
+                throw new Exception($"Lỗi: Chỉ được nhập Nguyên liệu thô (RAW).");
 
-            var supplier = _repo.GetContext().Suppliers.Find(supplierId)
-                           ?? throw new Exception("Không tìm thấy nhà cung cấp.");
-
+            var supplier = _repo.GetContext().Suppliers.Find(supplierId) ?? throw new Exception("Không tìm thấy nhà cung cấp.");
             if (!supplier.IsActive)
-                throw new Exception($"Lỗi: Nhà cung cấp '{supplier.SupplierName}' đang nằm trong Blacklist! Từ chối nhập hàng.");
+                throw new Exception($"Lỗi: Nhà cung cấp đang nằm trong Blacklist!");
 
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
                 string logReason = $"Nhập nguyên liệu từ NCC: {supplier.SupplierName}";
                 UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, 0, "IMPORT_SUPPLIER", supplierId);
-
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -186,7 +173,7 @@ namespace Shop2026.DLL
             }
         }
 
-        // 🚨 ĐÃ SỬA: CHỈ GIỮ LẠI 1 HÀM DÙNG CHUNG NÀY (Xóa hàm private bị lặp)
+        // Đã gộp thành 1 hàm duy nhất
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
             var stock = _repo.GetStock(productId, locationType, locationId);
