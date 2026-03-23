@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Shop2026.DTOs
 {
@@ -29,14 +30,17 @@ namespace Shop2026.DTOs
     // Dùng cho BE2-05: Update Status
     public class BatchStatusUpdateRequest
     {
-        public string Status { get; set; } = null!; // SCHEDULED, IN_PROGRESS, COMPLETED
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = null!;
+
+        [JsonPropertyName("quantityActual")]
         public decimal? QuantityActual
         {
             get; set;
-        } // Chỉ bắt buộc nhập khi chọn COMPLETED
+        }
 
-        // LUỒNG 2.1: Mới thêm - Danh sách nguyên liệu dùng phát sinh ngoài công thức
-        public List<ExtraMaterialRequest>? additionalMaterials
+        [JsonPropertyName("additionalMaterials")]
+        public List<ExtraMaterialRequest>? AdditionalMaterials
         {
             get; set;
         }
