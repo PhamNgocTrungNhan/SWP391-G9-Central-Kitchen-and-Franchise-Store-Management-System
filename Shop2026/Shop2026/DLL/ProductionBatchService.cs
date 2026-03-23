@@ -63,15 +63,18 @@ namespace Shop2026.DLL
         {
             var batch = _repo.GetById(batchId) ?? throw new Exception("Không tìm thấy mẻ sản xuất");
 
-            if (request.Status == "IN_PROGRESS")
+            // Normalize status to uppercase để tránh case-sensitive issues
+            var normalizedStatus = request.Status?.ToUpper();
+
+            if (normalizedStatus == "IN_PROGRESS")
             {
                 if (batch.Status != "SCHEDULED")
                     throw new Exception("Chỉ có thể bắt đầu mẻ khi đang ở trạng thái SCHEDULED");
 
                 batch.Status = "IN_PROGRESS";
-                _repo.GetContext().SaveChanges(); // Dùng Tracking, không gọi Update rác
+                _repo.Update(batch);
             }
-            else if (request.Status == "COMPLETED")
+            else if (normalizedStatus == "COMPLETED")
             {
                 if (batch.Status != "IN_PROGRESS")
                     throw new Exception("Mẻ phải ở trạng thái Đang sản xuất (IN_PROGRESS) mới có thể Hoàn thành!");
@@ -86,6 +89,9 @@ namespace Shop2026.DLL
                 {
                     batch.QuantityActual = request.QuantityActual;
                     batch.Status = "COMPLETED";
+
+                    // Đảm bảo entity được track trước khi gọi inventory service
+                    _repo.GetContext().ProductionBatches.Update(batch);
 
                     // 1. Trừ BOM (Truyền true để xài chung transaction)
                     _inventoryService.DeductMaterialForBatch(batch, 1, true);
@@ -117,8 +123,8 @@ namespace Shop2026.DLL
             }
             else
             {
-                batch.Status = request.Status;
-                _repo.GetContext().SaveChanges();
+                batch.Status = normalizedStatus ?? request.Status;
+                _repo.Update(batch);
             }
         }
 
@@ -141,7 +147,7 @@ namespace Shop2026.DLL
                 throw new Exception("Không thể hủy mẻ đang sản xuất hoặc đã hoàn thành!");
 
             batch.Status = "CANCELLED";
-            _repo.GetContext().SaveChanges();
+            _repo.Update(batch);
         }
     }
 }

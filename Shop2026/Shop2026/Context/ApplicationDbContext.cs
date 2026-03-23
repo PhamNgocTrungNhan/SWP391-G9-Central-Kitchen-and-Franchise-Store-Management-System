@@ -358,9 +358,7 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(20)
                 .HasColumnName("location_type");
             entity.Property(e => e.ProductId).HasColumnName("product_id");
-            entity.Property(e => e.Reason)
-                .HasMaxLength(50)
-                .HasColumnName("reason");
+            entity.Property(e => e.Reason).HasColumnName("reason");
             entity.Property(e => e.ReferenceId).HasColumnName("reference_id");
             entity.Property(e => e.ReferenceType)
                 .HasMaxLength(20)
