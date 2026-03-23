@@ -133,13 +133,14 @@ export default function OngoingProductionBatchesPage() {
                 .filter(Boolean)
                 .filter((item) => {
                     const status = normalizeText(item.status)
-                    return status === 'IN_PROGRESS' || status === 'PROCESSING' || status === 'PLANNED'
+                    // Chỉ hiển thị batch đang IN_PROGRESS (đã bắt đầu sản xuất)
+                    return status === 'IN_PROGRESS'
                 })
                 .sort((a, b) => new Date(b.mfgDate || 0).getTime() - new Date(a.mfgDate || 0).getTime())
 
             setRows(normalized)
             if (!normalized.length) {
-                setInfo('Chưa có mẻ nào ở trạng thái IN_PROGRESS/PROCESSING/PLANNED.')
+                setInfo('Chưa có mẻ nào ở trạng thái IN_PROGRESS (đang sản xuất).')
             }
         } catch (requestError) {
             setRows([])
@@ -232,21 +233,19 @@ export default function OngoingProductionBatchesPage() {
             return
         }
 
+        console.log('[DEBUG] Selected batch status:', selectedBatch.status)
+        console.log('[DEBUG] Completing batch:', selectedBatch.numericId, 'with quantity:', actual)
+
         const additionalMaterials = extraRows
             .map((row) => ({
                 productId: parseSafeNumber(row.productId, 0),
-                quantity: parseSafeNumber(row.quantity, 0),
+                quantityUsed: parseSafeNumber(row.quantity, 0),
             }))
-            .filter((row) => row.productId > 0 && row.quantity > 0)
+            .filter((row) => row.productId > 0 && row.quantityUsed > 0)
 
         const payloadVariants = [
             { status: 'COMPLETED', quantityActual: actual, additionalMaterials },
-            { status: 'completed', quantityActual: actual, additionalMaterials },
-            { status: 'COMPLETED', quantityActual: actual, extraMaterials: additionalMaterials },
             { Status: 'COMPLETED', QuantityActual: actual, AdditionalMaterials: additionalMaterials },
-            { status: 'COMPLETED', quantityActual: actual },
-            { Status: 'COMPLETED', QuantityActual: actual },
-            { request: { status: 'COMPLETED', quantityActual: actual, additionalMaterials } },
         ]
 
         setCompleting(true)
@@ -254,7 +253,11 @@ export default function OngoingProductionBatchesPage() {
             let updated = false
             let lastError = 'Không thể hoàn thành sản xuất cho mẻ này.'
 
+            console.log('[DEBUG] Sending payloads to complete batch...')
+
             for (let index = 0; index < payloadVariants.length; index += 1) {
+                console.log('[DEBUG] Trying payload variant', index, ':', JSON.stringify(payloadVariants[index]))
+
                 const response = await fetch(`${apiBase}/ProductionBatches/${encodeURIComponent(selectedBatch.numericId)}/status`, {
                     method: 'PUT',
                     headers: {
@@ -267,10 +270,12 @@ export default function OngoingProductionBatchesPage() {
 
                 const payload = await response.json().catch(() => null)
                 if (response.ok) {
+                    console.log('[DEBUG] Batch completed successfully with variant', index)
                     updated = true
                     break
                 }
 
+                console.log('[DEBUG] Variant', index, 'failed:', response.status, payload)
                 lastError = parseErrorMessage(payload, lastError)
                 const isLast = index === payloadVariants.length - 1
                 if (!isLast && response.status === 400) continue
@@ -309,7 +314,7 @@ export default function OngoingProductionBatchesPage() {
     return (
         <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-background-dark sticky top-0 z-10">
-                <h2 className="text-lg font-bold">Batch đang thực hiện</h2>
+                <h2 className="text-lg font-bold">Mẻ đang sản xuất (Kitchen)</h2>
                 <button className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm" onClick={fetchRows} disabled={loading}>
                     {loading ? 'Đang tải...' : 'Tải lại'}
                 </button>
@@ -322,12 +327,12 @@ export default function OngoingProductionBatchesPage() {
                         <p className="text-2xl font-bold">{rows.length}</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/50">
-                        <p className="text-sm text-slate-500">IN_PROGRESS</p>
+                        <p className="text-sm text-slate-500">Đang sản xuất (IN_PROGRESS)</p>
                         <p className="text-2xl font-bold text-emerald-600">{inProgressCount}</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/50">
-                        <p className="text-sm text-slate-500">PROCESSING/PLANNED</p>
-                        <p className="text-2xl font-bold text-amber-600">{rows.length - inProgressCount}</p>
+                        <p className="text-sm text-slate-500">Tổng số lượng kế hoạch</p>
+                        <p className="text-2xl font-bold">{rows.reduce((sum, r) => sum + r.quantityPlanned, 0)}</p>
                     </div>
                 </div>
 
@@ -371,7 +376,7 @@ export default function OngoingProductionBatchesPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {loading ? <tr><td colSpan={8} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
-                                {!loading && filteredRows.length === 0 ? <tr><td colSpan={8} className="px-5 py-8 text-center text-sm">Không có batch đang thực hiện.</td></tr> : null}
+                                {!loading && filteredRows.length === 0 ? <tr><td colSpan={8} className="px-5 py-8 text-center text-sm">Không có mẻ đang sản xuất (IN_PROGRESS).</td></tr> : null}
                                 {!loading && filteredRows.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                         <td className="px-5 py-4 text-sm font-semibold">#{row.id}</td>

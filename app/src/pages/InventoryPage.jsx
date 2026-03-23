@@ -1,179 +1,166 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge, EmptyState, Field, PageHeader, SectionCard } from '../components/ui'
 
-const stockRows = [
-  { item: 'All Purpose Flour', onHand: '420 kg', warehouse: 'Kitchen 1', status: 'Healthy' },
-  { item: 'Mozzarella Cheese', onHand: '65 kg', warehouse: 'Kitchen 2', status: 'Low' },
-  { item: 'Tomato Base', onHand: '180 L', warehouse: 'Kitchen 1', status: 'Healthy' },
-]
-
-const storeInventoryMap = {
-  101: [
-    { item: 'Mozzarella Cheese', stock: '3 kg', min: '10 kg' },
-    { item: 'Tomato Base', stock: '12 L', min: '8 L' },
-  ],
-  204: [
-    { item: 'Flour', stock: '8 kg', min: '20 kg' },
-    { item: 'Sauce', stock: '1 L', min: '6 L' },
-  ],
+function getToken() {
+  const candidates = [
+    localStorage.getItem('auth_token'),
+    localStorage.getItem('token'),
+    localStorage.getItem('access_token'),
+    sessionStorage.getItem('auth_token'),
+    sessionStorage.getItem('token'),
+    sessionStorage.getItem('access_token'),
+  ]
+  const first = candidates.find((item) => String(item || '').trim())
+  return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
 }
 
-const inventoryLogs = [
-  { id: 'LG-9001', type: 'IN', item: 'Flour', quantity: '+80 kg', actor: 'Kitchen 1' },
-  { id: 'LG-9002', type: 'TRANSFER', item: 'Mozzarella Cheese', quantity: '-12 kg', actor: 'Order 6102' },
-  { id: 'LG-9003', type: 'OUT', item: 'Tomato Base', quantity: '-8 L', actor: 'Store 101' },
-]
-
-const transferCandidates = {
-  6102: { orderId: 6102, storeId: 101, lines: ['Mozzarella Cheese x12 kg', 'Tomato Base x10 L'] },
-  6104: { orderId: 6104, storeId: 204, lines: ['Flour x20 kg'] },
+function toReadableDate(dateString) {
+  if (!dateString) return 'N/A'
+  const d = new Date(dateString)
+  if (Number.isNaN(d.getTime())) return String(dateString)
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export default function InventoryPage() {
-  const [storeId, setStoreId] = useState('101')
-  const [transferOrderId, setTransferOrderId] = useState('6102')
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(false)
 
-  const selectedStoreRows = storeInventoryMap[storeId]
-  const transferPreview = transferCandidates[transferOrderId]
+  const fetchLogs = async () => {
+    const tk = getToken()
+    if (!tk) {
+      alert('No token! Please login again.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`${apiBase}/Inventory/logs`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+
+      if (!response.ok) {
+        alert(`API Error: ${response.status}`)
+        setLogs([])
+        return
+      }
+
+      const data = await response.json()
+      console.log('Raw API data:', data)
+
+      if (!Array.isArray(data)) {
+        alert('API returned non-array data')
+        setLogs([])
+        return
+      }
+
+      const normalized = data.map((item) => {
+        const qty = Number(item.changeQuantity || 0)
+        const productName = item.product?.productName || `Product #${item.productId}`
+
+        let action = item.reason || 'Unknown'
+        if (action.includes('SẢN XUẤT')) action = 'Material deduction'
+        if (action.includes('NHẬP THÀNH PHẨM')) action = 'Finished product added'
+        if (action.includes('XUẤT GIAO')) action = 'Transfer to store'
+        if (action.includes('NHẬP NGUYÊN LIỆU') || action.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Material import'
+
+        let actor = 'System'
+        if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
+          actor = `Batch #${item.referenceId}`
+        } else if (item.referenceType === 'INTERNAL_ORDER' && item.referenceId) {
+          actor = `Order #${item.referenceId}`
+        } else if (item.supplierId) {
+          actor = `Supplier #${item.supplierId}`
+        }
+
+        return {
+          id: item.logId,
+          product: productName,
+          quantity: qty >= 0 ? `+${qty}` : `${qty}`,
+          action,
+          actor,
+          date: toReadableDate(item.createdAt),
+          type: qty >= 0 ? 'IN' : 'OUT',
+        }
+      })
+
+      console.log('Normalized logs:', normalized)
+      setLogs(normalized)
+    } catch (error) {
+      console.error('Fetch error:', error)
+      alert(`Error: ${error.message}`)
+      setLogs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchLogs()
+  }, [])
 
   return (
     <div>
       <PageHeader pageKey="inventory" />
 
-      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <SectionCard title="Stock Overview">
-          <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
-            <table className="app-table">
-              <thead>
-                <tr>
-                  <th className="app-th">Item</th>
-                  <th className="app-th">On hand</th>
-                  <th className="app-th">Warehouse</th>
-                  <th className="app-th">Signal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockRows.map((row) => (
-                  <tr key={row.item} className="bg-[#fffdf8]">
-                    <td className="app-td font-medium">{row.item}</td>
-                    <td className="app-td">{row.onHand}</td>
-                    <td className="app-td">{row.warehouse}</td>
-                    <td className="app-td">
-                      <Badge tone={row.status === 'Healthy' ? 'green' : 'red'}>{row.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-
+      <div className="mb-6">
         <SectionCard
-          title="Store Inventory"
+          title="Inventory Logs"
           action={
-            <div className="w-full max-w-[220px]">
-              <Field label="storeId">
-                <input className="app-input" type="number" value={storeId} onChange={(event) => setStoreId(event.target.value)} />
-              </Field>
-            </div>
+            <button
+              onClick={fetchLogs}
+              disabled={loading}
+              className="text-sm text-[#29392b] hover:text-[#4a5a4c] font-medium flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
           }
         >
-          {selectedStoreRows ? (
+          {logs.length === 0 ? (
+            <EmptyState
+              title="No logs found"
+              description="No inventory changes recorded. Check Console for details."
+              icon="history"
+            />
+          ) : (
             <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
               <table className="app-table">
                 <thead>
                   <tr>
-                    <th className="app-th">Item</th>
-                    <th className="app-th">Current stock</th>
-                    <th className="app-th">Minimum level</th>
+                    <th className="app-th">ID</th>
+                    <th className="app-th">Product</th>
+                    <th className="app-th">Action</th>
+                    <th className="app-th">Actor</th>
+                    <th className="app-th">Quantity</th>
+                    <th className="app-th">Date</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedStoreRows.map((row) => (
-                    <tr key={row.item} className="bg-[#fffdf8]">
-                      <td className="app-td font-medium">{row.item}</td>
-                      <td className="app-td">{row.stock}</td>
-                      <td className="app-td">{row.min}</td>
+                  {logs.map((log) => (
+                    <tr key={log.id} className="bg-[#fffdf8]">
+                      <td className="app-td">{log.id}</td>
+                      <td className="app-td font-medium">{log.product}</td>
+                      <td className="app-td">{log.action}</td>
+                      <td className="app-td">{log.actor}</td>
+                      <td className="app-td">
+                        <span className={log.quantity.startsWith('+') ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                          {log.quantity}
+                        </span>
+                      </td>
+                      <td className="app-td text-xs">{log.date}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <EmptyState
-              title="No inventory found"
-              description="Try another store id."
-              icon="inventory"
-            />
           )}
-        </SectionCard>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <SectionCard title="Inventory Logs">
-          <div className="space-y-3">
-            {inventoryLogs.map((log) => (
-              <div key={log.id} className="rounded-[1.4rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#29392b]">{log.id}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {log.item} by {log.actor}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={log.type === 'TRANSFER' ? 'amber' : log.type === 'IN' ? 'green' : 'stone'}>{log.type}</Badge>
-                    <span className="text-sm font-semibold">{log.quantity}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Transfer To Store">
-          <div className="grid gap-4">
-            <Field label="Order Id">
-              <input
-                className="app-input"
-                type="number"
-                value={transferOrderId}
-                onChange={(event) => setTransferOrderId(event.target.value)}
-              />
-            </Field>
-
-            {transferPreview ? (
-              <div className="rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#2f4031]">Transfer Details</p>
-                    <p className="mt-1 text-sm text-slate-600">Order #{transferPreview.orderId} for Store {transferPreview.storeId}</p>
-                  </div>
-                  <Badge tone="amber">ready</Badge>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {transferPreview.lines.map((line) => (
-                    <div key={line} className="rounded-2xl border border-[#ece1d2] bg-[#fff8ef] px-3 py-2 text-sm">
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <EmptyState
-                title="Unknown order id"
-                description="Try another order id."
-                icon="local_shipping"
-              />
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              <button className="app-button-primary" disabled={!transferPreview}>
-                <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                Transfer to store
-              </button>
-            </div>
-          </div>
         </SectionCard>
       </div>
     </div>
