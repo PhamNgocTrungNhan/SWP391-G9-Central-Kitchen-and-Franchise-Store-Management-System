@@ -1,6 +1,8 @@
 ﻿using Shop2026.DAL;
 using Shop2026.DTOs;
 using Shop2026.Models;
+using System;
+using System.Collections.Generic;
 
 namespace Shop2026.DLL
 {
@@ -8,11 +10,15 @@ namespace Shop2026.DLL
     {
         private readonly InternalOrderRepository _orderRepository;
 
-        public InternalOrderService(InternalOrderRepository orderRepository)
+        // 🚨 ĐÃ BỔ SUNG: Tiêm InventoryService để có quyền thao tác với kho
+        private readonly InventoryService _inventoryService;
+
+        public InternalOrderService(InternalOrderRepository orderRepository, InventoryService inventoryService)
         {
             _orderRepository = orderRepository;
+            _inventoryService = inventoryService;
         }
-        //Create Internal Order
+
         public InternalOrder CreateInternalOrder(CreateInternalOrderRequest request)
         {
             var order = new InternalOrder
@@ -35,28 +41,25 @@ namespace Shop2026.DLL
             }).ToList();
 
             _orderRepository.AddOrderDetails(details);
-
             return order;
         }
-        //Get Store Orders
+
         public List<InternalOrder> GetStoreOrders(int storeId, string? status)
         {
             return _orderRepository.GetStoreOrders(storeId, status);
         }
-        //Get Order Detail
+
         public InternalOrder? GetOrderDetail(int orderId)
         {
             return _orderRepository.GetOrderDetail(orderId);
         }
-        //Cancel Order
+
         public bool CancelOrder(int orderId, int storeId)
         {
             var order = _orderRepository.GetOrderById(orderId);
-
             if (order == null)
                 return false;
 
-            // ✅ CHECK QUYỀN Ở ĐÂY
             if (order.StoreId != storeId)
                 throw new Exception("Bạn không có quyền hủy đơn này");
 
@@ -64,53 +67,62 @@ namespace Shop2026.DLL
                 throw new Exception("Only PENDING orders can be cancelled");
 
             order.OrderStatus = "CANCELLED";
-
             _orderRepository.UpdateOrder(order);
 
             return true;
         }
-        // Confirm Order Completed
+
+        // 🚨 ĐÃ SỬA: Thêm logic CỘNG KHO STORE khi nhận hàng
         public InternalOrder? ConfirmOrderCompleted(int orderId, int storeId)
         {
-            var order = _orderRepository.GetOrderById(orderId);
+            // Dùng GetOrderDetail thay vì GetOrderById để kéo được danh sách sản phẩm bên trong
+            var order = _orderRepository.GetOrderDetail(orderId);
 
             if (order == null)
                 return null;
-
             if (order.StoreId != storeId)
                 throw new Exception("Không có quyền");
-
             if (order.OrderStatus != "SHIPPING")
                 throw new Exception("Only SHIPPING orders can be confirmed");
 
             order.OrderStatus = "COMPLETED";
             order.UpdatedAt = DateTime.Now;
 
-            _orderRepository.UpdateOrder(order);
+            // Vòng lặp cộng sản phẩm vào kho của Cửa hàng
+            foreach (var item in order.InternalOrderDetails)
+            {
+                decimal qtyReceived = item.QuantityShipped ?? 0;
+                if (qtyReceived > 0)
+                {
+                    _inventoryService.UpdateStockAndLog(
+                        (int)item.ProductId, "STORE", storeId, qtyReceived,
+                        $"Nhận hàng đơn {order.OrderCode}", orderId, "INTERNAL_ORDER", null
+                    );
+                }
+            }
 
+            _orderRepository.UpdateOrder(order);
             return order;
         }
 
-        //Approve Order
         public InternalOrder? ApproveOrder(int orderId, int approvedBy)
         {
             return _orderRepository.ApproveOrder(orderId, approvedBy);
         }
-        //Reject Order
+
         public InternalOrder? RejectOrder(int orderId, string reason, int rejectedBy)
         {
             return _orderRepository.RejectOrder(orderId, reason, rejectedBy);
         }
-        //Update Order Status
+
+        // 🚨 ĐÃ SỬA: Thêm logic TRỪ KHO KITCHEN khi xuất giao hàng
         public InternalOrder? UpdateOrderStatus(int orderId, string newStatus)
         {
             var order = _orderRepository.GetOrderById(orderId);
-
             if (order == null)
                 return null;
 
             var currentStatus = order.OrderStatus;
-
             if (string.IsNullOrWhiteSpace(currentStatus))
                 throw new Exception("Order status is invalid");
 
@@ -118,40 +130,36 @@ namespace Shop2026.DLL
             {
                 { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
                 { "APPROVED", new List<string> { "PROCESSING" } },
-                
-                // LUỒNG 3: Cho phép Bếp chuyển từ PROCESSING sang PRODUCED
-                { "PROCESSING", new List<string> { "PRODUCED" } }, 
-                
-                // LUỒNG 3: Cho phép Coordinator chuyển từ PRODUCED sang SHIPPING
+                { "PROCESSING", new List<string> { "PRODUCED" } },
                 { "PRODUCED", new List<string> { "SHIPPING" } },
-
-                // LUỒNG 4: Thêm trạng thái RETURNED
                 { "SHIPPING", new List<string> { "COMPLETED", "RETURNED" } }
             };
 
-            if (!validTransitions.ContainsKey(currentStatus) ||
-                !validTransitions[currentStatus].Contains(newStatus))
+            if (!validTransitions.ContainsKey(currentStatus) || !validTransitions[currentStatus].Contains(newStatus))
             {
                 throw new Exception($"Invalid status transition: {currentStatus} → {newStatus}");
+            }
+
+            // Móc nối luồng Kho vào luồng Trạng thái
+            if (newStatus == "SHIPPING")
+            {
+                // Gọi sang InventoryService, hàm này đã tự lo việc trừ tồn kho và đổi status
+                _inventoryService.TransferOrderToStore(orderId);
+                return _orderRepository.GetOrderDetail(orderId);
             }
 
             return _orderRepository.UpdateOrderStatus(orderId, newStatus);
         }
 
-        // Lấy tất cả Order cho Coordinator
         public List<InternalOrder> GetAllOrders(string? status)
         {
             return _orderRepository.GetAllOrders(status);
         }
-        // Luồng 3: Lấy danh sách đơn cho Bếp
+
         public List<InternalOrder> GetKitchenOrders(int kitchenId, string? status)
         {
             return _orderRepository.GetKitchenOrders(kitchenId, status);
         }
-
-        // ==========================================
-        // THÊM MỚI CHO LUỒNG 4
-        // ==========================================
 
         public InternalOrder? ReturnOrder(int orderId, int storeId, string reason)
         {
