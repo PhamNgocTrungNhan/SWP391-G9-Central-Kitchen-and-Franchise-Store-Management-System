@@ -1,0 +1,22 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Trang chủ Kitchen 2026";
+}
+
+<div class="container mt-5">
+    <div class="card shadow-sm">
+        <div class="card-body text-center">
+            <h1 class="display-4">Chào mừng, @User.Identity.Name!</h1>
+            <p class="lead">Bạn đã đăng nhập thành công vào hệ thống Kitchen 2026.</p>
+
+            <hr />
+
+            <form method="post" asp-page-handler="Logout">
+                <button type="submit" class="btn btn-danger btn-lg">
+                    <i class="bi bi-box-arrow-right"></i> Đăng xuất
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
