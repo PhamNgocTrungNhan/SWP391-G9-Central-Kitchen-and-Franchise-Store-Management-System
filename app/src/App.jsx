@@ -18,6 +18,7 @@ import CategoriesPage from './pages/CategoriesPage'
 import OrganizationPage from './pages/OrganizationPage'
 import RecipesPage from './pages/RecipesPage'
 import InventoryPage from './pages/InventoryPage'
+import InventoryLogsPage from './pages/InventoryLogsPage'
 import InternalOrdersPage from './pages/InternalOrdersPage'
 import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
@@ -59,15 +60,16 @@ const routeConfig = [
   { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
 
   { path: '/inventory', element: <BatchTraceabilityPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/organization/stores', element: <FranchiseNetworkPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/organization/kitchens', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/organization', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/network', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
-  { path: '/recipes', element: <RecipeBOMPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+  { path: '/recipes', element: <RecipesPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
   { path: '/delivery', element: <StoreDeliveryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/dispatch', element: <SupplyDispatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
   { path: '/production-batches/create', element: <CreateProductionBatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
-  { path: '/users', element: <UserRolesPage />, roles: [roles.ADMIN] },
+  { path: '/users', element: <UsersPage />, roles: [roles.ADMIN] },
   { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },

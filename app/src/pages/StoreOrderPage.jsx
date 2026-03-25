@@ -87,7 +87,7 @@ function toInventoryRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.inventoryId ?? item?.id, productId),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         currentQuantity: parseSafeNumber(item?.currentQuantity, 0),
@@ -115,7 +115,7 @@ function toInventoryLogRow(item, productNameById) {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         inventoryId: parseSafeNumber(item?.inventoryId, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
         locationType: normalizeLocationType(item?.locationType),
         locationTypeRaw: String(item?.locationType || '').toUpperCase(),
         locationId: parseSafeNumber(item?.locationId, 0),
@@ -212,7 +212,7 @@ export default function StoreOrderPage() {
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
     const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Store #${id}`
     const getProductIdFromItem = (item) => Number(item?.productId ?? item?.id)
-    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Product #${id}`
+    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Sản phẩm #${id}`
 
     const toOptionList = (rawData, getId, getName) => {
         const records = Array.isArray(rawData)
@@ -367,7 +367,7 @@ export default function StoreOrderPage() {
 
             const productNameById = productOptions.reduce((acc, item) => {
                 const id = Number(item?.id)
-                if (id > 0) acc[id] = item?.name || `Product #${id}`
+                if (id > 0) acc[id] = item?.name || `Sản phẩm #${id}`
                 return acc
             }, {})
 
@@ -455,7 +455,7 @@ export default function StoreOrderPage() {
     const getProductNameById = (productId) => {
         const id = Number(productId)
         if (!id || id < 1) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === id)?.name || `Product #${id}`
+        return productOptions.find((p) => Number(p.id) === id)?.name || `Sản phẩm #${id}`
     }
 
     const normalizeOrders = (rawOrders) => {

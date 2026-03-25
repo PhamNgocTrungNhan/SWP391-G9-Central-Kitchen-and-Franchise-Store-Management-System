@@ -85,10 +85,26 @@ function toInventoryRow(item, productNameById) {
     const productId = parseSafeNumber(item?.productId, 0)
     const min = parseSafeNumber(item?.minimumQuantity ?? item?.minQuantity ?? item?.reorderLevel ?? item?.safetyStock, 0)
 
+    // Try multiple ways to get product name
+    let productName = 'Sản phẩm chưa xác định'
+    if (item?.product?.productName) {
+        productName = item.product.productName
+    } else if (item?.product?.name) {
+        productName = item.product.name
+    } else if (item?.productName) {
+        productName = item.productName
+    } else if (item?.name) {
+        productName = item.name
+    } else if (productNameById && productNameById[productId]) {
+        productName = productNameById[productId]
+    } else if (productId > 0) {
+        productName = `Sản phẩm #${productId}`
+    }
+
     return {
         id: parseSafeNumber(item?.inventoryId ?? item?.id, productId),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        productName,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         currentQuantity: parseSafeNumber(item?.currentQuantity, 0),
@@ -113,7 +129,7 @@ function toInventoryLogRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Product #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         action,
@@ -135,6 +151,7 @@ export default function BatchTraceabilityPage() {
     const [logs, setLogs] = useState([])
     const [productNameMap, setProductNameMap] = useState({})
     const [productFilter, setProductFilter] = useState('')
+    const [statusFilter, setStatusFilter] = useState('')
     const [isImportModalOpen, setIsImportModalOpen] = useState(false)
     const [importing, setImporting] = useState(false)
     const [importError, setImportError] = useState('')
@@ -183,6 +200,28 @@ export default function BatchTraceabilityPage() {
                 if (!name) return
                 map[id] = name
             })
+
+            // Also fetch raw products
+            const rawResponse = await fetch(`${apiBase}/Products/raw`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+                },
+            })
+
+            const rawData = await rawResponse.json().catch(() => [])
+            if (rawResponse.ok) {
+                const rawRecords = parseArrayData(rawData)
+                rawRecords.forEach((item) => {
+                    const id = Number(item?.productId || item?.id)
+                    if (!id) return
+                    const name = item?.productName || item?.name
+                    if (!name) return
+                    map[id] = name
+                })
+            }
+
             setProductNameMap(map)
         } catch {
             setProductNameMap({})
@@ -408,10 +447,19 @@ export default function BatchTraceabilityPage() {
     }, [rows, logs])
 
     const filteredRows = useMemo(() => {
-        if (!productFilter) return rows
-        const selectedId = Number(productFilter)
-        return rows.filter((row) => row.productId === selectedId)
-    }, [rows, productFilter])
+        let result = rows
+
+        if (productFilter) {
+            const selectedId = Number(productFilter)
+            result = result.filter((row) => row.productId === selectedId)
+        }
+
+        if (statusFilter) {
+            result = result.filter((row) => row.status === statusFilter)
+        }
+
+        return result
+    }, [rows, productFilter, statusFilter])
 
     const filteredLogs = useMemo(() => {
         if (!productFilter) return logs
@@ -457,19 +505,35 @@ export default function BatchTraceabilityPage() {
                 </div>
 
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <label className="flex flex-col gap-1 max-w-md">
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lọc theo sản phẩm</span>
-                        <select
-                            className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            value={productFilter}
-                            onChange={(e) => setProductFilter(e.target.value)}
-                        >
-                            <option value="">Tất cả sản phẩm</option>
-                            {productOptions.map((item) => (
-                                <option key={item.id} value={item.id}>{item.name}</option>
-                            ))}
-                        </select>
-                    </label>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lọc theo sản phẩm</span>
+                            <select
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                value={productFilter}
+                                onChange={(e) => setProductFilter(e.target.value)}
+                            >
+                                <option value="">Tất cả sản phẩm</option>
+                                {productOptions.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lọc theo mức cảnh báo</span>
+                            <select
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="">Tất cả mức độ</option>
+                                <option value="ok">Còn nhiều</option>
+                                <option value="low">Sắp hết</option>
+                                <option value="critical">Hết hàng</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 {error ? (
@@ -490,73 +554,38 @@ export default function BatchTraceabilityPage() {
                     </div>
                 ) : null}
 
-                <div className="space-y-6">
-                    <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-slate-200 dark:border-slate-800">
-                            <h3 className="font-semibold text-lg">Tồn kho hiện tại</h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                        {['Sản phẩm', 'Vị trí', 'Tồn hiện tại', 'Mức tối thiểu', 'Cập nhật', 'Mức cảnh báo'].map((h) => (
-                                            <th key={h} className="px-5 py-4 text-xs font-semibold uppercase tracking-wider">{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {loading ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
-                                    {!loading && filteredRows.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Không có dữ liệu tồn kho.</td></tr> : null}
-                                    {!loading && filteredRows.map((row) => (
-                                        <tr key={`${row.id}-${row.productId}`} className={stockBg[row.status]}>
-                                            <td className="px-5 py-4 text-sm font-medium">{row.productName}</td>
-                                            <td className="px-5 py-4 text-sm">{row.locationType} #{row.locationId || 'N/A'}</td>
-                                            <td className="px-5 py-4 text-sm font-semibold">{row.currentQuantity}</td>
-                                            <td className="px-5 py-4 text-sm">{row.minQuantity}</td>
-                                            <td className="px-5 py-4 text-sm">{toReadableDate(row.lastUpdated)}</td>
-                                            <td className="px-5 py-4 text-sm">
-                                                <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusColors[row.status]}`} />
-                                            </td>
-                                        </tr>
+                <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-200 dark:border-slate-800">
+                        <h3 className="font-semibold text-lg">Tồn kho hiện tại</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                    {['Sản phẩm', 'Vị trí', 'Tồn hiện tại', 'Mức tối thiểu', 'Cập nhật', 'Mức cảnh báo'].map((h) => (
+                                        <th key={h} className="px-5 py-4 text-xs font-semibold uppercase tracking-wider">{h}</th>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-slate-200 dark:border-slate-800">
-                            <h3 className="font-semibold text-lg">Nhật ký biến động tồn kho</h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                        {['Thời gian', 'Sản phẩm', 'Loại', 'Số lượng', 'Vị trí', 'Tham chiếu'].map((h) => (
-                                            <th key={h} className="px-5 py-4 text-xs font-semibold uppercase tracking-wider">{h}</th>
-                                        ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {loading ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
+                                {!loading && filteredRows.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Không có dữ liệu tồn kho.</td></tr> : null}
+                                {!loading && filteredRows.map((row) => (
+                                    <tr key={`${row.id}-${row.productId}`} className={stockBg[row.status]}>
+                                        <td className="px-5 py-4 text-sm font-medium">{row.productName}</td>
+                                        <td className="px-5 py-4 text-sm">{row.locationType} #{row.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm font-semibold">{row.currentQuantity}</td>
+                                        <td className="px-5 py-4 text-sm">{row.minQuantity}</td>
+                                        <td className="px-5 py-4 text-sm">{toReadableDate(row.lastUpdated)}</td>
+                                        <td className="px-5 py-4 text-sm">
+                                            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusColors[row.status]}`} />
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {loading ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
-                                    {!loading && filteredLogs.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-sm">Không có lịch sử log.</td></tr> : null}
-                                    {!loading && filteredLogs.map((log) => (
-                                        <tr key={`${log.id}-${log.createdAt || 't'}`}>
-                                            <td className="px-5 py-4 text-sm">{toReadableDate(log.createdAt)}</td>
-                                            <td className="px-5 py-4 text-sm font-medium">{log.productName}</td>
-                                            <td className="px-5 py-4 text-sm">{log.action}</td>
-                                            <td className={`px-5 py-4 text-sm font-semibold ${log.quantityChange < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                {log.quantityChange > 0 ? '+' : ''}{log.quantityChange}
-                                            </td>
-                                            <td className="px-5 py-4 text-sm">{log.locationType} #{log.locationId || 'N/A'}</td>
-                                            <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `#${log.referenceId}` : ''}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-                </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
 
             {isImportModalOpen ? (

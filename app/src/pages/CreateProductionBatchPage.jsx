@@ -334,7 +334,7 @@ export default function CreateProductionBatchPage() {
                     key: `${orderId}-${detailProductId}-${idx}`,
                     orderId, // Add orderId to each detail
                     productId: detailProductId,
-                    productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Product #${detailProductId}`,
+                    productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Sản phẩm #${detailProductId}`,
                     quantityOrdered: detailQty,
                 }
             })
@@ -461,7 +461,7 @@ export default function CreateProductionBatchPage() {
                     return {
                         id,
                         productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
-                        productName: item?.product?.productName || item?.product?.name || `Product #${item?.productId || 'N/A'}`,
+                        productName: item?.product?.productName || item?.product?.name || `Sản phẩm #${item?.productId || 'N/A'}`,
                         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
                         quantityActual: parseSafeNumber(item?.quantityActual, 0),
                         orderId: parseSafeNumber(item?.orderId ?? item?.internalOrderId, 0) || null,

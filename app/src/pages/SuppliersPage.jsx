@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 
 function parseArrayData(raw) {
     if (Array.isArray(raw)) return raw
@@ -40,36 +40,38 @@ export default function SuppliersPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
     const [loading, setLoading] = useState(false)
-    const [creating, setCreating] = useState(false)
-    const [updating, setUpdating] = useState(false)
-    const [error, setError] = useState('')
-    const [createError, setCreateError] = useState('')
-    const [createSuccess, setCreateSuccess] = useState('')
-    const [updateError, setUpdateError] = useState('')
-    const [updateSuccess, setUpdateSuccess] = useState('')
     const [suppliers, setSuppliers] = useState([])
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+    const [showModal, setShowModal] = useState(false)
+    const [modalMode, setModalMode] = useState('create')
     const [editingSupplierId, setEditingSupplierId] = useState(null)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [statusFilter, setStatusFilter] = useState('All')
+    const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
     const [form, setForm] = useState({
         supplierName: '',
         contactInfo: '',
         address: '',
         isActive: true,
     })
-    const [editForm, setEditForm] = useState({
-        supplierName: '',
-        contactInfo: '',
-        address: '',
-        isActive: true,
-    })
+
+    const openNotice = (type, message) => setNotice({ open: true, type, message })
+    const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
+
+    useEffect(() => {
+        if (!notice.open) return undefined
+
+        const timer = window.setTimeout(() => {
+            setNotice((prev) => ({ ...prev, open: false }))
+        }, 2800)
+
+        return () => window.clearTimeout(timer)
+    }, [notice.open, notice.message])
 
     const fetchSuppliers = async () => {
-        setError('')
-
         const token = getToken()
         if (!token) {
             setSuppliers([])
-            setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
         }
 
@@ -91,61 +93,54 @@ export default function SuppliersPage() {
             setSuppliers(normalizeSuppliers(data))
         } catch (requestError) {
             setSuppliers([])
-            setError(requestError.message || 'Tải dữ liệu nhà cung cấp thất bại.')
+            openNotice('error', requestError.message || 'Tải dữ liệu nhà cung cấp thất bại.')
         } finally {
             setLoading(false)
         }
     }
 
-    const updateForm = (key, value) => {
-        setForm((prev) => ({ ...prev, [key]: value }))
-    }
-
-    const updateEditForm = (key, value) => {
-        setEditForm((prev) => ({ ...prev, [key]: value }))
-    }
-
-    const startEdit = (supplier) => {
-        setUpdateError('')
-        setUpdateSuccess('')
-        setEditingSupplierId(supplier.supplierId)
-        setEditForm({
-            supplierName: supplier.supplierName,
-            contactInfo: supplier.contactInfo === 'Chưa có thông tin liên hệ' ? '' : supplier.contactInfo,
-            address: supplier.address === 'Chưa có địa chỉ' ? '' : supplier.address,
-            isActive: Boolean(supplier.isActive),
-        })
-    }
-
-    const cancelEdit = () => {
-        setEditingSupplierId(null)
-        setUpdateError('')
-        setEditForm({
+    const openCreateModal = () => {
+        setModalMode('create')
+        setForm({
             supplierName: '',
             contactInfo: '',
             address: '',
             isActive: true,
         })
+        setShowModal(true)
     }
 
-    const createSupplier = async (event) => {
-        event.preventDefault()
-        setCreateError('')
-        setCreateSuccess('')
+    const openEditModal = (supplier) => {
+        setModalMode('edit')
+        setEditingSupplierId(supplier.supplierId)
+        setForm({
+            supplierName: supplier.supplierName,
+            contactInfo: supplier.contactInfo === 'Chưa có thông tin liên hệ' ? '' : supplier.contactInfo,
+            address: supplier.address === 'Chưa có địa chỉ' ? '' : supplier.address,
+            isActive: Boolean(supplier.isActive),
+        })
+        setShowModal(true)
+    }
 
+    const closeModal = () => {
+        setShowModal(false)
+        setEditingSupplierId(null)
+    }
+
+    const createSupplier = async () => {
         const token = getToken()
         if (!token) {
-            setCreateError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
         }
 
         const supplierName = String(form.supplierName || '').trim()
         if (!supplierName) {
-            setCreateError('Vui lòng nhập tên nhà cung cấp.')
+            openNotice('error', 'Vui lòng nhập tên nhà cung cấp.')
             return
         }
 
-        setCreating(true)
+        setLoading(true)
         try {
             const response = await fetch(`${apiBase}/Suppliers`, {
                 method: 'POST',
@@ -167,56 +162,35 @@ export default function SuppliersPage() {
                 throw new Error(data?.message || data?.title || 'Không thể thêm nhà cung cấp.')
             }
 
-            setCreateSuccess(data?.message || 'Thêm nhà cung cấp thành công.')
-            setForm({
-                supplierName: '',
-                contactInfo: '',
-                address: '',
-                isActive: true,
-            })
-            setIsCreateModalOpen(false)
+            openNotice('success', data?.message || 'Thêm nhà cung cấp thành công.')
+            closeModal()
             await fetchSuppliers()
         } catch (requestError) {
-            setCreateError(requestError.message || 'Thêm nhà cung cấp thất bại.')
+            openNotice('error', requestError.message || 'Thêm nhà cung cấp thất bại.')
         } finally {
-            setCreating(false)
+            setLoading(false)
         }
     }
 
-    const openCreateModal = () => {
-        setCreateError('')
-        setIsCreateModalOpen(true)
-    }
-
-    const closeCreateModal = () => {
-        if (creating) return
-        setCreateError('')
-        setIsCreateModalOpen(false)
-    }
-
-    const updateSupplier = async (event) => {
-        event.preventDefault()
-        setUpdateError('')
-        setUpdateSuccess('')
-
+    const updateSupplier = async () => {
         if (!editingSupplierId) {
-            setUpdateError('Không tìm thấy nhà cung cấp cần cập nhật.')
+            openNotice('error', 'Không tìm thấy nhà cung cấp cần cập nhật.')
             return
         }
 
         const token = getToken()
         if (!token) {
-            setUpdateError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
         }
 
-        const supplierName = String(editForm.supplierName || '').trim()
+        const supplierName = String(form.supplierName || '').trim()
         if (!supplierName) {
-            setUpdateError('Vui lòng nhập tên nhà cung cấp.')
+            openNotice('error', 'Vui lòng nhập tên nhà cung cấp.')
             return
         }
 
-        setUpdating(true)
+        setLoading(true)
         try {
             const response = await fetch(`${apiBase}/Suppliers/${editingSupplierId}`, {
                 method: 'PUT',
@@ -227,9 +201,9 @@ export default function SuppliersPage() {
                 },
                 body: JSON.stringify({
                     supplierName,
-                    contactInfo: String(editForm.contactInfo || '').trim(),
-                    address: String(editForm.address || '').trim(),
-                    isActive: Boolean(editForm.isActive),
+                    contactInfo: String(form.contactInfo || '').trim(),
+                    address: String(form.address || '').trim(),
+                    isActive: Boolean(form.isActive),
                 }),
             })
 
@@ -238,266 +212,262 @@ export default function SuppliersPage() {
                 throw new Error(data?.message || data?.title || 'Không thể cập nhật nhà cung cấp.')
             }
 
-            setUpdateSuccess(data?.message || 'Cập nhật nhà cung cấp thành công.')
+            openNotice('success', data?.message || 'Cập nhật nhà cung cấp thành công.')
+            closeModal()
             await fetchSuppliers()
         } catch (requestError) {
-            setUpdateError(requestError.message || 'Cập nhật nhà cung cấp thất bại.')
+            openNotice('error', requestError.message || 'Cập nhật nhà cung cấp thất bại.')
         } finally {
-            setUpdating(false)
+            setLoading(false)
         }
     }
+
+    const stats = useMemo(() => ({
+        total: suppliers.length,
+        active: suppliers.filter((s) => s.isActive).length,
+        inactive: suppliers.filter((s) => !s.isActive).length,
+    }), [suppliers])
+
+    const filtered = useMemo(() => {
+        let result = suppliers
+
+        if (statusFilter === 'Active') {
+            result = result.filter((s) => s.isActive)
+        } else if (statusFilter === 'Inactive') {
+            result = result.filter((s) => !s.isActive)
+        }
+
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase()
+            result = result.filter((s) =>
+                s.supplierName?.toLowerCase().includes(term) ||
+                s.contactInfo?.toLowerCase().includes(term) ||
+                s.address?.toLowerCase().includes(term)
+            )
+        }
+
+        return result
+    }, [suppliers, statusFilter, searchTerm])
 
     useEffect(() => {
         fetchSuppliers()
     }, [])
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold text-[#243428]">Danh sách nhà cung cấp</h1>
-                    <p className="mt-1 text-sm text-slate-600">Đồng bộ trực tiếp từ API /Suppliers.</p>
+        <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
+            <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
+                <div className="flex items-center gap-4">
+                    <span className="material-symbols-outlined text-primary text-[24px]">local_shipping</span>
+                    <h2 className="text-lg font-bold leading-tight">Quản lý nhà cung cấp</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={openCreateModal}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#4e5d43] px-4 text-sm font-semibold text-white transition hover:bg-[#415238]"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Tạo nhà cung cấp
-                    </button>
-                    <button
-                        type="button"
-                        onClick={fetchSuppliers}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d9c9b4] bg-white px-4 text-sm font-semibold text-[#4e5d43] transition hover:bg-[#fff5e7]"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">refresh</span>
-                        Tải lại
-                    </button>
+                <button
+                    className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
+                    onClick={openCreateModal}
+                >
+                    <span className="material-symbols-outlined text-[18px]">add</span>Thêm nhà cung cấp
+                </button>
+            </header>
+
+            <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
+                <div>
+                    <h1 className="text-2xl font-bold">Danh sách nhà cung cấp</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý thông tin nhà cung cấp nguyên liệu và sản phẩm.</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: 'Tổng nhà cung cấp', value: stats.total, icon: 'inventory_2', color: 'text-blue-600 dark:text-blue-400' },
+                        { label: 'Đang hoạt động', value: stats.active, icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400' },
+                        { label: 'Ngừng hoạt động', value: stats.inactive, icon: 'cancel', color: 'text-slate-600 dark:text-slate-400' },
+                    ].map((card) => (
+                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-3">
+                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
+                                <div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
+                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Tìm kiếm</span>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Tìm theo tên, liên hệ hoặc địa chỉ..."
+                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo trạng thái</span>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            >
+                                <option value="All">Tất cả</option>
+                                <option value="Active">Đang hoạt động</option>
+                                <option value="Inactive">Ngừng hoạt động</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    {loading ? <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu...</div> : null}
+                    {!loading && filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500">Không có nhà cung cấp phù hợp.</div> : null}
+
+                    {!loading && filtered.length > 0 ? (
+                        <table className="w-full table-fixed text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                    <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã NCC</th>
+                                    <th className="w-[22%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên nhà cung cấp</th>
+                                    <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Liên hệ</th>
+                                    <th className="w-[22%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
+                                    <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
+                                    <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {filtered.map((supplier) => (
+                                    <tr key={supplier.supplierId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td className="px-4 py-3 text-sm font-medium">#{supplier.supplierId}</td>
+                                        <td className="px-4 py-3 text-sm font-medium">{supplier.supplierName}</td>
+                                        <td className="px-4 py-3 text-sm">{supplier.contactInfo}</td>
+                                        <td className="px-4 py-3 text-sm">{supplier.address}</td>
+                                        <td className="px-4 py-3 text-sm">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${supplier.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {supplier.isActive ? 'Hoạt động' : 'Ngừng'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-normal">
+                                            <button
+                                                className="h-8 px-3 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+                                                onClick={() => openEditModal(supplier)}
+                                            >
+                                                Sửa
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : null}
                 </div>
             </div>
 
-            {error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                </div>
-            ) : null}
-
-            {createSuccess ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{createSuccess}</div>
-            ) : null}
-
-            {isCreateModalOpen ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4" onClick={closeCreateModal}>
-                    <div
-                        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between gap-3">
-                            <h2 className="text-base font-semibold text-slate-800">Thêm nhà cung cấp mới</h2>
+            {showModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                            <h3 className="text-lg font-bold">
+                                {modalMode === 'create' ? 'Thêm nhà cung cấp mới' : 'Chỉnh sửa nhà cung cấp'}
+                            </h3>
                             <button
-                                type="button"
-                                onClick={closeCreateModal}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-50"
-                                aria-label="Đóng"
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={closeModal}
                             >
-                                ×
+                                <span className="material-symbols-outlined text-[20px]">close</span>
                             </button>
                         </div>
 
-                        <form onSubmit={createSupplier} className="mt-3">
-                            <div className="grid gap-3 md:grid-cols-2">
-                                <label className="text-sm text-slate-700">
-                                    Tên nhà cung cấp
+                        <div className="px-6 py-4 space-y-4">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <label className="block sm:col-span-2">
+                                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        Tên nhà cung cấp <span className="text-red-500">*</span>
+                                    </span>
                                     <input
-                                        type="text"
+                                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         value={form.supplierName}
-                                        onChange={(event) => updateForm('supplierName', event.target.value)}
-                                        className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
+                                        onChange={(e) => setForm({ ...form, supplierName: e.target.value })}
                                         placeholder="Ví dụ: Công ty Thực phẩm An Tâm"
-                                        required
                                     />
                                 </label>
 
-                                <label className="text-sm text-slate-700">
-                                    Thông tin liên hệ
+                                <label className="block">
+                                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Thông tin liên hệ</span>
                                     <input
-                                        type="text"
+                                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         value={form.contactInfo}
-                                        onChange={(event) => updateForm('contactInfo', event.target.value)}
-                                        className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
+                                        onChange={(e) => setForm({ ...form, contactInfo: e.target.value })}
                                         placeholder="SĐT, email hoặc người phụ trách"
                                     />
                                 </label>
 
-                                <label className="text-sm text-slate-700 md:col-span-2">
-                                    Địa chỉ
+                                <label className="block">
+                                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Địa chỉ</span>
                                     <input
-                                        type="text"
+                                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         value={form.address}
-                                        onChange={(event) => updateForm('address', event.target.value)}
-                                        className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
+                                        onChange={(e) => setForm({ ...form, address: e.target.value })}
                                         placeholder="Ví dụ: 123 Nguyễn Trãi, Hà Nội"
                                     />
                                 </label>
 
-                                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                                     <input
                                         type="checkbox"
                                         checked={form.isActive}
-                                        onChange={(event) => updateForm('isActive', event.target.checked)}
+                                        onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                                         className="h-4 w-4 rounded border-slate-300"
                                     />
                                     Kích hoạt nhà cung cấp
                                 </label>
                             </div>
+                        </div>
 
-                            {createError ? (
-                                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</div>
-                            ) : null}
-
-                            <div className="mt-4 flex items-center justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={closeCreateModal}
-                                    className="inline-flex h-10 items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={creating}
-                                    className="inline-flex h-10 items-center rounded-xl bg-[#4e5d43] px-4 text-sm font-semibold text-white transition hover:bg-[#415238] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {creating ? 'Đang lưu...' : 'Thêm nhà cung cấp'}
-                                </button>
-                            </div>
-                        </form>
+                        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800">
+                            <button
+                                className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                onClick={closeModal}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                                disabled={loading}
+                                onClick={modalMode === 'create' ? createSupplier : updateSupplier}
+                            >
+                                {loading ? 'Đang xử lý...' : modalMode === 'create' ? 'Thêm mới' : 'Cập nhật'}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            ) : null}
+            )}
 
-            {editingSupplierId ? (
-                <form onSubmit={updateSupplier} className="rounded-2xl border border-[#d9c9b4] bg-[#fffdf7] p-4 shadow-sm">
-                    <h2 className="text-base font-semibold text-slate-800">Cập nhật nhà cung cấp #{editingSupplierId}</h2>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <label className="text-sm text-slate-700">
-                            Tên nhà cung cấp
-                            <input
-                                type="text"
-                                value={editForm.supplierName}
-                                onChange={(event) => updateEditForm('supplierName', event.target.value)}
-                                className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
-                                required
-                            />
-                        </label>
-
-                        <label className="text-sm text-slate-700">
-                            Thông tin liên hệ
-                            <input
-                                type="text"
-                                value={editForm.contactInfo}
-                                onChange={(event) => updateEditForm('contactInfo', event.target.value)}
-                                className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
-                            />
-                        </label>
-
-                        <label className="text-sm text-slate-700 md:col-span-2">
-                            Địa chỉ
-                            <input
-                                type="text"
-                                value={editForm.address}
-                                onChange={(event) => updateEditForm('address', event.target.value)}
-                                className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-[#4e5d43]"
-                            />
-                        </label>
-
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input
-                                type="checkbox"
-                                checked={editForm.isActive}
-                                onChange={(event) => updateEditForm('isActive', event.target.checked)}
-                                className="h-4 w-4 rounded border-slate-300"
-                            />
-                            Kích hoạt nhà cung cấp
-                        </label>
+            {notice.open && (
+                <div className="fixed top-4 right-4 z-[60] pointer-events-none">
+                    <div className="pointer-events-auto w-[min(92vw,24rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="px-4 py-3 flex items-start gap-3">
+                            <span className={`material-symbols-outlined mt-0.5 ${notice.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {notice.type === 'success' ? 'check_circle' : 'error'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold">
+                                    {notice.type === 'success' ? 'Thao tác thành công' : 'Có lỗi xảy ra'}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{notice.message}</p>
+                            </div>
+                            <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={closeNotice}
+                                aria-label="Đóng thông báo"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+                        <div className={`h-1 rounded-b-xl ${notice.type === 'success' ? 'bg-emerald-500/80' : 'bg-red-500/80'}`} />
                     </div>
-
-                    {updateError ? (
-                        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{updateError}</div>
-                    ) : null}
-
-                    {updateSuccess ? (
-                        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{updateSuccess}</div>
-                    ) : null}
-
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={cancelEdit}
-                            className="inline-flex h-10 items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={updating}
-                            className="inline-flex h-10 items-center rounded-xl bg-[#4e5d43] px-4 text-sm font-semibold text-white transition hover:bg-[#415238] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {updating ? 'Đang cập nhật...' : 'Lưu cập nhật'}
-                        </button>
-                    </div>
-                </form>
-            ) : null}
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full min-w-[900px] text-left border-collapse">
-                    <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50/70">
-                            {['Mã NCC', 'Tên nhà cung cấp', 'Thông tin liên hệ', 'Địa chỉ', 'Trạng thái', 'Thao tác'].map((heading) => (
-                                <th key={heading} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{heading}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr>
-                                <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">Đang tải dữ liệu nhà cung cấp...</td>
-                            </tr>
-                        ) : null}
-
-                        {!loading && suppliers.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">Chưa có dữ liệu nhà cung cấp.</td>
-                            </tr>
-                        ) : null}
-
-                        {!loading && suppliers.map((supplier) => (
-                            <tr key={supplier.supplierId} className="hover:bg-slate-50/70">
-                                <td className="px-4 py-3 text-sm font-semibold">#{supplier.supplierId}</td>
-                                <td className="px-4 py-3 text-sm">{supplier.supplierName}</td>
-                                <td className="px-4 py-3 text-sm">{supplier.contactInfo}</td>
-                                <td className="px-4 py-3 text-sm">{supplier.address}</td>
-                                <td className="px-4 py-3 text-sm">
-                                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${supplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                        {supplier.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm">
-                                    <button
-                                        type="button"
-                                        onClick={() => startEdit(supplier)}
-                                        className="inline-flex h-8 items-center rounded-lg border border-[#d9c9b4] bg-white px-3 text-xs font-semibold text-[#4e5d43] transition hover:bg-[#fff5e7]"
-                                    >
-                                        Sửa
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                </div>
+            )}
         </div>
     )
 }
