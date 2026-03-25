@@ -16,30 +16,30 @@ const supplierInactiveLabel = 'Ngừng hoạt động'
 const statusColors = { ok: 'bg-emerald-500', low: 'bg-amber-500', critical: 'bg-red-500' }
 const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg-red-50 dark:bg-red-900/10' }
 const orderStatusStyle = {
-    Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    Produced: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-    Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    Approved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
-    Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
-    Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-    Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-    Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    'Hoàn thành': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    'Đang giao': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'Đã sản xuất': 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+    'Đã duyệt': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+    'Đã xác nhận': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+    'Đã từ chối': 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+    'Chờ duyệt': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    'Đã hủy': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    'Đã trả hàng': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 }
 
 const apiStatusToUi = {
-    PENDING: 'Pending',
-    APPROVED: 'Approved',
-    CONFIRMED: 'Confirmed',
-    PROCESSING: 'Processing',
-    PRODUCED: 'Produced',
-    SHIPPED: 'Shipped',
-    SHIPPING: 'Shipped',
-    DELIVERED: 'Delivered',
-    COMPLETED: 'Delivered',
-    CANCELLED: 'Cancelled',
-    REJECTED: 'Rejected',
+    PENDING: 'Chờ duyệt',
+    APPROVED: 'Đã duyệt',
+    CONFIRMED: 'Đã xác nhận',
+    PROCESSING: 'Đang xử lý',
+    PRODUCED: 'Đã sản xuất',
+    SHIPPED: 'Đang giao',
+    SHIPPING: 'Đang giao',
+    DELIVERED: 'Hoàn thành',
+    COMPLETED: 'Hoàn thành',
+    CANCELLED: 'Đã hủy',
+    REJECTED: 'Đã từ chối',
+    RETURNED: 'Đã trả hàng',
 }
 
 const inventoryActionLabel = {
@@ -191,7 +191,7 @@ export default function StoreOrderPage() {
     const [submitError, setSubmitError] = useState('')
     const [submitSuccess, setSubmitSuccess] = useState('')
     const [lastCreatedOrderId, setLastCreatedOrderId] = useState(null)
-    const [orderDetailRows, setOrderDetailRows] = useState([{ productId: '', quantityOrdered: '1' }])
+    const [orderDetailRows, setOrderDetailRows] = useState([])
     const [formStoreId, setFormStoreId] = useState(localStorage.getItem('store_id') || '1')
     const [storeOptions, setStoreOptions] = useState(fallbackStoreOptions)
     const [productOptions, setProductOptions] = useState(fallbackProductOptions)
@@ -261,6 +261,16 @@ export default function StoreOrderPage() {
             }
 
             let products = productRes.ok ? toOptionList(productsJson, getProductIdFromItem, getProductNameFromItem) : []
+
+            // Filter only FINISHED products
+            if (products.length > 0) {
+                const rawProducts = parseArrayData(productsJson)
+                products = products.filter(p => {
+                    const rawProduct = rawProducts.find(rp => Number(rp?.productId || rp?.id) === Number(p.id))
+                    const productType = String(rawProduct?.productType || '').toUpperCase()
+                    return productType === 'FINISHED'
+                })
+            }
 
             if (!products.length) {
                 const inventoryRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
@@ -422,21 +432,17 @@ export default function StoreOrderPage() {
     }
 
     const isShippedLikeStatus = (rawStatus) => {
-        const normalized = String(normalizeStatus(rawStatus)).toUpperCase()
-        return normalized === 'SHIPPED' || normalized === 'IN TRANSIT'
+        const status = String(rawStatus || '').toUpperCase()
+        // Check both raw status and normalized status
+        return status === 'SHIPPED' ||
+            status === 'SHIPPING' ||
+            status === 'ĐANG GIAO' ||
+            status.includes('GIAO')
     }
 
     const getOrderStatusActions = (rawStatus) => {
-        const normalized = String(rawStatus || '').toUpperCase()
-        if (normalized === 'PENDING' || normalized === 'APPROVED') {
-            return [{ status: 'PROCESSING', label: 'Chuyển PROCESSING' }]
-        }
-        if (normalized === 'PROCESSING') {
-            return [{ status: 'PRODUCED', label: 'Chuyển PRODUCED' }]
-        }
-        if (normalized === 'PRODUCED') {
-            return [{ status: 'SHIPPING', label: 'Chuyển SHIPPING' }]
-        }
+        // Store staff KHÔNG được phép xuất kho
+        // Chỉ có SUPPLY_COORDINATOR mới xuất kho từ Order Management page
         return []
     }
 
@@ -459,14 +465,48 @@ export default function StoreOrderPage() {
             if (!numericId || numericId < 1) return null
 
             const status = normalizeStatus(item?.status || item?.orderStatus)
-            const orderDetails = Array.isArray(item?.orderDetails) ? item.orderDetails : Array.isArray(item?.internalOrderDetails) ? item.internalOrderDetails : []
-            const productNames = Array.from(new Set(orderDetails.map((d) => d?.product?.productName || d?.product?.name || getProductNameById(d?.productId)).filter(Boolean)))
-            const totalQuantity = orderDetails.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
-            const productLabel = productNames.length === 0
-                ? 'N/A'
-                : productNames.length === 1
-                    ? productNames[0]
-                    : `${productNames[0]} +${productNames.length - 1}`
+
+            // Try multiple possible field names for order details
+            const orderDetails = Array.isArray(item?.orderDetails)
+                ? item.orderDetails
+                : Array.isArray(item?.internalOrderDetails)
+                    ? item.internalOrderDetails
+                    : Array.isArray(item?.details)
+                        ? item.details
+                        : []
+
+            // Improved product name extraction - prioritize nested product object
+            const productNames = Array.from(new Set(
+                orderDetails.map((d) => {
+                    // Try to get from nested product object first
+                    if (d?.product?.productName) return d.product.productName
+                    if (d?.product?.name) return d.product.name
+                    if (d?.productName) return d.productName
+                    // Fallback to productOptions lookup
+                    const productId = Number(d?.productId)
+                    if (productId > 0) {
+                        const found = productOptions.find(p => Number(p.id) === productId)
+                        if (found) return found.name
+                        return `Sản phẩm #${productId}`
+                    }
+                    return null
+                }).filter(Boolean)
+            ))
+
+            const totalQuantity = orderDetails.reduce((sum, row) => {
+                const qty = Number(row?.quantityOrdered || row?.quantity || row?.quantityConfirmed || 0)
+                return sum + qty
+            }, 0)
+
+            const productLabel = orderDetails.length === 0
+                ? 'Click xem chi tiết'
+                : productNames.length === 0
+                    ? 'Đang tải...'
+                    : productNames.length === 1
+                        ? productNames[0]
+                        : `${productNames[0]} +${productNames.length - 1}`
+
+            const allProductNames = productNames.join('\n') // For tooltip
             return {
                 id: `#${numericId}`,
                 orderId: numericId,
@@ -475,8 +515,10 @@ export default function StoreOrderPage() {
                 totalQuantity,
                 storeName: item?.store?.storeName || item?.store?.name || getStoreNameById(item?.storeId),
                 productLabel,
+                allProductNames, // Add this for tooltip
+                hasMultipleProducts: productNames.length > 1,
                 status,
-                statusStyle: orderStatusStyle[status] || orderStatusStyle.Pending,
+                statusStyle: orderStatusStyle[status] || orderStatusStyle['Chờ duyệt'],
             }
         }).filter(Boolean)
     }
@@ -509,7 +551,42 @@ export default function StoreOrderPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách đơn hàng.')
             }
 
-            const records = Array.isArray(data) ? data : data?.items || []
+            let records = Array.isArray(data) ? data : data?.items || []
+
+            // Fetch details for each order to get product info
+            if (records.length > 0) {
+                const detailPromises = records.map(async (order) => {
+                    const orderId = Number(order?.id || order?.internalOrderId || order?.orderId)
+                    if (!orderId) return order
+
+                    try {
+                        const detailRes = await fetch(`${apiBase}/internal-orders/${orderId}`, {
+                            method: 'GET',
+                            headers: {
+                                accept: '*/*',
+                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                        })
+
+                        if (detailRes.ok) {
+                            const detailData = await detailRes.json().catch(() => ({}))
+                            // Merge detail data with list data
+                            return {
+                                ...order,
+                                orderDetails: detailData.orderDetails || detailData.internalOrderDetails || order.orderDetails,
+                                internalOrderDetails: detailData.internalOrderDetails || detailData.orderDetails || order.internalOrderDetails,
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`Failed to fetch detail for order ${orderId}:`, err)
+                    }
+
+                    return order
+                })
+
+                records = await Promise.all(detailPromises)
+            }
+
             setOrders(normalizeOrders(records))
         } catch (error) {
             setOrders([])
@@ -555,7 +632,7 @@ export default function StoreOrderPage() {
     }
 
     const addOrderDetailRow = () => {
-        setOrderDetailRows((prev) => [...prev, createEmptyOrderDetailRow()])
+        setOrderDetailRows((prev) => [...prev, { productId: '', quantityOrdered: '1' }])
     }
 
     const removeOrderDetailRow = (index) => {
@@ -639,17 +716,22 @@ export default function StoreOrderPage() {
                 throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
             }
 
-            const reason = window.prompt('Nhập lý do trả hàng (có thể bỏ trống):', '')
+            const reason = window.prompt('Nhập lý do trả hàng (bắt buộc):', '')
+
+            if (!reason || !reason.trim()) {
+                setDetailError('Vui lòng nhập lý do trả hàng.')
+                return
+            }
 
             setReturnLoading(true)
-            const response = await fetch(`${apiBase}/internal-orders/${orderId}/reject`, {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/return`, {
                 method: 'PUT',
                 headers: {
                     accept: '*/*',
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ reason: reason || 'Store trả hàng sau khi nhận lô giao.' }),
+                body: JSON.stringify({ reason: reason.trim() }),
             })
 
             const data = await response.json().catch(() => ({}))
@@ -657,9 +739,9 @@ export default function StoreOrderPage() {
                 throw new Error(data?.message || data?.title || 'Không thể trả hàng cho đơn này.')
             }
 
-            const updatedStatus = normalizeStatus('REJECTED')
+            const updatedStatus = normalizeStatus('RETURNED')
             setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
-            setSubmitSuccess(data?.message || `Đã gửi yêu cầu trả hàng cho đơn #${orderId}.`)
+            setSubmitSuccess(data?.message || `Đã trả hàng thành công. Kho Kitchen đã được hoàn trả.`)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Trả hàng thất bại.')
@@ -924,7 +1006,7 @@ export default function StoreOrderPage() {
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <p className="text-sm font-semibold">Tạo đơn hàng theo biểu mẫu</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Chỉ còn một form duy nhất: Store ID, ngày giao dự kiến và danh sách sản phẩm theo Product ID.</p>
@@ -942,85 +1024,79 @@ export default function StoreOrderPage() {
                             </button>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
-                            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                                <p className="text-sm font-semibold">Danh sách sản phẩm</p>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                            <div className="mb-4 flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold">Danh sách sản phẩm</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click vào sản phẩm để thêm vào giỏ hàng</p>
+                                </div>
+                                {orderDetailRows.length > 0 && (
+                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+                                        <span className="material-symbols-outlined text-[18px]">shopping_cart</span>
+                                        <span className="text-sm font-semibold">{orderDetailRows.length} sản phẩm</span>
+                                    </div>
+                                )}
                             </div>
-                            <table className="w-full min-w-[680px] text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mã</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tên sản phẩm</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {productOptions.length > 0 ? (
-                                        productOptions.map((product) => (
-                                            <tr key={product.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-4 py-2 text-sm font-semibold">#{product.id}</td>
-                                                <td className="px-4 py-2 text-sm">{product.name}</td>
-                                                <td className="px-4 py-2 text-sm">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowCreateOrderForm(true)}
-                                                        className="h-7 px-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
-                                                    >
-                                                        Tạo đơn
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={3} className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">Chưa có dữ liệu sản phẩm.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {productOptions.length > 0 ? (
+                                    productOptions.map((product) => {
+                                        const inCart = orderDetailRows.find(row => Number(row.productId) === Number(product.id))
+                                        const quantity = inCart ? Number(inCart.quantityOrdered) : 0
 
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
-                            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                                <p className="text-sm font-semibold">Danh sách nhà cung cấp</p>
+                                        return (
+                                            <div
+                                                key={product.id}
+                                                onClick={() => {
+                                                    // Add product to order details WITHOUT opening form
+                                                    const existingIndex = orderDetailRows.findIndex(row => Number(row.productId) === Number(product.id))
+                                                    if (existingIndex >= 0) {
+                                                        // Increase quantity if already exists
+                                                        const currentQty = Number(orderDetailRows[existingIndex].quantityOrdered) || 0
+                                                        updateOrderDetailRow(existingIndex, 'quantityOrdered', String(currentQty + 1))
+                                                    } else {
+                                                        // Add new row
+                                                        setOrderDetailRows(prev => [...prev, { productId: String(product.id), quantityOrdered: '1' }])
+                                                    }
+                                                }}
+                                                className={`rounded-lg border p-4 hover:shadow-md transition-all cursor-pointer ${quantity > 0
+                                                    ? 'border-primary bg-primary/5'
+                                                    : 'border-slate-200 dark:border-slate-800 hover:border-primary/50'
+                                                    }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-primary text-[24px]">inventory_2</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{product.name}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mã: #{product.id}</p>
+                                                        {quantity > 0 ? (
+                                                            <div className="mt-3 flex items-center justify-center w-full h-8 rounded-lg bg-primary text-white text-xs font-semibold">
+                                                                <span className="material-symbols-outlined text-[16px] mr-1">check</span>
+                                                                Đã thêm: {quantity}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="mt-3 flex items-center justify-center w-full h-8 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-white transition-colors">
+                                                                <span className="material-symbols-outlined text-[16px] mr-1">add</span>
+                                                                Thêm vào đơn
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                ) : (
+                                    <div className="col-span-full text-center py-8 text-sm text-slate-500 dark:text-slate-400">
+                                        Chưa có dữ liệu sản phẩm.
+                                    </div>
+                                )}
                             </div>
-                            <table className="w-full min-w-[760px] text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mã NCC</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tên nhà cung cấp</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Liên hệ</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Địa chỉ</th>
-                                        <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {supplierOptions.length > 0 ? (
-                                        supplierOptions.map((supplier) => (
-                                            <tr key={supplier.supplierId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-4 py-2 text-sm font-semibold">#{supplier.supplierId}</td>
-                                                <td className="px-4 py-2 text-sm">{supplier.supplierName}</td>
-                                                <td className="px-4 py-2 text-sm">{supplier.contactInfo}</td>
-                                                <td className="px-4 py-2 text-sm">{supplier.address}</td>
-                                                <td className="px-4 py-2 text-sm">
-                                                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${supplier.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-                                                        {supplier.isActive ? 'Đang hoạt động' : supplierInactiveLabel}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={5} className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">Chưa tải được danh sách nhà cung cấp từ API.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
                         </div>
 
                         {showCreateOrderForm && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 mt-2 sm:mt-0">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4 overflow-y-auto">
+                                <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 my-auto">
                                     <div className="flex items-center justify-between gap-3 mb-4">
                                         <p className="text-base font-semibold">Form Tạo Đơn Hàng</p>
                                         <button
@@ -1055,54 +1131,71 @@ export default function StoreOrderPage() {
                                         </label>
                                     </div>
 
-                                    <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <p className="text-sm font-semibold">Chi tiết đơn hàng</p>
+                                    <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-sm font-semibold">Sản phẩm đã chọn ({orderDetailRows.length})</p>
                                             <button
                                                 type="button"
                                                 onClick={addOrderDetailRow}
-                                                className="h-8 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700"
+                                                className="flex items-center gap-1 h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90"
                                             >
-                                                + Thêm dòng sản phẩm
+                                                <span className="material-symbols-outlined text-[16px]">add</span>
+                                                Thêm sản phẩm
                                             </button>
                                         </div>
-                                        <div className="flex flex-col gap-2">
-                                            {orderDetailRows.map((row, index) => (
-                                                <div key={`detail-row-${index}`} className="grid grid-cols-12 gap-2 items-end">
-                                                    <label className="col-span-5 flex flex-col gap-1">
-                                                        <span className="text-[11px] text-slate-500">Chọn sản phẩm</span>
-                                                        <select
-                                                            value={row.productId}
-                                                            onChange={(e) => updateOrderDetailRow(index, 'productId', e.target.value)}
-                                                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                                        >
-                                                            {productOptions.map((product) => (
-                                                                <option key={product.id} value={String(product.id)}>{product.name} (#{product.id})</option>
-                                                            ))}
-                                                        </select>
-                                                    </label>
-                                                    <label className="col-span-5 flex flex-col gap-1">
-                                                        <span className="text-[11px] text-slate-500">Số lượng đặt</span>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            value={row.quantityOrdered}
-                                                            onChange={(e) => updateOrderDetailRow(index, 'quantityOrdered', e.target.value)}
-                                                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                                        />
-                                                    </label>
-                                                    <div className="col-span-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeOrderDetailRow(index)}
-                                                            disabled={orderDetailRows.length === 1}
-                                                            className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
-                                                        >
-                                                            Xóa
-                                                        </button>
+                                        <div className="flex flex-col gap-3">
+                                            {orderDetailRows.map((row, index) => {
+                                                const selectedProduct = productOptions.find(p => String(p.id) === String(row.productId))
+                                                const isNewRow = !selectedProduct || row.productId === ''
+
+                                                return (
+                                                    <div key={`detail-row-${index}`} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
+                                                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-primary text-[20px]">inventory_2</span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            {isNewRow ? (
+                                                                <select
+                                                                    value={row.productId}
+                                                                    onChange={(e) => updateOrderDetailRow(index, 'productId', e.target.value)}
+                                                                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium"
+                                                                >
+                                                                    <option value="">-- Chọn sản phẩm --</option>
+                                                                    {productOptions.map((product) => (
+                                                                        <option key={product.id} value={String(product.id)}>{product.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            ) : (
+                                                                <div className="px-3 py-2">
+                                                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedProduct.name}</p>
+                                                                    <p className="text-xs text-slate-500 dark:text-slate-400">Mã: #{selectedProduct.id}</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="flex flex-col gap-1">
+                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400">Số lượng</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    value={row.quantityOrdered}
+                                                                    onChange={(e) => updateOrderDetailRow(index, 'quantityOrdered', e.target.value)}
+                                                                    className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-center font-semibold"
+                                                                />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeOrderDetailRow(index)}
+                                                                disabled={orderDetailRows.length === 1}
+                                                                className="mt-5 w-9 h-9 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                                                                title="Xóa sản phẩm"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                         </div>
                                     </div>
 
@@ -1162,16 +1255,15 @@ export default function StoreOrderPage() {
                                         onChange={(e) => setOrdersStatusFilter(e.target.value)}
                                         className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                     >
-                                        <option value="">All</option>
-                                        <option value="PENDING">PENDING</option>
-                                        <option value="APPROVED">APPROVED</option>
-                                        <option value="PROCESSING">PROCESSING</option>
-                                        <option value="PRODUCED">PRODUCED</option>
-                                        <option value="SHIPPED">SHIPPED</option>
-                                        <option value="SHIPPING">SHIPPING</option>
-                                        <option value="COMPLETED">COMPLETED</option>
-                                        <option value="CANCELLED">CANCELLED</option>
-                                        <option value="REJECTED">REJECTED</option>
+                                        <option value="">Tất cả</option>
+                                        <option value="PENDING">Chờ duyệt</option>
+                                        <option value="APPROVED">Đã duyệt</option>
+                                        <option value="PRODUCED">Đã sản xuất</option>
+                                        <option value="SHIPPED">Đang giao</option>
+                                        <option value="SHIPPING">Đang giao</option>
+                                        <option value="COMPLETED">Hoàn thành</option>
+                                        <option value="CANCELLED">Đã hủy</option>
+                                        <option value="REJECTED">Đã từ chối</option>
                                     </select>
                                 </label>
                                 <button
@@ -1225,7 +1317,23 @@ export default function StoreOrderPage() {
                                             <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-5 py-3 text-sm font-semibold">{order.id}</td>
                                                 <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{order.storeName}</td>
-                                                <td className="px-5 py-3 text-sm">{order.productLabel}</td>
+                                                <td className="px-5 py-3 text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{order.productLabel}</span>
+                                                        {order.hasMultipleProducts && (
+                                                            <div className="relative group">
+                                                                <span className="material-symbols-outlined text-[16px] text-slate-400 hover:text-primary cursor-help">
+                                                                    info
+                                                                </span>
+                                                                <div className="absolute left-0 top-6 hidden group-hover:block z-50 w-max max-w-xs bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg p-3 border border-slate-700">
+                                                                    <p className="font-semibold mb-1">Tất cả sản phẩm:</p>
+                                                                    <div className="whitespace-pre-line">{order.allProductNames}</div>
+                                                                    <div className="absolute -top-1 left-2 w-2 h-2 bg-slate-900 dark:bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-5 py-3 text-sm">{order.totalQuantity}</td>
                                                 <td className="px-5 py-3">
                                                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>{order.status}</span>
@@ -1276,7 +1384,7 @@ export default function StoreOrderPage() {
                                                                 </button>
                                                             </>
                                                         )}
-                                                        {order.status !== 'Cancelled' && (
+                                                        {order.status !== 'Đã hủy' && (
                                                             <button
                                                                 onClick={() => cancelOrderById(order.orderId)}
                                                                 disabled={cancelLoading || receiveLoading || returnLoading}
@@ -1316,48 +1424,135 @@ export default function StoreOrderPage() {
                             </div>
                         )}
                         {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 mt-2 sm:mt-0">
-                                    <div className="flex items-center justify-between gap-3 mb-3">
-                                        <p className="text-base font-semibold">Chi tiết đơn #{detailOrder.orderId || detailOrder.id}</p>
+                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                                <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden">
+                                    {/* Header */}
+                                    <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-white text-[24px]">receipt_long</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
+                                                <p className="text-white/80 text-sm">#{detailOrder.orderId || detailOrder.id}</p>
+                                            </div>
+                                        </div>
                                         <button
                                             onClick={() => {
                                                 setDetailOrder(null)
                                                 setDetailError('')
                                             }}
-                                            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                                         >
-                                            Đóng
+                                            <span className="material-symbols-outlined text-white text-[20px]">close</span>
                                         </button>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle.Pending}`}>
-                                            {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
-                                        </span>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Ngày giao dự kiến: {toReadableDate(detailOrder.expectedDeliveryDate)}</p>
-                                    </div>
-                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                        <p><span className="font-semibold">Cửa hàng:</span> {detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}</p>
-                                        <p><span className="font-semibold">Ngày tạo:</span> {toReadableDate(detailOrder.createdAt)}</p>
-                                    </div>
-                                    {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Cancelled' && (
-                                        <div className="mt-3">
-                                            <div className="flex items-center gap-2 flex-wrap">
+
+                                    {/* Content */}
+                                    <div className="p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
+                                        {/* Status and Date */}
+                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
+                                                {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
+                                            </span>
+                                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                                                <span>Giao dự kiến: {toReadableDate(detailOrder.expectedDeliveryDate)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Info Cards */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                                            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="material-symbols-outlined text-primary text-[20px]">storefront</span>
+                                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cửa hàng</p>
+                                                </div>
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                    {detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
+                                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ngày tạo</p>
+                                                </div>
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{toReadableDate(detailOrder.createdAt)}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Products Table */}
+                                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden mb-6">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Danh sách sản phẩm</p>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-50 dark:bg-slate-800/30">
+                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Sản phẩm</th>
+                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đặt</th>
+                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Xác nhận</th>
+                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đã giao</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                        {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
+                                                            (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row, idx) => (
+                                                                <tr key={row.detailId || `${row.productId}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="material-symbols-outlined text-slate-400 text-[20px]">inventory_2</span>
+                                                                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                                                                {row?.product?.productName || row?.product?.name || getProductNameById(row.productId)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-sm text-center font-semibold text-slate-900 dark:text-slate-100">{row.quantityOrdered}</td>
+                                                                    <td className="px-4 py-3 text-sm text-center font-semibold text-blue-600 dark:text-blue-400">{row.quantityConfirmed}</td>
+                                                                    <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{row.quantityShipped}</td>
+                                                                </tr>
+                                                            ))
+                                                        ) : (
+                                                            <tr>
+                                                                <td colSpan={4} className="px-4 py-6 text-sm text-center text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Error Message */}
+                                        {detailError && (
+                                            <div className="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                                <div className="flex items-start gap-2">
+                                                    <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-[20px]">error</span>
+                                                    <p className="text-sm text-red-700 dark:text-red-300">{detailError}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Đã hủy' && (
+                                            <div className="flex items-center gap-3 flex-wrap">
                                                 {isShippedLikeStatus(detailOrder.orderStatus || detailOrder.status) && (
                                                     <>
                                                         <button
                                                             onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
                                                             disabled={receiveLoading || returnLoading}
-                                                            className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-60"
+                                                            className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                                                         >
+                                                            <span className="material-symbols-outlined text-[18px]">check_circle</span>
                                                             {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
                                                         </button>
                                                         <button
                                                             onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
                                                             disabled={receiveLoading || returnLoading}
-                                                            className="h-8 px-3 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 disabled:opacity-60"
+                                                            className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                                                         >
-                                                            {returnLoading ? 'Đang gửi trả hàng...' : 'Trả hàng'}
+                                                            <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
+                                                            {returnLoading ? 'Đang gửi...' : 'Trả hàng'}
                                                         </button>
                                                     </>
                                                 )}
@@ -1366,7 +1561,7 @@ export default function StoreOrderPage() {
                                                         key={`detail-${detailOrder.orderId || detailOrder.id}-${action.status}`}
                                                         onClick={() => updateOrderStatusById(detailOrder.orderId || detailOrder.id, action.status)}
                                                         disabled={statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` || cancelLoading || receiveLoading || returnLoading}
-                                                        className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60"
+                                                        className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors disabled:opacity-60"
                                                     >
                                                         {statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` ? 'Đang cập nhật...' : action.label}
                                                     </button>
@@ -1374,40 +1569,13 @@ export default function StoreOrderPage() {
                                                 <button
                                                     onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
                                                     disabled={cancelLoading || receiveLoading || returnLoading}
-                                                    className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-60"
+                                                    className="h-11 px-4 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                                                 >
-                                                    {cancelLoading ? 'Đang hủy đơn...' : 'Hủy Đơn Hàng Này'}
+                                                    <span className="material-symbols-outlined text-[18px]">cancel</span>
+                                                    {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
                                                 </button>
                                             </div>
-                                        </div>
-                                    )}
-                                    <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sản phẩm</th>
-                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Đặt</th>
-                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Xác nhận</th>
-                                                    <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã giao</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
-                                                    (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row) => (
-                                                        <tr key={row.detailId || `${row.productId}-${row.quantityOrdered}`}>
-                                                            <td className="px-4 py-2 text-sm">{row?.product?.productName || row?.product?.name || getProductNameById(row.productId)}</td>
-                                                            <td className="px-4 py-2 text-sm">{row.quantityOrdered}</td>
-                                                            <td className="px-4 py-2 text-sm">{row.quantityConfirmed}</td>
-                                                            <td className="px-4 py-2 text-sm">{row.quantityShipped}</td>
-                                                        </tr>
-                                                    ))
-                                                ) : (
-                                                    <tr>
-                                                        <td colSpan={4} className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1574,6 +1742,6 @@ export default function StoreOrderPage() {
                 )}
 
             </div>
-        </div>
+        </div >
     )
 }

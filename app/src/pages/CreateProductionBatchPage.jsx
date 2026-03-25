@@ -221,8 +221,11 @@ export default function CreateProductionBatchPage() {
     const [ordersLoading, setOrdersLoading] = useState(false)
     const [products, setProducts] = useState([])
     const [productsLoading, setProductsLoading] = useState(false)
+    const [batches, setBatches] = useState([])
+    const [batchesLoading, setBatchesLoading] = useState(false)
     const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
     const [creatingRowKey, setCreatingRowKey] = useState('')
+    const [completingBatchId, setCompletingBatchId] = useState(null)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
 
@@ -329,6 +332,7 @@ export default function CreateProductionBatchPage() {
                 if (!detailProductId || detailQty <= 0) return null
                 return {
                     key: `${orderId}-${detailProductId}-${idx}`,
+                    orderId, // Add orderId to each detail
                     productId: detailProductId,
                     productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Product #${detailProductId}`,
                     quantityOrdered: detailQty,
@@ -424,10 +428,108 @@ export default function CreateProductionBatchPage() {
 
     useEffect(() => {
         fetchApprovedOrders()
+        fetchInProgressBatches()
     }, [products.length])
+
+    const fetchInProgressBatches = async () => {
+        const tk = getToken()
+        if (!tk) return
+
+        setBatchesLoading(true)
+        try {
+            const response = await fetch(`${apiBase}/ProductionBatches`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể tải danh sách mẻ sản xuất.')
+            }
+
+            const normalized = parseArrayData(data)
+                .map((item) => {
+                    const id = parseSafeNumber(item?.batchId ?? item?.productionBatchId ?? item?.id, 0)
+                    if (!id) return null
+
+                    const status = String(item?.status || '').toUpperCase()
+                    if (status !== 'IN_PROGRESS') return null
+
+                    return {
+                        id,
+                        productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
+                        productName: item?.product?.productName || item?.product?.name || `Product #${item?.productId || 'N/A'}`,
+                        quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
+                        quantityActual: parseSafeNumber(item?.quantityActual, 0),
+                        orderId: parseSafeNumber(item?.orderId ?? item?.internalOrderId, 0) || null,
+                        storeId: parseSafeNumber(item?.storeId ?? item?.store?.storeId ?? item?.store?.id, 0) || null,
+                        mfgDate: item?.mfgDate || item?.createdAt || null,
+                    }
+                })
+                .filter(Boolean)
+                .sort((a, b) => new Date(b.mfgDate || 0).getTime() - new Date(a.mfgDate || 0).getTime())
+
+            setBatches(normalized)
+        } catch (requestError) {
+            setBatches([])
+        } finally {
+            setBatchesLoading(false)
+        }
+    }
+
+    const handleCompleteBatch = async (batch) => {
+        setError('')
+        setSuccess('')
+
+        const tk = getToken()
+        if (!tk) {
+            setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        const actualQty = batch.quantityPlanned || 1
+
+        setCompletingBatchId(batch.id)
+        try {
+            // Complete the batch
+            const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    status: 'COMPLETED',
+                    quantityActual: actualQty,
+                    additionalMaterials: [],
+                }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể hoàn thành mẻ sản xuất.')
+            }
+
+            // Removed: Auto-update order to PRODUCED - now manual
+            // Staff will manually update order status when all products are ready
+
+            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất.`)
+            await fetchInProgressBatches()
+            await fetchApprovedOrders()
+        } catch (requestError) {
+            setError(requestError.message || 'Hoàn thành mẻ sản xuất thất bại.')
+        } finally {
+            setCompletingBatchId(null)
+        }
+    }
 
     const refreshData = async () => {
         await fetchProducts()
+        await fetchInProgressBatches()
     }
 
     const handleCreateFromRow = async (row) => {
@@ -460,6 +562,19 @@ export default function CreateProductionBatchPage() {
         setCreatingRowKey(row.key)
         try {
             const mfgIso = new Date(mfgDate).toISOString()
+
+            // Prepare payload with orderId if available
+            const payload = {
+                productId: pid,
+                quantityPlanned: qty,
+                mfgDate: mfgIso,
+            }
+
+            // Add orderId if this batch is created from an order
+            if (row.orderId) {
+                payload.orderId = row.orderId
+            }
+
             const response = await fetch(`${apiBase}/ProductionBatches`, {
                 method: 'POST',
                 headers: {
@@ -467,11 +582,7 @@ export default function CreateProductionBatchPage() {
                     Authorization: `Bearer ${tk}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    productId: pid,
-                    quantityPlanned: qty,
-                    mfgDate: mfgIso,
-                }),
+                body: JSON.stringify(payload),
             })
 
             const { json: data, text: rawCreateText } = await readResponsePayload(response)
@@ -502,52 +613,14 @@ export default function CreateProductionBatchPage() {
 
             localStorage.setItem('last_known_batch_id', String(createdBatchId))
 
-            {
-                const allocationVariants = [
-                    [{ orderId: Number(row.orderId), allocatedQuantity: qty }],
-                    [{ OrderId: Number(row.orderId), AllocatedQuantity: qty }],
-                    { requests: [{ orderId: Number(row.orderId), allocatedQuantity: qty }] },
-                    { requests: [{ OrderId: Number(row.orderId), AllocatedQuantity: qty }] },
-                ]
-
-                let allocationSuccess = false
-                let allocationErrorMessage = ''
-
-                for (let index = 0; index < allocationVariants.length; index += 1) {
-                    const allocationRes = await fetch(`${apiBase}/ProductionBatches/${encodeURIComponent(createdBatchId)}/allocate`, {
-                        method: 'POST',
-                        headers: {
-                            accept: '*/*',
-                            Authorization: `Bearer ${tk}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(allocationVariants[index]),
-                    })
-
-                    const { json: allocationData, text: allocationRawText } = await readResponsePayload(allocationRes)
-                    if (allocationRes.ok) {
-                        allocationSuccess = true
-                        break
-                    }
-
-                    allocationErrorMessage = resolveApiErrorMessage(
-                        allocationData,
-                        allocationRawText,
-                        'Tạo mẻ thành công nhưng không thể gán đơn vào mẻ.',
-                    )
-
-                    const isLastVariant = index === allocationVariants.length - 1
-                    const shouldRetry = allocationRes.status === 400 && shouldRetryOnValidation400(allocationErrorMessage)
-                    if (!shouldRetry || isLastVariant) {
-                        throw new Error(allocationErrorMessage)
-                    }
-                }
-
-                if (!allocationSuccess) {
-                    throw new Error(allocationErrorMessage || 'Tạo mẻ thành công nhưng không thể gán đơn vào mẻ.')
-                }
+            // Store orderId mapping for later use when completing batch
+            if (row.orderId) {
+                const batchOrderMap = JSON.parse(localStorage.getItem('batch_order_map') || '{}')
+                batchOrderMap[createdBatchId] = row.orderId
+                localStorage.setItem('batch_order_map', JSON.stringify(batchOrderMap))
             }
 
+            // Skip allocation step since orderId is already included in batch creation
             let statusWarning = ''
             {
                 const payloadVariants = [
@@ -595,6 +668,7 @@ export default function CreateProductionBatchPage() {
                 if (!updateSuccess) {
                     statusWarning = lastErrorMessage || 'Không thể tự chuyển mẻ sang IN_PROGRESS.'
                 }
+                // Removed: Auto-update order to PROCESSING - now manual
             }
 
             const inventoryHint = statusWarning
@@ -608,6 +682,7 @@ export default function CreateProductionBatchPage() {
             )
 
             await fetchApprovedOrders()
+            await fetchInProgressBatches()
         } catch (requestError) {
             setError(requestError.message || 'Tạo mẻ sản xuất thất bại.')
         } finally {
@@ -676,6 +751,52 @@ export default function CreateProductionBatchPage() {
                         </p>
                     </div>
                 </div>
+
+                {batches.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-900/20">
+                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Mẻ đang sản xuất (IN_PROGRESS)</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">{batches.length} mẻ</p>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Mẻ #</th>
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">SL kế hoạch</th>
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">SL thực tế</th>
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {batches.map((batch) => {
+                                        const isCompleting = completingBatchId === batch.id
+                                        return (
+                                            <tr key={batch.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                <td className="px-4 py-3 text-sm font-semibold">#{batch.id}</td>
+                                                <td className="px-4 py-3 text-sm">{batch.productName}</td>
+                                                <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
+                                                <td className="px-4 py-3 text-sm">{batch.quantityActual || 0}</td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCompleteBatch(batch)}
+                                                        disabled={isCompleting || !!completingBatchId}
+                                                        className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                                                    >
+                                                        {isCompleting ? 'Đang hoàn thành...' : 'Hoàn thành'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">

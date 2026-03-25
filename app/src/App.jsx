@@ -21,7 +21,6 @@ import InventoryPage from './pages/InventoryPage'
 import InternalOrdersPage from './pages/InternalOrdersPage'
 import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
-import OngoingProductionBatchesPage from './pages/OngoingProductionBatchesPage'
 import UsersPage from './pages/UsersPage'
 import Layout from './components/Layout'
 import { getDefaultPathByRole, roles } from './data/appSchema'
@@ -72,7 +71,6 @@ const routeConfig = [
   { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
-  { path: '/production-batches/ongoing', element: <OngoingProductionBatchesPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/suppliers', element: <SuppliersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },

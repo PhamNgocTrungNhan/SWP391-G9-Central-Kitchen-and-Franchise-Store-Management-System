@@ -5,21 +5,25 @@ const statusStyle = {
     Approved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
     Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    Produced: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
     Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    Returned: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 }
 
 const statusLabel = {
     Pending: 'Chờ xác nhận',
     Approved: 'Đã duyệt',
     Confirmed: 'Đã xác nhận',
-    Processing: 'Đang xử lý',
+    Processing: 'Đang sản xuất',
+    Produced: 'Sẵn sàng',
     Shipped: 'Đang giao',
     Delivered: 'Đã hoàn tất',
     Rejected: 'Đã từ chối',
     Cancelled: 'Đã hủy',
+    Returned: 'Đã trả hàng',
 }
 
 const apiStatusToUi = {
@@ -27,6 +31,7 @@ const apiStatusToUi = {
     APPROVED: 'Approved',
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
+    PRODUCED: 'Produced',
     SHIPPED: 'Shipped',
     SHIPPING: 'Shipped',
     IN_TRANSIT: 'Shipped',
@@ -37,6 +42,7 @@ const apiStatusToUi = {
     COMPLETED: 'Delivered',
     REJECTED: 'Rejected',
     CANCELLED: 'Cancelled',
+    RETURNED: 'Returned',
 }
 
 function normalizeStatus(rawStatus) {
@@ -90,7 +96,6 @@ export default function OrderManagementPage() {
     const [productNameMap, setProductNameMap] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
-    const [storeIdFilter, setStoreIdFilter] = useState('')
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
     const [transferLoadingId, setTransferLoadingId] = useState(null)
@@ -195,8 +200,7 @@ export default function OrderManagementPage() {
     }
 
     const fetchOrders = async () => {
-        const typedStoreId = String(storeIdFilter || '').trim()
-        const effectiveStoreId = typedStoreId || resolveDefaultStoreId()
+        const effectiveStoreId = resolveDefaultStoreId()
         const tk = token()
 
         if (!tk) {
@@ -204,6 +208,8 @@ export default function OrderManagementPage() {
             openNotice('error', 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
             return
         }
+
+        setLoading(true)
 
         const fetchOrderRecords = async (url) => {
             const response = await fetch(url, {
@@ -219,7 +225,8 @@ export default function OrderManagementPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách đơn hàng nội bộ.')
             }
 
-            return Array.isArray(data) ? data : data?.items || []
+            const records = Array.isArray(data) ? data : data?.items || []
+            return records
         }
 
         const hydrateOrdersWithDetails = async (baseOrders) => {
@@ -263,14 +270,11 @@ export default function OrderManagementPage() {
 
         setLoading(true)
         try {
-            if (!typedStoreId) {
-                openNotice('warning', `Đang dùng Store ID mặc định: ${effectiveStoreId} để tránh lỗi 400 từ backend.`)
-            }
-
             const records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(effectiveStoreId)}`)
 
             const normalized = normalizeOrders(records)
             const hydrated = await hydrateOrdersWithDetails(normalized)
+
             setOrders(hydrated)
         } catch (error) {
             setOrders([])
@@ -424,19 +428,72 @@ export default function OrderManagementPage() {
         }
     }
 
+    const markAsProduced = async (orderId) => {
+        const tk = token()
+        if (!tk) {
+            openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        // Tìm order để xác định status hiện tại
+        const targetOrder = orders.find((item) => Number(item?.orderId) === Number(orderId))
+        if (!targetOrder) {
+            openNotice('error', 'Không tìm thấy đơn hàng.')
+            return
+        }
+
+        // Xác định status tiếp theo
+        // APPROVED → PROCESSING
+        // PROCESSING → PRODUCED
+        let nextStatus = 'PROCESSING'
+        let successMessage = `Đơn hàng #${orderId} đã chuyển sang đang sản xuất.`
+
+        if (targetOrder.status === 'Processing') {
+            nextStatus = 'PRODUCED'
+            successMessage = `Đơn hàng #${orderId} đã sẵn sàng xuất kho.`
+        }
+
+        setActionLoadingId(orderId)
+        try {
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: nextStatus }),
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data?.message || data?.title || 'Không thể cập nhật trạng thái đơn hàng.')
+            }
+
+            openNotice('success', data?.message || successMessage)
+            await fetchOrders()
+        } catch (error) {
+            openNotice('error', error.message || 'Cập nhật trạng thái thất bại.')
+        } finally {
+            setActionLoadingId(null)
+        }
+    }
+
     const transferOrder = async (orderId) => {
         const targetOrder = orders.find((item) => Number(item?.orderId) === Number(orderId))
+
         if (!targetOrder) {
             openNotice('error', 'Không tìm thấy đơn hàng để xuất kho.')
             return
         }
 
         if (!canTransferOrder(targetOrder.status)) {
-            openNotice('error', 'Chỉ đơn ở trạng thái Đã duyệt hoặc Đã xác nhận mới được xuất kho.')
+            openNotice('error', 'Chỉ đơn ở trạng thái Đang sản xuất hoặc Sẵn sàng mới được xuất kho.')
             return
         }
 
         const tk = token()
+
         if (!tk) {
             openNotice('error', 'Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
@@ -444,21 +501,27 @@ export default function OrderManagementPage() {
 
         setTransferLoadingId(orderId)
         try {
-            const response = await fetch(`${apiBase}/Inventory/transfer/${orderId}`, {
-                method: 'POST',
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/status`, {
+                method: 'PUT',
                 headers: {
                     accept: '*/*',
                     Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ status: 'SHIPPING' }),
             })
 
             const data = await response.json().catch(() => ({}))
+
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || 'Không thể xuất kho cho đơn hàng này.')
+                throw new Error(data?.message || data?.title || `Không thể xuất kho cho đơn hàng này. Status: ${response.status}`)
             }
 
-            openNotice('success', data?.message || `Đã xuất kho cho đơn hàng #${orderId}.`)
-            fetchOrders()
+            openNotice('success', data?.message || `Đã xuất kho cho đơn hàng #${orderId}. Kho Kitchen đã được trừ.`)
+
+            // Delay 1000ms để backend commit transaction
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            await fetchOrders()
         } catch (error) {
             openNotice('error', error.message || 'Xuất kho thất bại.')
         } finally {
@@ -548,7 +611,8 @@ export default function OrderManagementPage() {
     const canCancelOrder = (status) => status === 'Pending'
     const canApproveOrder = (status) => status === 'Pending'
     const canRejectOrder = (status) => status === 'Pending'
-    const canTransferOrder = (status) => status === 'Approved' || status === 'Confirmed'
+    const canMarkAsProduced = (status) => status === 'Approved' || status === 'Processing' // APPROVED hoặc PROCESSING
+    const canTransferOrder = (status) => status === 'Processing' || status === 'Produced' // PROCESSING hoặc PRODUCED có thể xuất kho
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)
@@ -577,60 +641,39 @@ export default function OrderManagementPage() {
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái và xác nhận hoàn tất các đơn nội bộ.</p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     {[
-                        { label: 'Tổng đơn', value: stats.total },
-                        { label: 'Chờ xác nhận', value: stats.pending },
-                        { label: 'Đã duyệt', value: stats.approved },
-                        { label: 'Đang xử lý', value: stats.processing },
-                        { label: 'Đang giao', value: stats.shipped },
-                        { label: 'Hoàn tất', value: stats.delivered },
-                        { label: 'Từ chối', value: stats.rejected },
-                        { label: 'Đã hủy', value: stats.cancelled },
+                        { label: 'Tổng đơn hàng', value: stats.total, icon: 'receipt_long', color: 'text-blue-600 dark:text-blue-400' },
+                        { label: 'Chờ duyệt', value: stats.pending, icon: 'pending', color: 'text-amber-600 dark:text-amber-400' },
+                        { label: 'Đang giao', value: stats.shipped, icon: 'local_shipping', color: 'text-indigo-600 dark:text-indigo-400' },
+                        { label: 'Hoàn tất', value: stats.delivered, icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400' },
                     ].map((card) => (
-                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-4">{card.label}</p>
-                            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
+                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-3">
+                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
+                                <div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
+                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                        <label className="flex-1">
-                            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Store ID</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={storeIdFilter}
-                                onChange={(e) => setStoreIdFilter(e.target.value)}
-                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                                placeholder="Để trống = toàn bộ"
-                            />
-                        </label>
-                        <button
-                            className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
-                            onClick={fetchOrders}
+                    <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo trạng thái</span>
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                            className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                         >
-                            Tải danh sách
-                        </button>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Mặc định hiển thị toàn bộ đơn. Bạn có thể nhập Store ID để lọc sau.</p>
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                    {filters.map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`flex shrink-0 items-center px-4 py-2 rounded-full text-sm font-medium transition-colors border ${filter === f ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                            {f === 'All' ? 'Tất cả' : statusLabel[f] || f}
-                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${filter === f ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                                {f === 'All' ? orders.length : orders.filter((o) => o.status === f).length}
-                            </span>
-                        </button>
-                    ))}
+                            <option value="All">Tất cả</option>
+                            {filters.filter(f => f !== 'All').map((f) => (
+                                <option key={f} value={f}>{statusLabel[f] || f}</option>
+                            ))}
+                        </select>
+                    </label>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -681,46 +724,60 @@ export default function OrderManagementPage() {
                                                 <td colSpan={7} className="px-4 py-3">
                                                     {detailLoadingId === order.orderId ? <p className="mb-2 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
                                                     <div className="mb-3 flex items-center gap-2 flex-wrap">
-                                                        <button
-                                                            className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60"
-                                                            disabled={!canApproveOrder(order.status) || actionLoadingId === order.orderId}
-                                                            onClick={() => approveOrder(order.orderId)}
-                                                            title={!canApproveOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được duyệt.' : ''}
-                                                        >
-                                                            {actionLoadingId === order.orderId ? 'Đang duyệt...' : 'Duyệt'}
-                                                        </button>
-                                                        <button
-                                                            className="h-8 px-3 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors disabled:opacity-60"
-                                                            disabled={!canRejectOrder(order.status) || actionLoadingId === order.orderId}
-                                                            onClick={() => rejectOrder(order.orderId)}
-                                                            title={!canRejectOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được từ chối.' : ''}
-                                                        >
-                                                            {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
-                                                        </button>
-                                                        <button
-                                                            className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-60"
-                                                            disabled={!canTransferOrder(order.status) || transferLoadingId === order.orderId}
-                                                            onClick={() => transferOrder(order.orderId)}
-                                                            title={!canTransferOrder(order.status) ? 'Chỉ đơn đã duyệt hoặc đã xác nhận mới được xuất kho.' : ''}
-                                                        >
-                                                            {transferLoadingId === order.orderId ? 'Đang xuất kho...' : 'Xuất kho'}
-                                                        </button>
-                                                        <button
-                                                            className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
-                                                            disabled={!canConfirmCompleted(order.status) || actionLoadingId === order.orderId}
-                                                            onClick={() => confirmCompleted(order)}
-                                                            title={!canConfirmCompleted(order.status) ? 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.' : ''}
-                                                        >
-                                                            {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Hoàn tất'}
-                                                        </button>
-                                                        <button
-                                                            className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
-                                                            disabled={!canCancelOrder(order.status) || cancelLoadingId === order.orderId}
-                                                            onClick={() => cancelOrder(order.orderId)}
-                                                            title={!canCancelOrder(order.status) ? 'Chỉ đơn ở trạng thái Chờ xác nhận mới được hủy.' : ''}
-                                                        >
-                                                            {cancelLoadingId === order.orderId ? 'Đang hủy...' : 'Hủy'}
-                                                        </button>
+                                                        {canApproveOrder(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60"
+                                                                disabled={actionLoadingId === order.orderId}
+                                                                onClick={() => approveOrder(order.orderId)}
+                                                            >
+                                                                {actionLoadingId === order.orderId ? 'Đang duyệt...' : 'Duyệt đơn'}
+                                                            </button>
+                                                        )}
+                                                        {canRejectOrder(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors disabled:opacity-60"
+                                                                disabled={actionLoadingId === order.orderId}
+                                                                onClick={() => rejectOrder(order.orderId)}
+                                                            >
+                                                                {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
+                                                            </button>
+                                                        )}
+                                                        {canMarkAsProduced(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 transition-colors disabled:opacity-60"
+                                                                disabled={actionLoadingId === order.orderId}
+                                                                onClick={() => markAsProduced(order.orderId)}
+                                                            >
+                                                                {actionLoadingId === order.orderId ? 'Đang cập nhật...' : 'Sẵn sàng'}
+                                                            </button>
+                                                        )}
+                                                        {canTransferOrder(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-60"
+                                                                disabled={transferLoadingId === order.orderId}
+                                                                onClick={() => transferOrder(order.orderId)}
+                                                            >
+                                                                {transferLoadingId === order.orderId ? 'Đang xuất kho...' : 'Xuất kho'}
+                                                            </button>
+                                                        )}
+                                                        {canConfirmCompleted(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
+                                                                disabled={actionLoadingId === order.orderId}
+                                                                onClick={() => confirmCompleted(order)}
+                                                            >
+                                                                {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Hoàn tất'}
+                                                            </button>
+                                                        )}
+                                                        {canCancelOrder(order.status) && (
+                                                            <button
+                                                                className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
+                                                                disabled={cancelLoadingId === order.orderId}
+                                                                onClick={() => cancelOrder(order.orderId)}
+                                                            >
+                                                                {cancelLoadingId === order.orderId ? 'Đang hủy...' : 'Hủy đơn'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     {(order.details || []).length > 0 ? (
                                                         <table className="w-full text-left border-collapse rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
