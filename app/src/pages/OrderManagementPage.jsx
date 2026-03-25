@@ -435,16 +435,12 @@ export default function OrderManagementPage() {
             return
         }
 
-        // Tìm order để xác định status hiện tại
         const targetOrder = orders.find((item) => Number(item?.orderId) === Number(orderId))
         if (!targetOrder) {
             openNotice('error', 'Không tìm thấy đơn hàng.')
             return
         }
 
-        // Xác định status tiếp theo
-        // APPROVED → PROCESSING
-        // PROCESSING → PRODUCED
         let nextStatus = 'PROCESSING'
         let successMessage = `Đơn hàng #${orderId} đã chuyển sang đang sản xuất.`
 
@@ -519,7 +515,6 @@ export default function OrderManagementPage() {
 
             openNotice('success', data?.message || `Đã xuất kho cho đơn hàng #${orderId}. Kho Kitchen đã được trừ.`)
 
-            // Delay 1000ms để backend commit transaction
             await new Promise(resolve => setTimeout(resolve, 1000))
             await fetchOrders()
         } catch (error) {

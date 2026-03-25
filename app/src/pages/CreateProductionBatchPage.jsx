@@ -494,7 +494,6 @@ export default function CreateProductionBatchPage() {
 
         setCompletingBatchId(batch.id)
         try {
-            // Complete the batch
             const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
                 method: 'PUT',
                 headers: {
@@ -513,9 +512,6 @@ export default function CreateProductionBatchPage() {
             if (!response.ok) {
                 throw new Error(data?.message || data?.title || 'Không thể hoàn thành mẻ sản xuất.')
             }
-
-            // Removed: Auto-update order to PRODUCED - now manual
-            // Staff will manually update order status when all products are ready
 
             setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất.`)
             await fetchInProgressBatches()
@@ -563,14 +559,12 @@ export default function CreateProductionBatchPage() {
         try {
             const mfgIso = new Date(mfgDate).toISOString()
 
-            // Prepare payload with orderId if available
             const payload = {
                 productId: pid,
                 quantityPlanned: qty,
                 mfgDate: mfgIso,
             }
 
-            // Add orderId if this batch is created from an order
             if (row.orderId) {
                 payload.orderId = row.orderId
             }
@@ -613,14 +607,12 @@ export default function CreateProductionBatchPage() {
 
             localStorage.setItem('last_known_batch_id', String(createdBatchId))
 
-            // Store orderId mapping for later use when completing batch
             if (row.orderId) {
                 const batchOrderMap = JSON.parse(localStorage.getItem('batch_order_map') || '{}')
                 batchOrderMap[createdBatchId] = row.orderId
                 localStorage.setItem('batch_order_map', JSON.stringify(batchOrderMap))
             }
 
-            // Skip allocation step since orderId is already included in batch creation
             let statusWarning = ''
             {
                 const payloadVariants = [
@@ -668,7 +660,6 @@ export default function CreateProductionBatchPage() {
                 if (!updateSuccess) {
                     statusWarning = lastErrorMessage || 'Không thể tự chuyển mẻ sang IN_PROGRESS.'
                 }
-                // Removed: Auto-update order to PROCESSING - now manual
             }
 
             const inventoryHint = statusWarning
