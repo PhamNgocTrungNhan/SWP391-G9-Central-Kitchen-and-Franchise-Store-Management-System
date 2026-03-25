@@ -103,15 +103,33 @@ namespace Shop2026.DLL
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
+                var trackedOrder = _repo.GetContext().InternalOrders.Find(order.OrderId);
+                if (trackedOrder == null)
+                    throw new Exception("Không tìm thấy đơn hàng");
+
                 foreach (var detail in details)
                 {
-                    decimal quantityToShip = detail.QuantityConfirmed ?? detail.QuantityOrdered ?? 0;
+                    // Ưu tiên QuantityConfirmed nếu > 0, nếu không thì dùng QuantityOrdered
+                    decimal quantityToShip = (detail.QuantityConfirmed > 0) 
+                        ? detail.QuantityConfirmed.Value 
+                        : (detail.QuantityOrdered ?? 0);
+                    
+                    if (quantityToShip <= 0)
+                        continue; // Skip nếu không có gì để xuất
+                    
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
-                    order.OrderStatus = "SHIPPING";
-                    detail.QuantityShipped = quantityToShip;
+                    var trackedDetail = _repo.GetContext().InternalOrderDetails.Find(detail.DetailId);
+                    if (trackedDetail != null)
+                    {
+                        trackedDetail.QuantityShipped = quantityToShip;
+                    }
                 }
+                
+                trackedOrder.OrderStatus = "SHIPPING";
+                trackedOrder.UpdatedAt = DateTime.Now;
+                
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -173,7 +191,6 @@ namespace Shop2026.DLL
             }
         }
 
-        // Đã gộp thành 1 hàm duy nhất
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
             var stock = _repo.GetStock(productId, locationType, locationId);
@@ -181,15 +198,24 @@ namespace Shop2026.DLL
             if (stock == null)
             {
                 if (changeQty < 0)
-                    throw new Exception($"Sản phẩm ID {productId} không đủ tồn kho để xuất.");
-                stock = new Inventory { ProductId = productId, LocationType = locationType, LocationId = locationId, CurrentQuantity = changeQty, LastUpdated = DateTime.Now };
+                    throw new Exception($"Sản phẩm ID {productId} không tồn tại trong kho {locationType}. Không thể xuất kho.");
+                
+                stock = new Inventory { 
+                    ProductId = productId, 
+                    LocationType = locationType, 
+                    LocationId = locationId, 
+                    CurrentQuantity = changeQty, 
+                    LastUpdated = DateTime.Now 
+                };
                 _repo.AddInventory(stock);
             }
             else
             {
-                if (stock.CurrentQuantity + changeQty < 0)
-                    throw new Exception($"Tồn kho sản phẩm bị âm.");
-                stock.CurrentQuantity += changeQty;
+                var newQuantity = stock.CurrentQuantity + changeQty;
+                if (newQuantity < 0)
+                    throw new Exception($"Không đủ tồn kho. Hiện tại: {stock.CurrentQuantity}, Cần xuất: {Math.Abs(changeQty)}");
+                
+                stock.CurrentQuantity = newQuantity;
                 stock.LastUpdated = DateTime.Now;
                 _repo.UpdateInventory(stock);
             }

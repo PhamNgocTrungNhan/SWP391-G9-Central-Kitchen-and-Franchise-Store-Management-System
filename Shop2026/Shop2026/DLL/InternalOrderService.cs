@@ -1,18 +1,18 @@
 ﻿using Shop2026.DAL;
 using Shop2026.DTOs;
 using Shop2026.Models;
+using System.IO;
 
 namespace Shop2026.DLL
 {
     public class InternalOrderService
     {
         private readonly InternalOrderRepository _orderRepository;
-
-        // 1. CHỈ THÊM DÒNG NÀY ĐỂ GỌI KHO
         private readonly InventoryService _inventoryService;
 
-        // 2. CHỈ THÊM InventoryService VÀO CONSTRUCTOR
-        public InternalOrderService(InternalOrderRepository orderRepository, InventoryService inventoryService)
+        public InternalOrderService(
+            InternalOrderRepository orderRepository, 
+            InventoryService inventoryService)
         {
             _orderRepository = orderRepository;
             _inventoryService = inventoryService;
@@ -90,9 +90,11 @@ namespace Shop2026.DLL
             if (order.StoreId != storeId)
                 throw new Exception("Không có quyền");
 
-            if (order.OrderStatus != "SHIPPING")
+            if (order.OrderStatus.ToUpper() != "SHIPPING")
                 throw new Exception("Only SHIPPING orders can be confirmed");
 
+            // Chỉ cập nhật status, KHÔNG cộng kho Store
+            // Vì Store không quản lý kho, chỉ Kitchen quản lý kho
             order.OrderStatus = "COMPLETED";
             order.UpdatedAt = DateTime.Now;
 
@@ -117,51 +119,41 @@ namespace Shop2026.DLL
         public InternalOrder? UpdateOrderStatus(int orderId, string newStatus)
         {
             var order = _orderRepository.GetOrderById(orderId);
-
             if (order == null)
                 return null;
 
             var currentStatus = order.OrderStatus;
-
+            
             if (string.IsNullOrWhiteSpace(currentStatus))
                 throw new Exception("Order status is invalid");
 
+            // Validate status transition
             var validTransitions = new Dictionary<string, List<string>>
             {
                 { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
-                { "APPROVED", new List<string> { "PROCESSING" } },
-                
-                // LUỒNG 3: Cho phép Bếp chuyển từ PROCESSING sang PRODUCED
-                { "PROCESSING", new List<string> { "PRODUCED" } }, 
-                
-                // LUỒNG 3: Cho phép Coordinator chuyển từ PRODUCED sang SHIPPING
+                { "APPROVED", new List<string> { "PROCESSING", "PRODUCED" } },
+                { "PROCESSING", new List<string> { "PRODUCED", "SHIPPING" } }, 
                 { "PRODUCED", new List<string> { "SHIPPING" } },
-
-                // LUỒNG 4: Thêm trạng thái RETURNED
                 { "SHIPPING", new List<string> { "COMPLETED", "RETURNED" } }
             };
 
             if (!validTransitions.ContainsKey(currentStatus) ||
-                !validTransitions[currentStatus].Contains(newStatus))
+                !validTransitions[currentStatus].Contains(newStatus.ToUpper()))
             {
                 throw new Exception($"Invalid status transition: {currentStatus} → {newStatus}");
             }
-
-            // ====================================================
-            // 3. CHỈ CHÈN THÊM ĐÚNG ĐOẠN NÀY: TRỪ KHO BẾP KHI GIAO HÀNG
-            // ====================================================
-            if (newStatus == "SHIPPING")
+            
+            // Nếu chuyển sang SHIPPING: Trừ kho Kitchen
+            if (newStatus.ToUpper() == "SHIPPING")
             {
-                // Lấy đơn hàng kèm danh sách chi tiết sản phẩm
                 var orderWithDetails = _orderRepository.GetOrderDetail(orderId);
-                if (orderWithDetails != null)
+                
+                if (orderWithDetails != null && orderWithDetails.InternalOrderDetails != null && orderWithDetails.InternalOrderDetails.Any())
                 {
-                    // Gọi hàm TransferToStore của InventoryService (hàm này đã có logic tự đổi sang SHIPPING và trừ kho)
                     _inventoryService.TransferToStore(orderWithDetails, orderWithDetails.InternalOrderDetails.ToList());
                     return orderWithDetails;
                 }
             }
-            // ====================================================
 
             return _orderRepository.UpdateOrderStatus(orderId, newStatus);
         }
@@ -189,15 +181,50 @@ namespace Shop2026.DLL
                 return null;
             if (order.StoreId != storeId)
                 throw new Exception("Không có quyền thao tác đơn này");
-            if (order.OrderStatus != "SHIPPING")
+            if (order.OrderStatus.ToUpper() != "SHIPPING")
                 throw new Exception("Chỉ có thể trả hàng khi đơn đang giao (SHIPPING)");
 
-            order.OrderStatus = "RETURNED";
-            order.ReturnReason = reason;
-            order.UpdatedAt = DateTime.Now;
+            // Lấy chi tiết đơn hàng để hoàn trả kho
+            var orderWithDetails = _orderRepository.GetOrderDetail(orderId);
+            if (orderWithDetails == null || !orderWithDetails.InternalOrderDetails.Any())
+                throw new Exception("Không tìm thấy chi tiết đơn hàng");
 
-            _orderRepository.UpdateOrder(order);
-            return order;
+            using var transaction = _orderRepository.GetContext().Database.BeginTransaction();
+            try
+            {
+                // Hoàn trả từng sản phẩm về kho Kitchen
+                foreach (var detail in orderWithDetails.InternalOrderDetails)
+                {
+                    decimal quantityToReturn = detail.QuantityShipped ?? 0;
+                    if (quantityToReturn > 0)
+                    {
+                        _inventoryService.UpdateStockAndLog(
+                            detail.ProductId ?? 0,
+                            "KITCHEN",
+                            orderWithDetails.KitchenId ?? 1,
+                            quantityToReturn, // Số dương để cộng lại vào kho
+                            "Trả hàng về bếp",
+                            orderId,
+                            "RETURNED",
+                            null
+                        );
+                    }
+                }
+
+                order.OrderStatus = "RETURNED";
+                order.ReturnReason = reason;
+                order.UpdatedAt = DateTime.Now;
+
+                _orderRepository.UpdateOrder(order);
+                
+                transaction.Commit();
+                return order;
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
 
         public InternalOrder? SubmitFeedback(CreateFeedbackRequest request, int storeId)

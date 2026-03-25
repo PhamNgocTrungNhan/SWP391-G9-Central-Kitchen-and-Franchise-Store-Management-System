@@ -271,7 +271,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{orderId}/status")]
-        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR, KITCHEN_STAFF")]
         public IActionResult UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
             try
@@ -287,6 +287,56 @@ namespace Shop2026.Controllers
                 return Ok(new
                 {
                     message = "Order status updated successfully",
+                    order
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPut("{orderId}/return")]
+        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        public IActionResult ReturnOrder(int orderId, [FromBody] RejectOrderRequest request)
+        {
+            int storeIdToPass;
+
+            if (IsAdmin())
+            {
+                var orderForStore = _orderService.GetOrderDetail(orderId);
+                if (orderForStore == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+                storeIdToPass = (int)orderForStore.StoreId;
+            }
+            else
+            {
+                if (!TryGetStoreId(out storeIdToPass))
+                    return Unauthorized(new
+                    {
+                        message = "Invalid StoreId"
+                    });
+            }
+
+            try
+            {
+                var order = _orderService.ReturnOrder(orderId, storeIdToPass, request.Reason);
+
+                if (order == null)
+                    return NotFound(new
+                    {
+                        message = "Order not found"
+                    });
+
+                return Ok(new
+                {
+                    message = "Order returned successfully. Kitchen inventory restored.",
                     order
                 });
             }

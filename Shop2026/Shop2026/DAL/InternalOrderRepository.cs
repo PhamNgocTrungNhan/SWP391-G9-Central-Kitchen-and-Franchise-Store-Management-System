@@ -12,6 +12,8 @@ namespace Shop2026.DAL
             _context = context;
         }
 
+        public ApplicationDbContext GetContext() => _context;
+
         public List<InternalOrder> GetStoreOrders(int storeId, string? status)
         {
             var query = _context.InternalOrders
@@ -48,6 +50,7 @@ namespace Shop2026.DAL
                 {
                     OrderId = o.OrderId,
                     StoreId = o.StoreId,
+                    KitchenId = o.KitchenId, // ✅ THÊM FIELD NÀY
                     ExpectedDeliveryDate = o.ExpectedDeliveryDate,
                     OrderStatus = o.OrderStatus,
                     CreatedAt = o.CreatedAt,
