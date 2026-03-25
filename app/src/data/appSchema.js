@@ -16,30 +16,33 @@ const operationalRoles = [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles
 export const navigationGroups = [
   {
     title: 'Tổng quan',
-    items: [{ to: '/dashboard', key: 'dashboard', label: 'Bảng điều khiển', icon: 'dashboard', roles: operationalRoles }],
+    items: [
+      { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: operationalRoles },
+    ],
   },
   {
-    title: 'Dữ liệu gốc',
+    title: 'Quản lý',
     items: [
       { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition', roles: [roles.ADMIN, roles.MANAGER] },
-      { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
-      { to: '/suppliers', key: 'suppliers', label: 'Nhà cung cấp', icon: 'local_shipping', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
-      { to: '/users', key: 'users', label: 'Người dùng', icon: 'group', roles: [roles.ADMIN] },
+      { to: '/organization/stores', key: 'stores', label: 'Cửa hàng', icon: 'storefront', roles: [roles.ADMIN, roles.MANAGER] },
+      { to: '/suppliers', key: 'suppliers', label: 'Nhà cung cấp', icon: 'local_shipping', roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
     ],
   },
   {
     title: 'Vận hành',
     items: [
       { to: '/inventory', key: 'inventory', label: 'Tồn kho', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
-      { to: '/store-orders', key: 'storeOrders', label: 'Đơn hàng cửa hàng', icon: 'shopping_cart', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
-      { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn nội bộ', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
-      { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ sản xuất', icon: 'precision_manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
-      { to: '/production-batches/ongoing', key: 'ongoingProductionBatches', label: 'Mẻ đang thực hiện', icon: 'manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
-      { to: '/delivery', key: 'delivery', label: 'Giao hàng', icon: 'fact_check', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
-      { to: '/dispatch', key: 'dispatch', label: 'Điều phối', icon: 'local_shipping', roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
-      { to: '/system-config', key: 'systemConfig', label: 'Cấu hình hệ thống', icon: 'settings', roles: [roles.ADMIN] },
+      { to: '/store-orders', key: 'storeOrders', label: 'Đơn cửa hàng', icon: 'shopping_cart', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+      { to: '/order-management', key: 'orderManagement', label: 'Đơn nội bộ', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ SX', icon: 'precision_manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
+    ],
+  },
+  {
+    title: 'Hệ thống',
+    items: [
+      { to: '/users', key: 'users', label: 'Người dùng', icon: 'group', roles: [roles.ADMIN] },
     ],
   },
 ]

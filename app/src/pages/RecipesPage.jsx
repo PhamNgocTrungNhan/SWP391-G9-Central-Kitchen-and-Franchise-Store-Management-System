@@ -1,210 +1,473 @@
-import { useState } from 'react'
-import { Badge, EmptyState, Field, PageHeader, SectionCard } from '../components/ui'
+import { useEffect, useState } from 'react'
+import { EmptyState, Field, PageHeader, SectionCard } from '../components/ui'
 
-const initialRecipes = [
-  { id: 11, ParentProductId: 501, MaterialId: 9001, QuantityRequired: 2.5, WasteAllowancePercent: 3 },
-  { id: 12, ParentProductId: 501, MaterialId: 9002, QuantityRequired: 1.2, WasteAllowancePercent: 4 },
-  { id: 13, ParentProductId: 702, MaterialId: 9011, QuantityRequired: 8, WasteAllowancePercent: 6 },
-]
+function getToken() {
+  const candidates = [
+    localStorage.getItem('auth_token'),
+    localStorage.getItem('token'),
+    localStorage.getItem('access_token'),
+    sessionStorage.getItem('auth_token'),
+    sessionStorage.getItem('token'),
+    sessionStorage.getItem('access_token'),
+  ]
+  const first = candidates.find((item) => String(item || '').trim())
+  return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
+}
 
 export default function RecipesPage() {
-  const [recipes, setRecipes] = useState(initialRecipes)
-  const [parentProductId, setParentProductId] = useState('501')
-  const [selectedId, setSelectedId] = useState(11)
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const [recipes, setRecipes] = useState([])
+  const [products, setProducts] = useState([])
+  const [materials, setMaterials] = useState([])
+  const [parentProductId, setParentProductId] = useState('')
+  const [selectedId, setSelectedId] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [form, setForm] = useState({
-    ParentProductId: 501,
-    MaterialId: 9001,
-    QuantityRequired: 2.5,
-    WasteAllowancePercent: 3,
+    parentProductId: '',
+    materialId: '',
+    quantityRequired: '',
+    wasteAllowancePercent: '0',
   })
 
-  const visibleRecipes = recipes.filter((recipe) => String(recipe.ParentProductId) === parentProductId)
+  const fetchProducts = async () => {
+    const tk = getToken()
+    if (!tk) return
 
-  function setBlankForm(parentValue) {
-    setForm({
-      ParentProductId: Number(parentValue || 0),
-      MaterialId: 0,
-      QuantityRequired: 0,
-      WasteAllowancePercent: 0,
-    })
+    try {
+      const response = await fetch(`${apiBase}/Products/manufactured`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setProducts(Array.isArray(data) ? data : [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err)
+    }
   }
 
-  function selectRecipe(recipe) {
-    if (!recipe) {
-      setSelectedId(null)
-      setBlankForm(parentProductId)
+  const fetchMaterials = async () => {
+    const tk = getToken()
+    if (!tk) return
+
+    try {
+      const response = await fetch(`${apiBase}/Products/raw`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setMaterials(Array.isArray(data) ? data : [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch materials:', err)
+    }
+  }
+
+  const fetchRecipes = async (productId) => {
+    if (!productId) {
+      setRecipes([])
       return
     }
 
-    setSelectedId(recipe.id)
+    const tk = getToken()
+    if (!tk) {
+      setError('Vui lòng đăng nhập lại')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`${apiBase}/Recipes/parent/${productId}`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setRecipes([])
+          return
+        }
+        throw new Error('Không thể tải công thức')
+      }
+
+      const data = await response.json()
+      setRecipes(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err.message)
+      setRecipes([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProducts()
+    fetchMaterials()
+  }, [])
+
+  useEffect(() => {
+    if (parentProductId) {
+      fetchRecipes(parentProductId)
+    }
+  }, [parentProductId])
+
+  const handleParentChange = (value) => {
+    setParentProductId(value)
+    setSelectedId(null)
     setForm({
-      ParentProductId: recipe.ParentProductId,
-      MaterialId: recipe.MaterialId,
-      QuantityRequired: recipe.QuantityRequired,
-      WasteAllowancePercent: recipe.WasteAllowancePercent,
+      parentProductId: value,
+      materialId: '',
+      quantityRequired: '',
+      wasteAllowancePercent: '0',
     })
   }
 
-  function handleParentChange(value) {
-    setParentProductId(value)
-    const nextRecipe = recipes.find((recipe) => String(recipe.ParentProductId) === value)
-    if (nextRecipe) {
-      setSelectedId(nextRecipe.id)
-      setForm({
-        ParentProductId: nextRecipe.ParentProductId,
-        MaterialId: nextRecipe.MaterialId,
-        QuantityRequired: nextRecipe.QuantityRequired,
-        WasteAllowancePercent: nextRecipe.WasteAllowancePercent,
-      })
-    } else {
+  const selectRecipe = (recipe) => {
+    if (!recipe) {
       setSelectedId(null)
-      setBlankForm(value)
+      setForm({
+        parentProductId: parentProductId,
+        materialId: '',
+        quantityRequired: '',
+        wasteAllowancePercent: '0',
+      })
+      return
     }
+
+    setSelectedId(recipe.recipeId || recipe.id)
+    setForm({
+      parentProductId: String(recipe.productId || recipe.parentProductId || parentProductId),
+      materialId: String(recipe.materialId || ''),
+      quantityRequired: String(recipe.quantityRequired || ''),
+      wasteAllowancePercent: String(recipe.wasteAllowancePercent || '0'),
+    })
   }
 
-  function createRecipe() {
-    if (!form.ParentProductId || !form.MaterialId) return
-    const nextId = Math.max(...recipes.map((recipe) => recipe.id)) + 1
-    const created = { id: nextId, ...form }
-    setRecipes([...recipes, created])
-    setSelectedId(nextId)
-    setParentProductId(String(form.ParentProductId))
-    selectRecipe(created)
-  }
+  const createRecipe = async () => {
+    if (!form.parentProductId || !form.materialId || !form.quantityRequired) {
+      setError('Vui lòng điền đầy đủ thông tin')
+      return
+    }
 
-  function updateRecipe() {
-    if (!selectedId) return
-    setRecipes(recipes.map((recipe) => (recipe.id === selectedId ? { id: selectedId, ...form } : recipe)))
-    setParentProductId(String(form.ParentProductId))
-  }
+    const tk = getToken()
+    if (!tk) {
+      setError('Vui lòng đăng nhập lại')
+      return
+    }
 
-  function deleteRecipe() {
-    if (!selectedId) return
-    const remaining = recipes.filter((recipe) => recipe.id !== selectedId)
-    setRecipes(remaining)
-    const nextRecipe = remaining.find((recipe) => String(recipe.ParentProductId) === parentProductId)
-    if (nextRecipe) {
-      selectRecipe(nextRecipe)
-    } else {
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch(`${apiBase}/Recipes`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${tk}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: Number(form.parentProductId),
+          materialId: Number(form.materialId),
+          quantityRequired: Number(form.quantityRequired),
+          wasteAllowancePercent: Number(form.wasteAllowancePercent),
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.message || 'Không thể tạo công thức')
+      }
+
+      setSuccess('Tạo công thức thành công')
+      await fetchRecipes(parentProductId)
       selectRecipe(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const updateRecipe = async () => {
+    if (!selectedId) {
+      setError('Vui lòng chọn công thức cần cập nhật')
+      return
+    }
+
+    const tk = getToken()
+    if (!tk) {
+      setError('Vui lòng đăng nhập lại')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch(`${apiBase}/Recipes/${selectedId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${tk}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: Number(form.parentProductId),
+          materialId: Number(form.materialId),
+          quantityRequired: Number(form.quantityRequired),
+          wasteAllowancePercent: Number(form.wasteAllowancePercent),
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.message || 'Không thể cập nhật công thức')
+      }
+
+      setSuccess('Cập nhật công thức thành công')
+      await fetchRecipes(parentProductId)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteRecipe = async () => {
+    if (!selectedId) {
+      setError('Vui lòng chọn công thức cần xóa')
+      return
+    }
+
+    if (!window.confirm('Bạn có chắc muốn xóa công thức này?')) {
+      return
+    }
+
+    const tk = getToken()
+    if (!tk) {
+      setError('Vui lòng đăng nhập lại')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch(`${apiBase}/Recipes/${selectedId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.message || 'Không thể xóa công thức')
+      }
+
+      setSuccess('Xóa công thức thành công')
+      await fetchRecipes(parentProductId)
+      selectRecipe(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getProductName = (productId) => {
+    const product = products.find((p) => p.productId === Number(productId))
+    return product?.productName || `Sản phẩm #${productId}`
+  }
+
+  const getMaterialName = (materialId) => {
+    const material = materials.find((m) => m.productId === Number(materialId))
+    return material?.productName || `Nguyên liệu #${materialId}`
   }
 
   return (
     <div>
       <PageHeader pageKey="recipes" />
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <SectionCard
-          title="Recipe List"
-          action={
-            <div className="w-full max-w-[220px]">
-              <Field label="parentProductId">
-                <input
-                  className="app-input"
-                  type="number"
-                  value={parentProductId}
-                  onChange={(event) => handleParentChange(event.target.value)}
-                />
-              </Field>
+      <div className="space-y-6">
+        <SectionCard title="Danh sách công thức">
+          <div className="mb-4">
+            <Field label="Chọn sản phẩm">
+              <select
+                className="app-input"
+                value={parentProductId}
+                onChange={(e) => handleParentChange(e.target.value)}
+              >
+                <option value="">-- Chọn sản phẩm --</option>
+                {products.map((product) => (
+                  <option key={product.productId} value={product.productId}>
+                    {product.productName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+              {error}
             </div>
-          }
-        >
-          {parentProductId ? (
+          )}
+
+          {success && (
+            <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-600">
+              {success}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">Đang tải...</div>
+          ) : !parentProductId ? (
+            <EmptyState
+              title="Chưa chọn sản phẩm"
+              description="Vui lòng chọn sản phẩm để xem công thức"
+              icon="menu_book"
+            />
+          ) : recipes.length === 0 ? (
+            <EmptyState
+              title="Chưa có công thức"
+              description="Sản phẩm này chưa có công thức nào"
+              icon="menu_book"
+            />
+          ) : (
             <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
               <table className="app-table">
                 <thead>
                   <tr>
-                    <th className="app-th">RecipeId</th>
-                    <th className="app-th">MaterialId</th>
-                    <th className="app-th">QuantityRequired</th>
-                    <th className="app-th">WasteAllowancePercent</th>
+                    <th className="app-th">ID</th>
+                    <th className="app-th">Nguyên liệu</th>
+                    <th className="app-th">Số lượng</th>
+                    <th className="app-th">Hao hụt (%)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRecipes.map((recipe) => (
-                    <tr
-                      key={recipe.id}
-                      className={recipe.id === selectedId ? 'bg-[#eef7ef]' : 'bg-[#fffdf8]'}
-                      onClick={() => selectRecipe(recipe)}
-                    >
-                      <td className="app-td font-medium">#{recipe.id}</td>
-                      <td className="app-td">{recipe.MaterialId}</td>
-                      <td className="app-td">{recipe.QuantityRequired}</td>
-                      <td className="app-td">{recipe.WasteAllowancePercent}%</td>
-                    </tr>
-                  ))}
+                  {recipes.map((recipe) => {
+                    const recipeId = recipe.recipeId || recipe.id
+                    return (
+                      <tr
+                        key={recipeId}
+                        className={`cursor-pointer transition-colors ${recipeId === selectedId ? 'bg-[#eef7ef]' : 'bg-[#fffdf8] hover:bg-[#fff9ef]'
+                          }`}
+                        onClick={() => selectRecipe(recipe)}
+                      >
+                        <td className="app-td font-medium">#{recipeId}</td>
+                        <td className="app-td">{getMaterialName(recipe.materialId)}</td>
+                        <td className="app-td">{recipe.quantityRequired}</td>
+                        <td className="app-td">{recipe.wasteAllowancePercent}%</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <EmptyState
-              title="parentProductId is required"
-              description="The backend only exposes recipe lookup by parent product id, so the list stays hidden until this value is filled."
-            />
           )}
         </SectionCard>
 
-        <SectionCard title="Recipe Editor">
+        <SectionCard title={selectedId ? 'Chỉnh sửa công thức' : 'Thêm công thức mới'}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="ParentProductId">
+            <Field label="Sản phẩm">
+              <select
+                className="app-input"
+                value={form.parentProductId}
+                onChange={(e) => setForm({ ...form, parentProductId: e.target.value })}
+              >
+                <option value="">-- Chọn sản phẩm --</option>
+                {products.map((product) => (
+                  <option key={product.productId} value={product.productId}>
+                    {product.productName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Nguyên liệu">
+              <select
+                className="app-input"
+                value={form.materialId}
+                onChange={(e) => setForm({ ...form, materialId: e.target.value })}
+              >
+                <option value="">-- Chọn nguyên liệu --</option>
+                {materials.map((material) => (
+                  <option key={material.productId} value={material.productId}>
+                    {material.productName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Số lượng cần">
               <input
                 className="app-input"
                 type="number"
-                value={form.ParentProductId}
-                onChange={(event) => setForm({ ...form, ParentProductId: Number(event.target.value) })}
+                step="0.01"
+                value={form.quantityRequired}
+                onChange={(e) => setForm({ ...form, quantityRequired: e.target.value })}
+                placeholder="Nhập số lượng"
               />
             </Field>
-            <Field label="MaterialId">
-              <input
-                className="app-input"
-                type="number"
-                value={form.MaterialId}
-                onChange={(event) => setForm({ ...form, MaterialId: Number(event.target.value) })}
-              />
-            </Field>
-            <Field label="QuantityRequired">
+
+            <Field label="Hao hụt cho phép (%)">
               <input
                 className="app-input"
                 type="number"
                 step="0.1"
-                value={form.QuantityRequired}
-                onChange={(event) => setForm({ ...form, QuantityRequired: Number(event.target.value) })}
-              />
-            </Field>
-            <Field label="WasteAllowancePercent">
-              <input
-                className="app-input"
-                type="number"
-                step="0.1"
-                value={form.WasteAllowancePercent}
-                onChange={(event) => setForm({ ...form, WasteAllowancePercent: Number(event.target.value) })}
+                value={form.wasteAllowancePercent}
+                onChange={(e) => setForm({ ...form, wasteAllowancePercent: e.target.value })}
+                placeholder="Nhập % hao hụt"
               />
             </Field>
           </div>
 
-          <div className="mt-5 rounded-[1.5rem] border border-[#e7dccd] bg-[#fffdf8] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7958]">Selected Recipe Id</p>
-            <p className="mt-3 font-display text-3xl font-bold text-[#243425]">{selectedId ? selectedId : '--'}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone="stone">GET uses parentProductId only</Badge>
-              <Badge tone="amber">PUT / DELETE use id route param</Badge>
+          {selectedId && (
+            <div className="mt-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <p className="text-sm text-blue-700">
+                Đang chỉnh sửa công thức #{selectedId}
+              </p>
             </div>
-          </div>
+          )}
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <button className="app-button-primary" onClick={createRecipe}>
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Create recipe line
-            </button>
-            <button className="app-button-secondary" onClick={updateRecipe}>
-              <span className="material-symbols-outlined text-[18px]">edit</span>
-              Update recipe line
-            </button>
-            <button className="app-button-danger" onClick={deleteRecipe}>
-              <span className="material-symbols-outlined text-[18px]">delete</span>
-              Delete recipe line
-            </button>
+            {!selectedId ? (
+              <button
+                className="app-button-primary"
+                onClick={createRecipe}
+                disabled={loading}
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Thêm công thức
+              </button>
+            ) : (
+              <>
+                <button
+                  className="app-button-primary"
+                  onClick={updateRecipe}
+                  disabled={loading}
+                >
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  Cập nhật
+                </button>
+                <button
+                  className="app-button-danger"
+                  onClick={deleteRecipe}
+                  disabled={loading}
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                  Xóa
+                </button>
+                <button
+                  className="app-button-secondary"
+                  onClick={() => selectRecipe(null)}
+                  disabled={loading}
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                  Hủy
+                </button>
+              </>
+            )}
           </div>
         </SectionCard>
       </div>

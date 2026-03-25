@@ -48,10 +48,10 @@ export default function InternalOrdersPage() {
   const filteredOrders = !query.storeId
     ? []
     : orders.filter(
-        (order) =>
-          String(order.StoreId) === query.storeId &&
-          (!query.status || order.Status.toLowerCase() === query.status.toLowerCase()),
-      )
+      (order) =>
+        String(order.StoreId) === query.storeId &&
+        (!query.status || order.Status.toLowerCase() === query.status.toLowerCase()),
+    )
 
   const selectedOrder = orders.find((order) => order.orderId === selectedOrderId) ?? null
 
@@ -91,7 +91,7 @@ export default function InternalOrdersPage() {
     <div>
       <PageHeader pageKey="internalOrders" />
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="space-y-6">
         <SectionCard title="Create Order">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="StoreId">
@@ -183,17 +183,16 @@ export default function InternalOrdersPage() {
             </Field>
           </div>
 
-          <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="mt-5 space-y-4">
             <div className="space-y-3">
               {filteredOrders.length ? (
                 filteredOrders.map((order) => (
                   <button
                     key={order.orderId}
-                    className={`w-full rounded-[1.4rem] border p-4 text-left ${
-                      order.orderId === selectedOrderId
-                        ? 'border-[#c7d8c9] bg-[#eef7ef]'
-                        : 'border-[#e6dccd] bg-[#fffdf8]'
-                    }`}
+                    className={`w-full rounded-[1.4rem] border p-4 text-left ${order.orderId === selectedOrderId
+                      ? 'border-[#c7d8c9] bg-[#eef7ef]'
+                      : 'border-[#e6dccd] bg-[#fffdf8]'
+                      }`}
                     onClick={() => setSelectedOrderId(order.orderId)}
                   >
                     <div className="flex items-center justify-between gap-3">

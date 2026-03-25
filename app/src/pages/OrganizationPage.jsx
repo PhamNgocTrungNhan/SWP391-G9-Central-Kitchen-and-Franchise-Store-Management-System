@@ -145,7 +145,7 @@ export default function OrganizationPage() {
       </div>
 
       {mode === 'stores' ? (
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="space-y-6">
           <SectionCard title="Store List">
             <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
               <table className="app-table">
@@ -201,7 +201,7 @@ export default function OrganizationPage() {
           </SectionCard>
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="space-y-6">
           <SectionCard title="Kitchen List">
             <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
               <table className="app-table">

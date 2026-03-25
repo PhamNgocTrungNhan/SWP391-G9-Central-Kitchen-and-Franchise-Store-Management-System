@@ -58,7 +58,7 @@ export default function UsersPage() {
     <div>
       <PageHeader pageKey="users" />
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="space-y-6">
         <SectionCard title="User List">
           <div className="overflow-hidden rounded-[1.5rem] border border-[#e7dccd]">
             <table className="app-table">

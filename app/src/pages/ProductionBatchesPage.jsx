@@ -292,7 +292,7 @@ export default function ProductionBatchesPage() {
     <div>
       <PageHeader pageKey="productionBatches" />
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="space-y-6">
         <SectionCard title="Tạo Mẻ Sản Xuất">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Mã Sản Phẩm">

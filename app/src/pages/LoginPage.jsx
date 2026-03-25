@@ -103,7 +103,6 @@ export default function LoginPage() {
                             </div>
                             <h1 className="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">Đăng nhập hệ thống</h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Quản lý bếp trung tâm &amp; chuỗi cửa hàng</p>
-                            <span className="inline-flex items-center justify-center mx-auto px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">API: localhost:5202</span>
                         </div>
                         {/* Form */}
                         <form className="p-8 pt-6 flex flex-col gap-5" onSubmit={handleLogin}>
@@ -142,21 +141,6 @@ export default function LoginPage() {
                                     >
                                         <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility' : 'visibility_off'}</span>
                                     </button>
-                                </div>
-                            </label>
-                            {/* Branch Selection */}
-                            <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Chi nhánh / Khu vực</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">storefront</span>
-                                    <select className="form-select flex w-full min-w-0 flex-1 overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 px-3 py-0 text-sm font-normal">
-                                        <option value="" disabled defaultValue="">Chọn khu vực được phân công...</option>
-                                        <option value="hq">Trụ sở chính</option>
-                                        <option value="ck1">Bếp trung tâm - Miền Bắc</option>
-                                        <option value="ck2">Bếp trung tâm - Miền Nam</option>
-                                        <option value="f101">Cửa hàng nhượng quyền #101 - Trung tâm</option>
-                                        <option value="f102">Cửa hàng nhượng quyền #102 - Khu Tây</option>
-                                    </select>
                                 </div>
                             </label>
                             {/* Options Row */}

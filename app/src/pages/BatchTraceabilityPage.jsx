@@ -490,7 +490,7 @@ export default function BatchTraceabilityPage() {
                     </div>
                 ) : null}
 
-                <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="space-y-6">
                     <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                         <div className="p-5 border-b border-slate-200 dark:border-slate-800">
                             <h3 className="font-semibold text-lg">Tồn kho hiện tại</h3>
