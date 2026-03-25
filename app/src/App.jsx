@@ -23,6 +23,7 @@ import InternalOrdersPage from './pages/InternalOrdersPage'
 import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import UsersPage from './pages/UsersPage'
+import StoresPage from './pages/StoresPage'
 import Layout from './components/Layout'
 import { getDefaultPathByRole, roles } from './data/appSchema'
 import { getCurrentUserRole, getStoredToken } from './utils/auth'
@@ -61,7 +62,7 @@ const routeConfig = [
 
   { path: '/inventory', element: <BatchTraceabilityPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
-  { path: '/organization/stores', element: <FranchiseNetworkPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/organization/stores', element: <StoresPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/organization/kitchens', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/organization', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/network', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },

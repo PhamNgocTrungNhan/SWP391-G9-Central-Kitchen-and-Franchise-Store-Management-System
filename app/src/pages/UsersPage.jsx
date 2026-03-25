@@ -24,6 +24,7 @@ export default function UsersPage() {
     kitchenId: null,
   })
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState('create') // 'create' or 'edit'
   const [searchTerm, setSearchTerm] = useState('')
@@ -125,7 +126,7 @@ export default function UsersPage() {
       return
     }
 
-    setLoading(true)
+    setSubmitting(true)
     try {
       const response = await fetch(`${apiBase}/user`, {
         method: 'POST',
@@ -155,7 +156,7 @@ export default function UsersPage() {
       console.error(err)
       openNotice('error', 'Có lỗi xảy ra!')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -172,7 +173,7 @@ export default function UsersPage() {
       return
     }
 
-    setLoading(true)
+    setSubmitting(true)
     try {
       const response = await fetch(`${apiBase}/user/${selectedId}`, {
         method: 'PUT',
@@ -202,7 +203,7 @@ export default function UsersPage() {
       console.error(err)
       openNotice('error', 'Có lỗi xảy ra!')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -217,7 +218,7 @@ export default function UsersPage() {
       return
     }
 
-    setLoading(true)
+    setSubmitting(true)
     try {
       const response = await fetch(`${apiBase}/user/${userId}`, {
         method: 'DELETE',
@@ -235,7 +236,7 @@ export default function UsersPage() {
       console.error(err)
       openNotice('error', 'Có lỗi xảy ra!')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -514,10 +515,10 @@ export default function UsersPage() {
               </button>
               <button
                 className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                disabled={loading}
+                disabled={submitting}
                 onClick={modalMode === 'create' ? createUser : updateUser}
               >
-                {loading ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
+                {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
               </button>
             </div>
           </div>
