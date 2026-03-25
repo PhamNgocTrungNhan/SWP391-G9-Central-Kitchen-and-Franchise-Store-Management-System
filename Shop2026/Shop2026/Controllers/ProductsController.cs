@@ -7,17 +7,18 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")]
     public class ProductsController : ControllerBase
     {
         private readonly ProductService _service;
         public ProductsController(ProductService service) => _service = service;
 
         [HttpGet]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult GetAll() => Ok(_service.GetAll());
 
         // Lấy nguyên liệu
         [HttpGet("raw")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult GetRawMaterials()
         {
             return Ok(_service.GetRawMaterials());
@@ -25,12 +26,14 @@ namespace Shop2026.Controllers
 
         //  Lấy sản phẩm chế biến
         [HttpGet("manufactured")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")] // STORE_STAFF cần xem để tạo đơn hàng
         public IActionResult GetManufacturedProducts()
         {
             return Ok(_service.GetManufacturedProducts());
         }
 
         [HttpPost]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult Create([FromBody] ProductRequest request)
         {
             try

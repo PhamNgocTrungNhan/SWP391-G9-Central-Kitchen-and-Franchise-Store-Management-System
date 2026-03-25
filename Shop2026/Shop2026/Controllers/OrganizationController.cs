@@ -7,7 +7,6 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")]
     public class OrganizationController : ControllerBase
     {
         private readonly OrganizationService _service;
@@ -20,6 +19,7 @@ namespace Shop2026.Controllers
         // ================= STORE API (Thoải mái CRUD) =================
 
         [HttpGet("stores")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")] // STORE_STAFF cần xem danh sách store
         public IActionResult GetStores()
         {
             var stores = _service.GetAllStores();
@@ -27,6 +27,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("stores")]
+        [Authorize(Roles = "ADMIN")]
         [Authorize(Roles = "ADMIN")]
         public IActionResult CreateStore([FromBody] Store store)
         {
@@ -93,6 +94,7 @@ namespace Shop2026.Controllers
         // ================= KITCHEN API (Độc nhất, không có POST) =================
 
         [HttpGet("kitchens")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult GetKitchens()
         {
             var kitchens = _service.GetAllKitchens();
