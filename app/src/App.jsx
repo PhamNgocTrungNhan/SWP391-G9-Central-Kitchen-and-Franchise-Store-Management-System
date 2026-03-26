@@ -24,6 +24,7 @@ import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import UsersPage from './pages/UsersPage'
 import StoresPage from './pages/StoresPage'
+import LandingPage from './pages/LandingPage'
 import Layout from './components/Layout'
 import { getDefaultPathByRole, roles } from './data/appSchema'
 import { getCurrentUserRole, getStoredToken } from './utils/auth'
@@ -51,7 +52,7 @@ function RequireRole({ allowedRoles, children }) {
 
 function LoginOrHome() {
   const token = getStoredToken()
-  if (!token) return <LoginPage />
+  if (!token) return <LandingPage />
 
   const role = getCurrentUserRole()
   return <Navigate to={getDefaultPathByRole(role)} replace />
@@ -112,6 +113,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginOrHome />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route
           element={(
             <RequireAuth>

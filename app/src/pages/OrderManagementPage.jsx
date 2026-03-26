@@ -441,12 +441,9 @@ export default function OrderManagementPage() {
             return
         }
 
-        let nextStatus = 'PROCESSING'
-        let successMessage = `Đơn hàng #${orderId} đã chuyển sang đang sản xuất.`
-
-        if (targetOrder.status === 'Processing') {
-            nextStatus = 'PRODUCED'
-            successMessage = `Đơn hàng #${orderId} đã sẵn sàng xuất kho.`
+        if (targetOrder.status !== 'Processing') {
+            openNotice('error', 'Chỉ đơn đang sản xuất mới có thể đánh dấu sẵn sàng.')
+            return
         }
 
         setActionLoadingId(orderId)
@@ -458,7 +455,7 @@ export default function OrderManagementPage() {
                     Authorization: `Bearer ${tk}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ status: nextStatus }),
+                body: JSON.stringify({ status: 'PRODUCED' }),
             })
 
             const data = await response.json().catch(() => ({}))
@@ -466,7 +463,7 @@ export default function OrderManagementPage() {
                 throw new Error(data?.message || data?.title || 'Không thể cập nhật trạng thái đơn hàng.')
             }
 
-            openNotice('success', data?.message || successMessage)
+            openNotice('success', data?.message || `Đơn hàng #${orderId} đã sẵn sàng xuất kho.`)
             await fetchOrders()
         } catch (error) {
             openNotice('error', error.message || 'Cập nhật trạng thái thất bại.')
@@ -602,12 +599,11 @@ export default function OrderManagementPage() {
         cancelled: orders.filter((o) => o.status === 'Cancelled').length,
     }), [orders])
 
-    const canConfirmCompleted = (status) => isShippingStatus(status)
-    const canCancelOrder = (status) => status === 'Pending'
-    const canApproveOrder = (status) => status === 'Pending'
-    const canRejectOrder = (status) => status === 'Pending'
-    const canMarkAsProduced = (status) => status === 'Approved' || status === 'Processing' // APPROVED hoặc PROCESSING
-    const canTransferOrder = (status) => status === 'Processing' || status === 'Produced' // PROCESSING hoặc PRODUCED có thể xuất kho
+    const canConfirmCompleted = (status) => isShippingStatus(status) // SHIPPING → COMPLETED
+    const canCancelOrder = (status) => status === 'Pending' // PENDING → CANCELLED
+    const canApproveOrder = (status) => status === 'Pending' // PENDING → APPROVED
+    const canRejectOrder = (status) => status === 'Pending' // PENDING → REJECTED
+    const canTransferOrder = (status) => status === 'Processing' || status === 'Produced' // PROCESSING/PRODUCED → SHIPPING
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)
@@ -735,15 +731,6 @@ export default function OrderManagementPage() {
                                                                 onClick={() => rejectOrder(order.orderId)}
                                                             >
                                                                 {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
-                                                            </button>
-                                                        )}
-                                                        {canMarkAsProduced(order.status) && (
-                                                            <button
-                                                                className="h-8 px-3 rounded-lg bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 transition-colors disabled:opacity-60"
-                                                                disabled={actionLoadingId === order.orderId}
-                                                                onClick={() => markAsProduced(order.orderId)}
-                                                            >
-                                                                {actionLoadingId === order.orderId ? 'Đang cập nhật...' : 'Sẵn sàng'}
                                                             </button>
                                                         )}
                                                         {canTransferOrder(order.status) && (

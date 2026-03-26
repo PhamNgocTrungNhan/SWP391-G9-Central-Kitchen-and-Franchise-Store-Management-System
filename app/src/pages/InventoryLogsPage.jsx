@@ -137,6 +137,18 @@ export default function InventoryLogsPage() {
                 Authorization: `Bearer ${tk}`,
             }
 
+            // Fetch products trước để có tên đầy đủ
+            const productsRes = await fetch(`${apiBase}/Products`, { method: 'GET', headers })
+            const productsJson = await productsRes.json().catch(() => [])
+            const allProducts = parseArrayData(productsJson)
+            const freshProductMap = {}
+            allProducts.forEach((item) => {
+                const id = Number(item?.productId || item?.id)
+                if (!id) return
+                const name = item?.productName || item?.name
+                if (name) freshProductMap[id] = name
+            })
+
             const logsRes = await fetch(`${apiBase}/Inventory/logs`, { method: 'GET', headers })
             const logsJson = await logsRes.json().catch(() => [])
 
@@ -145,11 +157,12 @@ export default function InventoryLogsPage() {
             }
 
             const normalizedLogs = parseArrayData(logsJson)
-                .map((item) => toInventoryLogRow(item, productNameMap))
+                .map((item) => toInventoryLogRow(item, freshProductMap))
                 .filter((item) => item.id > 0)
                 .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
 
             setLogs(normalizedLogs)
+            setProductNameMap(freshProductMap)
         } catch (e) {
             setLogs([])
             setError(e.message || 'Tải lịch sử thất bại.')
@@ -159,12 +172,8 @@ export default function InventoryLogsPage() {
     }
 
     useEffect(() => {
-        fetchProductMap()
-    }, [])
-
-    useEffect(() => {
         fetchLogs()
-    }, [Object.keys(productNameMap).length])
+    }, [])
 
     const productOptions = useMemo(() => {
         const map = new Map()

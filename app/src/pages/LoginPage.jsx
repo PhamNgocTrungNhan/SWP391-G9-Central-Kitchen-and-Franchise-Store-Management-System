@@ -12,6 +12,12 @@ export default function LoginPage() {
     const [status, setStatus] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(true);
+
+    // Animation khi component mount
+    useState(() => {
+        setTimeout(() => setIsAnimating(false), 100);
+    }, []);
 
     const extractRawToken = (value) => {
         const tokenValue = String(value || '').trim();
@@ -83,51 +89,74 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-center relative overflow-x-hidden">
-            {/* Decorative Background */}
+        <div className="min-h-screen relative overflow-hidden">
+            {/* Background Image with Zoom Animation */}
             <div
-                className="absolute inset-0 z-0 opacity-10 dark:opacity-5 pointer-events-none"
-                style={{
-                    backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBK-qcAWWe3g2LPAOINCMLMJzMo7Qzo2RYoL1WT55DfJ4yVIGtPvY5wx-Ogzw0E-EeKj3RjzTF-0GYK_IwXrz4duWYqZfIlxvmPDDBcgIR3mdFcjJKSyh0fK6KGBiX0nPvsL4wj0OayZbNDMmHUEB0mItp8e4TiXycKwwo8Wd7nPLk1SzwL17Czfcmg0Vo1qxn-lvrK6tf6gZMjD-SmRUvTlzNypxA04PnUZl-I2A2On6AZu4YhPpehkDCwTwJFOo4-ts4RYLVCgQ8')`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                }}
-            />
-            <div className="relative z-10 flex h-full grow flex-col px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-1 justify-center py-10 items-center">
-                    <div className="flex flex-col w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                        {/* Header */}
-                        <div className="flex flex-col gap-2 p-8 pb-6 border-b border-slate-100 dark:border-slate-800 text-center">
-                            <div className="mx-auto w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                                <span className="material-symbols-outlined text-primary text-3xl">corporate_fare</span>
-                            </div>
-                            <h1 className="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">Đăng nhập hệ thống</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Quản lý bếp trung tâm &amp; chuỗi cửa hàng</p>
+                className={`absolute inset-0 z-0 transition-transform duration-1000 ease-out ${isAnimating ? 'scale-150' : 'scale-100'
+                    }`}
+            >
+                <img
+                    src="/backgroundhero.jpg"
+                    alt="Background"
+                    className="w-full h-full object-cover"
+                />
+                <div className={`absolute inset-0 bg-black/50 transition-opacity duration-1000 ${isAnimating ? 'opacity-0' : 'opacity-100'
+                    }`}></div>
+            </div>
+
+            {/* Header with Fade In */}
+            <header className={`relative z-10 bg-white/10 backdrop-blur-sm border-b border-white/20 transition-opacity duration-1000 delay-300 ${isAnimating ? 'opacity-0' : 'opacity-100'
+                }`}>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6">
+                    <div className="flex items-center justify-between h-16">
+                        <div className="font-bold text-xl text-white">
+                            Autumn Mooncake
                         </div>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white text-sm font-semibold rounded-lg hover:bg-white/30 transition-colors border border-white/30"
+                        >
+                            Về trang chủ
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            {/* Login Form with Slide Up Animation */}
+            <div
+                className={`relative z-10 flex items-center justify-center px-4 sm:px-6 lg:px-8 transition-all duration-1000 delay-500 ${isAnimating ? 'opacity-0 translate-y-10' : 'opacity-100 translate-y-0'
+                    }`}
+                style={{ minHeight: 'calc(100vh - 64px)' }}
+            >
+                <div className="w-full max-w-md">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                        {/* Header - Xóa icon, chỉ giữ tên */}
+                        <div className="p-8 pb-6 text-center bg-gradient-to-b from-amber-50 to-white dark:from-slate-800 dark:to-slate-900">
+                            <h1 className="text-slate-900 dark:text-white text-3xl font-bold mb-2">Autumn Mooncake</h1>
+                            <p className="text-slate-600 dark:text-slate-400 text-sm">Management System</p>
+                        </div>
+
                         {/* Form */}
                         <form className="p-8 pt-6 flex flex-col gap-5" onSubmit={handleLogin}>
                             {/* Username */}
                             <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Tên đăng nhập hoặc Email</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">person</span>
-                                    <input
-                                        className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal"
-                                        placeholder="Nhập tên đăng nhập"
-                                        value={username}
-                                        onChange={e => setUsername(e.target.value)}
-                                        required
-                                    />
-                                </div>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">Tên đăng nhập</p>
+                                <input
+                                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                    placeholder="Nhập tên đăng nhập"
+                                    value={username}
+                                    onChange={e => setUsername(e.target.value)}
+                                    required
+                                />
                             </label>
+
                             {/* Password */}
                             <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal pb-1.5">Mật khẩu</p>
-                                <div className="flex w-full items-stretch rounded-lg shadow-sm">
-                                    <span className="material-symbols-outlined flex border border-r-0 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 items-center justify-center pl-3 pr-2 rounded-l-lg text-slate-400 dark:text-slate-500">lock</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">Mật khẩu</p>
+                                <div className="relative">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
-                                        className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-slate-900 dark:text-white focus:outline-0 focus:ring-1 focus:ring-primary border-y border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-primary h-11 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 text-sm font-normal border-x-0"
+                                        className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
                                         placeholder="Nhập mật khẩu"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
@@ -137,37 +166,39 @@ export default function LoginPage() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(v => !v)}
-                                        className="text-slate-400 dark:text-slate-500 flex border border-l-0 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 items-center justify-center pr-3 pl-2 rounded-r-lg hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors text-sm"
                                     >
-                                        <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility' : 'visibility_off'}</span>
+                                        {showPassword ? 'Ẩn' : 'Hiện'}
                                     </button>
                                 </div>
                             </label>
-                            {/* Options Row */}
-                            <div className="flex items-center justify-between w-full mt-1">
-                                <label className="flex items-center gap-x-2 cursor-pointer group">
-                                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-1 focus:ring-primary focus:ring-offset-0 focus:outline-none transition-colors" />
-                                    <span className="text-slate-600 dark:text-slate-400 text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">Ghi nhớ đăng nhập</span>
+
+                            {/* Remember & Forgot */}
+                            <div className="flex items-center justify-between text-sm">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                                    <span className="text-slate-600 dark:text-slate-400">Ghi nhớ</span>
                                 </label>
-                                <a href="#" className="text-primary hover:text-primary/80 text-sm font-medium transition-colors">Quên mật khẩu?</a>
+                                <a href="#" className="text-amber-600 hover:text-amber-700 font-medium">Quên mật khẩu?</a>
                             </div>
-                            {/* Sign In Button */}
-                            <div className="flex flex-col gap-3 mt-4">
-                                <button
-                                    type="submit"
-                                    className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold leading-normal tracking-wide transition-colors shadow-md shadow-primary/20 disabled:opacity-60"
-                                    disabled={loading}
-                                >
-                                    <span className="material-symbols-outlined mr-2 text-[20px]">login</span>
-                                    <span>{loading ? 'Đang đăng nhập...' : 'Đăng nhập hệ thống'}</span>
-                                </button>
-                                {status && <div className="text-emerald-600 text-sm text-center mt-2">{status}</div>}
-                                {error && <div className="text-red-500 text-sm text-center mt-1">{error}</div>}
-                            </div>
+
+                            {/* Submit Button */}
+                            <button
+                                type="submit"
+                                className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors shadow-lg mt-2 disabled:opacity-60"
+                                disabled={loading}
+                            >
+                                {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+                            </button>
+
+                            {/* Status Messages */}
+                            {status && <div className="text-emerald-600 text-sm text-center bg-emerald-50 dark:bg-emerald-900/20 py-2 rounded-lg">{status}</div>}
+                            {error && <div className="text-red-600 text-sm text-center bg-red-50 dark:bg-red-900/20 py-2 rounded-lg">{error}</div>}
                         </form>
+
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-t border-slate-100 dark:border-slate-800 text-center">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Cần cấp quyền? Vui lòng liên hệ quản trị hệ thống.</p>
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-t border-slate-200 dark:border-slate-800 text-center">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Cần hỗ trợ? Liên hệ quản trị viên</p>
                         </div>
                     </div>
                 </div>

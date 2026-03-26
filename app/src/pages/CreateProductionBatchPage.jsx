@@ -494,26 +494,73 @@ export default function CreateProductionBatchPage() {
 
         setCompletingBatchId(batch.id)
         try {
-            const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
-                method: 'PUT',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    status: 'COMPLETED',
-                    quantityActual: actualQty,
-                    additionalMaterials: [],
-                }),
-            })
+            // Thử nhiều variant payload vì backend có thể yêu cầu format khác nhau
+            const payloadVariants = [
+                { status: 'COMPLETED', quantityActual: actualQty },
+                { Status: 'COMPLETED', QuantityActual: actualQty },
+                { status: 'completed', quantityActual: actualQty },
+                { Status: 'completed', QuantityActual: actualQty },
+                { status: 'COMPLETED' },
+                { Status: 'COMPLETED' },
+            ]
 
-            const data = await response.json().catch(() => ({}))
-            if (!response.ok) {
-                throw new Error(data?.message || data?.title || 'Không thể hoàn thành mẻ sản xuất.')
+            let success = false
+            let lastError = ''
+
+            for (const payload of payloadVariants) {
+                const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        accept: '*/*',
+                        Authorization: `Bearer ${tk}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                })
+
+                const data = await response.json().catch(() => ({}))
+
+                if (response.ok) {
+                    success = true
+                    break
+                }
+
+                lastError = data?.message || data?.title || `Lỗi ${response.status}`
+
+                // Nếu không phải lỗi validation thì dừng thử
+                if (response.status !== 400) {
+                    break
+                }
             }
 
-            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất.`)
+            if (!success) {
+                throw new Error(lastError || 'Không thể hoàn thành mẻ sản xuất.')
+            }
+
+            // Tự động chuyển đơn sang PRODUCED sau khi hoàn thành mẻ
+            let orderUpdateWarning = ''
+            if (batch.orderId) {
+                try {
+                    const orderStatusRes = await fetch(`${apiBase}/internal-orders/${batch.orderId}/status`, {
+                        method: 'PUT',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${tk}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ status: 'PRODUCED' }),
+                    })
+
+                    if (!orderStatusRes.ok) {
+                        const orderData = await orderStatusRes.json().catch(() => ({}))
+                        orderUpdateWarning = ` (Lưu ý: Mẻ đã hoàn thành nhưng không thể tự động chuyển đơn sang PRODUCED: ${orderData?.message || 'Lỗi không xác định'})`
+                    }
+                } catch {
+                    orderUpdateWarning = ' (Lưu ý: Mẻ đã hoàn thành nhưng không thể tự động chuyển đơn sang PRODUCED)'
+                }
+            }
+
+            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
             await fetchInProgressBatches()
             await fetchApprovedOrders()
         } catch (requestError) {
@@ -581,7 +628,24 @@ export default function CreateProductionBatchPage() {
 
             const { json: data, text: rawCreateText } = await readResponsePayload(response)
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || rawCreateText || 'Không thể tạo mẻ sản xuất.')
+                const errorMsg = data?.message || data?.title || rawCreateText || 'Không thể tạo mẻ sản xuất.'
+
+                // Kiểm tra xem có phải lỗi thiếu nguyên liệu không
+                const lowerMsg = String(errorMsg).toLowerCase()
+                const isInsufficientMaterial =
+                    lowerMsg.includes('insufficient') ||
+                    lowerMsg.includes('not enough') ||
+                    lowerMsg.includes('thiếu') ||
+                    lowerMsg.includes('không đủ') ||
+                    lowerMsg.includes('nguyên liệu') ||
+                    lowerMsg.includes('material') ||
+                    lowerMsg.includes('inventory')
+
+                if (isInsufficientMaterial) {
+                    throw new Error(`⚠️ THIẾU NGUYÊN LIỆU: ${errorMsg}`)
+                }
+
+                throw new Error(errorMsg)
             }
 
             const locationHeader = response.headers.get('Location') || response.headers.get('location') || response.headers.get('Content-Location') || response.headers.get('content-location')
@@ -662,9 +726,31 @@ export default function CreateProductionBatchPage() {
                 }
             }
 
+            // Tự động chuyển đơn sang PROCESSING sau khi tạo mẻ thành công
+            if (row.orderId && !statusWarning) {
+                try {
+                    const orderStatusRes = await fetch(`${apiBase}/internal-orders/${row.orderId}/status`, {
+                        method: 'PUT',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${tk}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ status: 'PROCESSING' }),
+                    })
+
+                    if (!orderStatusRes.ok) {
+                        const orderData = await orderStatusRes.json().catch(() => ({}))
+                        statusWarning = `Mẻ đã tạo nhưng không thể chuyển đơn sang PROCESSING: ${orderData?.message || 'Lỗi không xác định'}`
+                    }
+                } catch {
+                    statusWarning = 'Mẻ đã tạo nhưng không thể chuyển đơn sang PROCESSING.'
+                }
+            }
+
             const inventoryHint = statusWarning
-                ? ` Đã tạo mẻ và gán đơn thành công, nhưng chuyển IN_PROGRESS thất bại: ${statusWarning}`
-                : ' Mẻ đã vào IN_PROGRESS. Kho nguyên liệu sẽ chỉ được trừ khi kitchen hoàn thành sản xuất.'
+                ? ` ${statusWarning}`
+                : ' Mẻ đã vào IN_PROGRESS và đơn đã chuyển PROCESSING.'
 
             setSuccess(
                 (data?.message || 'Tạo mẻ sản xuất thành công.')

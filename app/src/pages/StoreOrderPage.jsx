@@ -197,7 +197,6 @@ export default function StoreOrderPage() {
     const [productOptions, setProductOptions] = useState(fallbackProductOptions)
     const [supplierOptions, setSupplierOptions] = useState([])
     const [optionsLoading, setOptionsLoading] = useState(false)
-    const [optionsError, setOptionsError] = useState('')
     const [inventoryLoading, setInventoryLoading] = useState(false)
     const [inventoryError, setInventoryError] = useState('')
     const [inventoryInfo, setInventoryInfo] = useState('')
@@ -234,7 +233,6 @@ export default function StoreOrderPage() {
 
     const fetchDropdownOptions = async () => {
         setOptionsLoading(true)
-        setOptionsError('')
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             const headers = {
@@ -292,15 +290,10 @@ export default function StoreOrderPage() {
             setStoreOptions(stores.length ? stores : fallbackStoreOptions)
             setProductOptions(products.length ? products : fallbackProductOptions)
             setSupplierOptions(suppliers)
-
-            if (!storeRes.ok || !productRes.ok || !supplierRes.ok) {
-                setOptionsError('Một số API danh mục bị hạn chế quyền. Hệ thống đã tự fallback để vẫn tạo đơn bình thường.')
-            }
         } catch {
             setStoreOptions(fallbackStoreOptions)
             setProductOptions(fallbackProductOptions)
             setSupplierOptions([])
-            setOptionsError('Không kết nối được API danh mục. Đang dùng dữ liệu tạm.')
         } finally {
             setOptionsLoading(false)
         }
@@ -910,13 +903,12 @@ export default function StoreOrderPage() {
         || detailError
         || ordersError
         || inventoryError
-        || optionsError
         || submitSuccess
         || inventoryInfo
 
     const toastType = (submitError || detailError || ordersError || inventoryError)
         ? 'error'
-        : (optionsError || inventoryInfo)
+        : (inventoryInfo)
             ? 'warning'
             : toastMessage
                 ? 'success'
@@ -931,7 +923,6 @@ export default function StoreOrderPage() {
         setDetailError('')
         setOrdersError('')
         setInventoryError('')
-        setOptionsError('')
         setSubmitSuccess('')
         setInventoryInfo('')
     }
@@ -1199,9 +1190,9 @@ export default function StoreOrderPage() {
                                         </div>
                                     </div>
 
-                                    {(optionsLoading || optionsError) && (
+                                    {optionsLoading && (
                                         <div className="mb-3 text-xs">
-                                            {optionsLoading && <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách Store/Product...</p>}
+                                            <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách Store/Product...</p>
                                         </div>
                                     )}
 
@@ -1258,12 +1249,12 @@ export default function StoreOrderPage() {
                                         <option value="">Tất cả</option>
                                         <option value="PENDING">Chờ duyệt</option>
                                         <option value="APPROVED">Đã duyệt</option>
+                                        <option value="PROCESSING">Đang sản xuất</option>
                                         <option value="PRODUCED">Đã sản xuất</option>
-                                        <option value="SHIPPED">Đang giao</option>
                                         <option value="SHIPPING">Đang giao</option>
                                         <option value="COMPLETED">Hoàn thành</option>
-                                        <option value="CANCELLED">Đã hủy</option>
                                         <option value="REJECTED">Đã từ chối</option>
+                                        <option value="CANCELLED">Đã hủy</option>
                                     </select>
                                 </label>
                                 <button
