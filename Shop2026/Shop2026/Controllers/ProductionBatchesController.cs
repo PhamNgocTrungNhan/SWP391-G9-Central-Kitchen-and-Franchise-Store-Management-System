@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Shop2026.DLL;
 using Shop2026.DTOs;
+using System;
+using System.Collections.Generic;
 
 namespace Shop2026.Controllers
 {
@@ -34,16 +36,36 @@ namespace Shop2026.Controllers
             return Ok(_service.GetAll());
         }
 
+        // ==========================================
+        // THÊM MỚI: API cho FE kéo danh sách mẻ theo Đơn Hàng
+        // ==========================================
+        [HttpGet("order/{orderId}")]
+        public IActionResult GetBatchesByOrder(int orderId)
+        {
+            try
+            {
+                var batches = _service.GetBatchesByOrderId(orderId);
+                return Ok(batches);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
         [HttpPost]
         public IActionResult Create([FromBody] BatchCreateRequest request)
         {
             try
             {
-                var newBatch = _service.CreateBatch(request); 
+                var newBatch = _service.CreateBatch(request);
                 return Ok(new
                 {
                     message = "Tạo mẻ sản xuất thành công",
-                    batchId = newBatch.BatchId 
+                    batchId = newBatch.BatchId
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }

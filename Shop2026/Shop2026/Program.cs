@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-}); 
+});
 builder.Services.AddRazorPages();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -79,6 +79,7 @@ builder.Services.AddScoped<ProductionBatchRepository>();
 builder.Services.AddScoped<InventoryRepository>();
 builder.Services.AddScoped<DashboardRepository>();
 builder.Services.AddScoped<SupplierRepository>();
+
 // DLL O DAY
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
@@ -93,8 +94,9 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<SupplierService>();
 
 
-var app = builder.Build();
+builder.Services.AddHostedService<ExpiredStockScannerJob>();
 
+var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
@@ -104,7 +106,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
-
 
 app.UseAuthentication();
 app.UseAuthorization();

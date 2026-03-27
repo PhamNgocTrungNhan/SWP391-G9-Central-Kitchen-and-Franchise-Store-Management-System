@@ -21,6 +21,11 @@ namespace Shop2026.DLL
         public ProductionBatch? GetById(int batchId) => _repo.GetById(batchId);
         public IEnumerable<ProductionBatch> GetAll() => _repo.GetAll();
 
+        public IEnumerable<ProductionBatch> GetBatchesByOrderId(int orderId)
+        {
+            return _repo.GetBatchesByOrderId(orderId);
+        }
+
         public ProductionBatch CreateBatch(BatchCreateRequest request)
         {
             if (request.QuantityPlanned <= 0)
@@ -32,6 +37,10 @@ namespace Shop2026.DLL
                 BatchCode = "BCH" + DateTime.Now.ToString("yyyyMMddHHmmss"),
                 QuantityPlanned = request.QuantityPlanned,
                 MfgDate = DateOnly.FromDateTime(request.MfgDate),
+
+                // 🚨 ĐÃ BỔ SUNG: Hứng ngày hết hạn từ DTO truyền xuống lưu vào Database
+                ExpDate = request.ExpDate.HasValue ? DateOnly.FromDateTime(request.ExpDate.Value) : null,
+
                 Status = "SCHEDULED"
             };
 
@@ -63,7 +72,6 @@ namespace Shop2026.DLL
         {
             var batch = _repo.GetById(batchId) ?? throw new Exception("Không tìm thấy mẻ sản xuất");
 
-            // Normalize status to uppercase để tránh case-sensitive issues
             var normalizedStatus = request.Status?.ToUpper();
 
             if (normalizedStatus == "IN_PROGRESS")
@@ -78,25 +86,15 @@ namespace Shop2026.DLL
             {
                 if (batch.Status != "IN_PROGRESS")
                     throw new Exception("Mẻ phải ở trạng thái Đang sản xuất (IN_PROGRESS) mới có thể Hoàn thành!");
-
-                // Chặn số lượng âm hoặc null (Test Case 2)
                 if (request.QuantityActual == null || request.QuantityActual <= 0)
                     throw new Exception("Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!");
-
-                // SIÊU GIAO DỊCH BẢO VỆ TOÀN BỘ LUỒNG
                 using var transaction = _repo.GetContext().Database.BeginTransaction();
                 try
                 {
                     batch.QuantityActual = request.QuantityActual;
                     batch.Status = "COMPLETED";
-
-                    // Đảm bảo entity được track trước khi gọi inventory service
                     _repo.GetContext().ProductionBatches.Update(batch);
-
-                    // 1. Trừ BOM (Truyền true để xài chung transaction)
                     _inventoryService.DeductMaterialForBatch(batch, 1, true);
-
-                    // 2. Trừ Extra Materials
                     if (request.AdditionalMaterials != null && request.AdditionalMaterials.Any())
                     {
                         foreach (var extra in request.AdditionalMaterials)
@@ -108,10 +106,8 @@ namespace Shop2026.DLL
                         }
                     }
 
-                    // 3. Cộng Thành phẩm (Truyền true)
                     _inventoryService.AddFinishedProduct(batch, 1, true);
 
-                    // CHỐT ĐƠN: LƯU VÀ COMMIT
                     _repo.GetContext().SaveChanges();
                     transaction.Commit();
                 }

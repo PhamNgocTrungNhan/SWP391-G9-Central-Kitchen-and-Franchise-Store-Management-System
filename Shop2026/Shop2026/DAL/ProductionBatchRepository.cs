@@ -21,6 +21,18 @@ namespace Shop2026.DAL
             return _context.ProductionBatches.Include(b => b.Product).FirstOrDefault(b => b.BatchId == id);
         }
 
+        // ==========================================
+        // THÊM MỚI: Tìm các mẻ sản xuất dựa vào OrderId
+        // ==========================================
+        public IEnumerable<ProductionBatch> GetBatchesByOrderId(int orderId)
+        {
+            return _context.ProductionBatches
+                .Include(b => b.Product) // Lấy luôn thông tin sản phẩm (Tên bánh)
+                .Where(b => _context.ProductionBatchOrders.Any(pbo => pbo.BatchId == b.BatchId && pbo.OrderId == orderId))
+                .OrderBy(b => b.BatchId)
+                .ToList();
+        }
+
         public void Add(ProductionBatch batch)
         {
             _context.ProductionBatches.Add(batch);

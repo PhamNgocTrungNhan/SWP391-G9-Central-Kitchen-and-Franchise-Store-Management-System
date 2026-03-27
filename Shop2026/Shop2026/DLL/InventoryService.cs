@@ -13,7 +13,6 @@ namespace Shop2026.DLL
 
         public InventoryService(InventoryRepository repo) => _repo = repo;
 
-        // Trừ nguyên liệu khi hoàn thành mẻ (Trừ xuyên thủng đến tận lớp RAW)
         public void DeductMaterialForBatch(ProductionBatch batch, int kitchenId, bool useExternalTransaction = false)
         {
             var transaction = useExternalTransaction ? null : _repo.GetContext().Database.BeginTransaction();
@@ -21,7 +20,6 @@ namespace Shop2026.DLL
             {
                 var rawMaterialsToDeduct = new Dictionary<int, decimal>();
 
-                // Lấy số lượng THỰC TẾ (QuantityActual) để tính toán trừ nguyên liệu
                 decimal actualQty = batch.QuantityActual ?? batch.QuantityPlanned ?? 0;
 
                 CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct);
@@ -67,13 +65,11 @@ namespace Shop2026.DLL
 
             foreach (var recipe in recipes)
             {
-                // Ép kiểu chia 100m để chuẩn xác
                 decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
                 CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }
 
-        // Cộng thành phẩm khi mẻ hoàn tất
         public void AddFinishedProduct(ProductionBatch batch, int kitchenId, bool useExternalTransaction = false)
         {
             if (batch.QuantityActual == null || batch.QuantityActual <= 0)
@@ -109,14 +105,13 @@ namespace Shop2026.DLL
 
                 foreach (var detail in details)
                 {
-                    // Ưu tiên QuantityConfirmed nếu > 0, nếu không thì dùng QuantityOrdered
-                    decimal quantityToShip = (detail.QuantityConfirmed > 0) 
-                        ? detail.QuantityConfirmed.Value 
+                    decimal quantityToShip = (detail.QuantityConfirmed > 0)
+                        ? detail.QuantityConfirmed.Value
                         : (detail.QuantityOrdered ?? 0);
-                    
+
                     if (quantityToShip <= 0)
-                        continue; // Skip nếu không có gì để xuất
-                    
+                        continue;
+
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
@@ -126,10 +121,10 @@ namespace Shop2026.DLL
                         trackedDetail.QuantityShipped = quantityToShip;
                     }
                 }
-                
+
                 trackedOrder.OrderStatus = "SHIPPING";
                 trackedOrder.UpdatedAt = DateTime.Now;
-                
+
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -199,13 +194,14 @@ namespace Shop2026.DLL
             {
                 if (changeQty < 0)
                     throw new Exception($"Sản phẩm ID {productId} không tồn tại trong kho {locationType}. Không thể xuất kho.");
-                
-                stock = new Inventory { 
-                    ProductId = productId, 
-                    LocationType = locationType, 
-                    LocationId = locationId, 
-                    CurrentQuantity = changeQty, 
-                    LastUpdated = DateTime.Now 
+
+                stock = new Inventory
+                {
+                    ProductId = productId,
+                    LocationType = locationType,
+                    LocationId = locationId,
+                    CurrentQuantity = changeQty,
+                    LastUpdated = DateTime.Now
                 };
                 _repo.AddInventory(stock);
             }
@@ -214,7 +210,7 @@ namespace Shop2026.DLL
                 var newQuantity = stock.CurrentQuantity + changeQty;
                 if (newQuantity < 0)
                     throw new Exception($"Không đủ tồn kho. Hiện tại: {stock.CurrentQuantity}, Cần xuất: {Math.Abs(changeQty)}");
-                
+
                 stock.CurrentQuantity = newQuantity;
                 stock.LastUpdated = DateTime.Now;
                 _repo.UpdateInventory(stock);
@@ -233,6 +229,70 @@ namespace Shop2026.DLL
                 CreatedAt = DateTime.Now
             };
             _repo.AddStockLog(log);
+        }
+
+        // ==========================================
+        // THUẬT TOÁN FIFO ẢO: QUÉT VÀ HỦY HÀNG HẾT HẠN
+        // ==========================================
+        public void ScanAndRemoveExpiredStock()
+        {
+            var dbContext = _repo.GetContext();
+
+            var kitchenInventories = dbContext.Inventories
+                .Where(i => i.LocationType == "KITCHEN" && i.CurrentQuantity > 0)
+                .ToList();
+
+            using var transaction = dbContext.Database.BeginTransaction();
+            try
+            {
+                foreach (var inv in kitchenInventories)
+                {
+                    int productId = inv.ProductId ?? 0;
+                    decimal currentQty = inv.CurrentQuantity ?? 0;
+
+                    var batches = dbContext.ProductionBatches
+                        .Where(b => b.ProductId == productId && b.Status == "COMPLETED")
+                        .OrderBy(b => b.MfgDate).ThenBy(b => b.BatchId)
+                        .ToList();
+
+                    decimal totalProduced = batches.Sum(b => b.QuantityActual ?? 0);
+                    decimal virtualSold = totalProduced - currentQty;
+                    if (virtualSold < 0)
+                        virtualSold = 0;
+
+                    foreach (var batch in batches)
+                    {
+                        decimal batchQty = batch.QuantityActual ?? 0;
+
+                        if (virtualSold >= batchQty)
+                        {
+                            virtualSold -= batchQty;
+                            continue;
+                        }
+
+                        decimal remainingQty = batchQty - virtualSold;
+                        virtualSold = 0;
+
+                        if (batch.ExpDate.HasValue)
+                        {
+                            var today = DateOnly.FromDateTime(DateTime.Now);
+                            if (batch.ExpDate.Value < today)
+                            {
+                                string reason = $"Hủy hàng hết hạn (Mẻ {batch.BatchCode})";
+                                UpdateStockAndLog(productId, "KITCHEN", inv.LocationId ?? 1, -remainingQty, reason, batch.BatchId, "EXPIRED_BATCH");
+                            }
+                        }
+                    }
+                }
+
+                dbContext.SaveChanges();
+                transaction.Commit();
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
     }
 }

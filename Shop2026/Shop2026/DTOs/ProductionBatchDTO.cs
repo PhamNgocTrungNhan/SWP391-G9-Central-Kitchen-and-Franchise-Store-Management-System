@@ -18,6 +18,10 @@ namespace Shop2026.DTOs
         {
             get; set;
         }
+        public DateTime? ExpDate
+        {
+            get; set;
+        }
         public int? OrderId
         {
             get; set;
