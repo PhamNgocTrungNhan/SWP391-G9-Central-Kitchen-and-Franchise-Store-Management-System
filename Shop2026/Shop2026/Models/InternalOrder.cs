@@ -11,6 +11,7 @@ public partial class InternalOrder
 
     public int? KitchenId { get; set; }
 
+<<<<<<< Updated upstream
     public string? OrderStatus { get; set; }
 
     public decimal? TotalCost { get; set; }
@@ -27,3 +28,23 @@ public partial class InternalOrder
 
     public DateTime? UpdatedAt { get; set; }
 }
+=======
+    public virtual User? ApprovedByNavigation
+    {
+        get; set;
+    }
+
+    public string? PaymentStatus
+    {
+        get; set;
+    }
+
+    public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
+    public virtual Kitchen? Kitchen
+    {
+        get; set;
+    }
+    public virtual ICollection<ProductionBatchOrder> ProductionBatchOrders { get; set; } = new List<ProductionBatchOrder>();
+    public virtual Store Store { get; set; } = null!;
+}
+>>>>>>> Stashed changes

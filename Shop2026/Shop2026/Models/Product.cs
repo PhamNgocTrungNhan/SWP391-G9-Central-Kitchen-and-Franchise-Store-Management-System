@@ -19,7 +19,20 @@ public partial class Product
 
     public virtual Category? Category { get; set; }
 
+<<<<<<< Updated upstream
     public virtual Inventory? Inventory { get; set; }
+=======
+    public decimal? PurchasePrice
+    {
+        get; set;
+    }
+    public decimal? InternalPrice
+    {
+        get; set;
+    }
+
+    public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
+>>>>>>> Stashed changes
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 

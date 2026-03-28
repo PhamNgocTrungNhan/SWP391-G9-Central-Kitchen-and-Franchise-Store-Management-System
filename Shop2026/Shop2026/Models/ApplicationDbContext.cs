@@ -15,6 +15,7 @@ public partial class ApplicationDbContext : DbContext
     {
     }
 
+<<<<<<< Updated upstream:Shop2026/Shop2026/Models/ApplicationDbContext.cs
     public virtual DbSet<Category> Categories { get; set; }
 
     public virtual DbSet<Customer> Customers { get; set; }
@@ -38,6 +39,70 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<StockLog> StockLogs { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
+=======
+    public virtual DbSet<Category> Categories
+    {
+        get; set;
+    }
+    public virtual DbSet<InternalOrder> InternalOrders
+    {
+        get; set;
+    }
+    public virtual DbSet<InternalOrderDetail> InternalOrderDetails
+    {
+        get; set;
+    }
+    public virtual DbSet<Inventory> Inventories
+    {
+        get; set;
+    }
+    public virtual DbSet<Kitchen> Kitchens
+    {
+        get; set;
+    }
+    public virtual DbSet<Product> Products
+    {
+        get; set;
+    }
+    public virtual DbSet<ProductionBatch> ProductionBatches
+    {
+        get; set;
+    }
+    public virtual DbSet<ProductionBatchOrder> ProductionBatchOrders
+    {
+        get; set;
+    }
+    public virtual DbSet<RecipesBom> RecipesBoms
+    {
+        get; set;
+    }
+    public virtual DbSet<Role> Roles
+    {
+        get; set;
+    }
+    public virtual DbSet<StockLog> StockLogs
+    {
+        get; set;
+    }
+    public virtual DbSet<Store> Stores
+    {
+        get; set;
+    }
+    public virtual DbSet<User> Users
+    {
+        get; set;
+    }
+    public virtual DbSet<Supplier> Suppliers
+    {
+        get; set;
+    }
+>>>>>>> Stashed changes:Shop2026/Shop2026/Context/ApplicationDbContext.cs
+
+    // ✅ THÊM DBSET TRANSACTIONS
+    public virtual DbSet<Transaction> Transactions
+    {
+        get; set;
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -98,6 +163,13 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValue("CREATED")
                 .HasColumnName("order_status");
+
+            // ✅ ĐÃ CHÈN MAP CỘT PAYMENT_STATUS VÀO ĐÚNG CHỖ
+            entity.Property(e => e.PaymentStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("UNPAID")
+                .HasColumnName("payment_status");
+
             entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason");
             entity.Property(e => e.StoreFeedback).HasColumnName("store_feedback");
             entity.Property(e => e.StoreId).HasColumnName("store_id");
@@ -109,6 +181,58 @@ public partial class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
+<<<<<<< Updated upstream:Shop2026/Shop2026/Models/ApplicationDbContext.cs
+=======
+
+            // =====================================
+            // MAP 3 CỘT CHO LUỒNG 4
+            // =====================================
+            entity.Property(e => e.ReturnReason).HasColumnName("return_reason");
+            entity.Property(e => e.Rating).HasColumnName("rating");
+            entity.Property(e => e.FeedbackComment).HasColumnName("feedback_comment");
+
+            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.InternalOrders)
+                .HasForeignKey(d => d.ApprovedBy)
+                .HasConstraintName("FK__Internal___appro__5812160E");
+
+            entity.HasOne(d => d.Kitchen).WithMany(p => p.InternalOrders)
+                .HasForeignKey(d => d.KitchenId)
+                .HasConstraintName("FK__Internal___kitch__571DF1D5");
+
+            entity.HasOne(d => d.Store).WithMany(p => p.InternalOrders)
+                .HasForeignKey(d => d.StoreId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Internal___store__5629CD9C");
+        });
+
+        modelBuilder.Entity<InternalOrderDetail>(entity =>
+        {
+            entity.HasKey(e => e.DetailId).HasName("PK__Internal__38E9A224BCBB8B27");
+
+            entity.ToTable("Internal_Order_Details");
+
+            entity.Property(e => e.DetailId).HasColumnName("detail_id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.QuantityConfirmed)
+                .HasColumnType("decimal(12, 2)")
+                .HasColumnName("quantity_confirmed");
+            entity.Property(e => e.QuantityOrdered)
+                .HasColumnType("decimal(12, 2)")
+                .HasColumnName("quantity_ordered");
+            entity.Property(e => e.QuantityShipped)
+                .HasDefaultValue(0m)
+                .HasColumnType("decimal(12, 2)")
+                .HasColumnName("quantity_shipped");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.InternalOrderDetails)
+                .HasForeignKey(d => d.OrderId)
+                .HasConstraintName("FK__Internal___order__5BE2A6F2");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.InternalOrderDetails)
+                .HasForeignKey(d => d.ProductId)
+                .HasConstraintName("FK__Internal___produ__5CD6CB2B");
+>>>>>>> Stashed changes:Shop2026/Shop2026/Context/ApplicationDbContext.cs
         });
 
         modelBuilder.Entity<Inventory>(entity =>
@@ -187,6 +311,17 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.Sku)
                 .HasMaxLength(50)
                 .HasColumnName("sku");
+
+            // ✅ ĐÃ CHÈN MAP 2 CỘT GIÁ TIỀN VÀO ĐÚNG CHỖ
+            entity.Property(e => e.PurchasePrice)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("purchase_price")
+                .HasDefaultValue(0m);
+
+            entity.Property(e => e.InternalPrice)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("internal_price")
+                .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
                 .HasForeignKey(d => d.CategoryId)
@@ -305,10 +440,44 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("reason");
             entity.Property(e => e.ReferenceId).HasColumnName("reference_id");
+<<<<<<< Updated upstream:Shop2026/Shop2026/Models/ApplicationDbContext.cs
 
             entity.HasOne(d => d.Product).WithMany(p => p.StockLogs)
                 .HasForeignKey(d => d.ProductId)
                 .HasConstraintName("FK__Stock_Log__produ__66603565");
+=======
+            entity.Property(e => e.ReferenceType)
+                .HasMaxLength(20)
+                .HasColumnName("reference_type");
+
+            entity.Property(e => e.SupplierId).HasColumnName("supplier_id");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.StockLogs)
+                .HasForeignKey(d => d.ProductId)
+                .HasConstraintName("FK__Stock_Log__produ__70DDC3D8");
+
+            entity.HasOne(d => d.Supplier)
+                .WithMany()
+                .HasForeignKey(d => d.SupplierId)
+                .HasConstraintName("FK_Stock_Logs_Suppliers");
+        });
+
+        modelBuilder.Entity<Store>(entity =>
+        {
+            entity.HasKey(e => e.StoreId).HasName("PK__Stores__A2F2A30C03A97305");
+
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.Property(e => e.Address).HasColumnName("address");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.Phone)
+                .HasMaxLength(20)
+                .HasColumnName("phone");
+            entity.Property(e => e.StoreName)
+                .HasMaxLength(255)
+                .HasColumnName("store_name");
+>>>>>>> Stashed changes:Shop2026/Shop2026/Context/ApplicationDbContext.cs
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -331,7 +500,69 @@ public partial class ApplicationDbContext : DbContext
 
             entity.HasOne(d => d.Role).WithMany(p => p.Users)
                 .HasForeignKey(d => d.RoleId)
+<<<<<<< Updated upstream:Shop2026/Shop2026/Models/ApplicationDbContext.cs
                 .HasConstraintName("FK__Users__role_id__3B75D760");
+=======
+                .HasConstraintName("FK__Users__role_id__403A8C7D");
+
+            entity.HasOne(d => d.Store).WithMany(p => p.Users)
+                .HasForeignKey(d => d.StoreId)
+                .HasConstraintName("FK__Users__store_id__412EB0B6");
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.HasKey(e => e.SupplierId).HasName("PK_Suppliers");
+
+            entity.ToTable("Suppliers");
+
+            entity.Property(e => e.SupplierId).HasColumnName("supplier_id");
+            entity.Property(e => e.SupplierName)
+                .HasMaxLength(255)
+                .IsRequired()
+                .HasColumnName("supplier_name");
+            entity.Property(e => e.ContactInfo).HasColumnName("contact_info");
+            entity.Property(e => e.Address).HasColumnName("address");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+>>>>>>> Stashed changes:Shop2026/Shop2026/Context/ApplicationDbContext.cs
+        });
+
+        // ✅ MAP CẤU HÌNH BẢNG TRANSACTIONS (LƯU GIAO DỊCH TIỀN)
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.HasKey(e => e.TransactionId).HasName("PK_Transactions");
+            entity.ToTable("Transactions");
+
+            entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
+            entity.Property(e => e.InternalOrderId).HasColumnName("internal_order_id");
+            entity.Property(e => e.PurchaseOrderId).HasColumnName("purchase_order_id");
+
+            entity.Property(e => e.TransactionType)
+                .HasMaxLength(20)
+                .HasColumnName("transaction_type");
+
+            entity.Property(e => e.Amount)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("amount");
+
+            entity.Property(e => e.PaymentMethod)
+                .HasMaxLength(50)
+                .HasDefaultValue("Bank Transfer")
+                .HasColumnName("payment_method");
+
+            entity.Property(e => e.TransactionDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("transaction_date");
+
+            entity.Property(e => e.Note).HasColumnName("note");
+
+            entity.HasOne(d => d.InternalOrder)
+                .WithMany()
+                .HasForeignKey(d => d.InternalOrderId)
+                .HasConstraintName("FK_Transactions_InternalOrders");
         });
 
         OnModelCreatingPartial(modelBuilder);
