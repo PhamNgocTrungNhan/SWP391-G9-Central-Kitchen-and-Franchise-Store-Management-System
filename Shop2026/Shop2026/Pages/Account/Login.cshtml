@@ -1,0 +1,31 @@
+﻿@page
+@model KitchenCentralApp.Pages.LoginModel
+@{
+    ViewData["Title"] = "Đăng nhập hệ thống";
+}
+
+<div class="container mt-5" style="max-width: 400px;">
+    <h3 class="mb-4 text-center">Đăng nhập</h3>
+
+    @if (!ModelState.IsValid)
+    {
+        <div class="alert alert-danger">
+            <div asp-validation-summary="All"></div>
+        </div>
+    }
+
+    <form method="post" class="card p-4 shadow-sm">
+        <div class="mb-3">
+            <label class="form-label">Tài khoản</label>
+            <input type="text" asp-for="Username" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mật khẩu</label>
+            <input type="password" asp-for="Password" class="form-control" required />
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mb-3">Đăng nhập</button>
+        <div class="text-center text-muted">
+            Chưa có tài khoản? <a href="/Account/Register" class="text-decoration-none">Đăng ký khách hàng mới</a>
+        </div>
+    </form>
+</div>
