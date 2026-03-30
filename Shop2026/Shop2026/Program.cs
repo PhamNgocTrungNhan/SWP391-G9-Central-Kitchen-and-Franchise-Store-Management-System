@@ -1,12 +1,16 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
+using System.Text;
+
+using PayOS;
+
 using Shop2026.Context;
 using Shop2026.DAL;
 using Shop2026.DLL;
-using System.Text;
+using Shop2026.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +23,8 @@ builder.Services.AddRazorPages();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-//JWT
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourVerySecretKey1234567890123456789";
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "ChuoiBiMatCuaBanPhaiDaiHon16KyTu_123456789";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -36,30 +40,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// SWAGGER TEST
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Shop2026 API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Input the code when login successfully like this : Bearer + the code ",
+        Description = " Token + Key with format: Bearer {token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             new string[] {}
         }
@@ -67,7 +65,16 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 
-// DAL O DAY 
+string clientId = builder.Configuration["PayOS:ClientId"] ?? throw new Exception("Lack PayOS:ClientId");
+string apiKey = builder.Configuration["PayOS:ApiKey"] ?? throw new Exception("Lack PayOS:ApiKey");
+string checksumKey = builder.Configuration["PayOS:ChecksumKey"] ?? throw new Exception("Lack PayOS:ChecksumKey");
+
+PayOSClient payOS = new PayOSClient(clientId, apiKey, checksumKey);
+builder.Services.AddSingleton(payOS);
+
+// ==========================================
+// ĐĂNG KÝ REPOSITORY & SERVICE
+// ==========================================
 builder.Services.AddScoped<AuthRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<OrganizationRepository>();
@@ -80,7 +87,7 @@ builder.Services.AddScoped<InventoryRepository>();
 builder.Services.AddScoped<DashboardRepository>();
 builder.Services.AddScoped<SupplierRepository>();
 builder.Services.AddScoped<TransactionRepository>();
-// DLL O DAY
+
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<OrganizationService>();
@@ -106,11 +113,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 app.MapRazorPages();
-
 app.Run();
