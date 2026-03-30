@@ -163,6 +163,11 @@ export default function BatchTraceabilityPage() {
         quantity: '1',
         supplierId: '',
     })
+    const [batchDetailModal, setBatchDetailModal] = useState(false)
+    const [batchDetails, setBatchDetails] = useState(null)
+    const [loadingBatchDetails, setLoadingBatchDetails] = useState(false)
+    const [scanning, setScanning] = useState(false)
+    const [scanMessage, setScanMessage] = useState('')
 
     const token = () => {
         const candidates = [
@@ -422,12 +427,90 @@ export default function BatchTraceabilityPage() {
         }
     }
 
+    const fetchBatchDetails = async (logItem) => {
+        if (logItem.referenceType !== 'PRODUCTION_BATCH' || !logItem.referenceId) {
+            return
+        }
+
+        const tk = token()
+        if (!tk) return
+
+        setLoadingBatchDetails(true)
+        setBatchDetailModal(true)
+        setBatchDetails(null)
+
+        try {
+            const headers = {
+                accept: '*/*',
+                Authorization: `Bearer ${tk}`,
+            }
+
+            // Fetch batch info
+            const batchRes = await fetch(`${apiBase}/ProductionBatches/${logItem.referenceId}`, {
+                method: 'GET',
+                headers,
+            })
+
+            if (!batchRes.ok) {
+                throw new Error('Không thể tải thông tin mẻ sản xuất')
+            }
+
+            const batchData = await batchRes.json()
+
+            // Fetch recipe/BOM if available
+            let materials = []
+            if (batchData.productId) {
+                try {
+                    const recipeRes = await fetch(`${apiBase}/Recipes/product/${batchData.productId}`, {
+                        method: 'GET',
+                        headers,
+                    })
+
+                    if (recipeRes.ok) {
+                        const recipeData = await recipeRes.json()
+                        materials = parseArrayData(recipeData).map((item) => ({
+                            materialId: item.materialId,
+                            materialName: productNameMap[item.materialId] || `Nguyên liệu #${item.materialId}`,
+                            quantityRequired: item.quantityRequired || 0,
+                            wasteAllowance: item.wasteAllowancePercent || 0,
+                        }))
+                    }
+                } catch {
+                    // Ignore recipe errors
+                }
+            }
+
+            setBatchDetails({
+                batchCode: batchData.batchCode,
+                productName: batchData.product?.productName || productNameMap[batchData.productId] || 'N/A',
+                quantityPlanned: batchData.quantityPlanned || 0,
+                quantityActual: batchData.quantityActual || 0,
+                mfgDate: batchData.mfgDate,
+                expDate: batchData.expDate,
+                status: batchData.status,
+                materials,
+            })
+        } catch (error) {
+            console.error('Error fetching batch details:', error)
+            setBatchDetails({ error: error.message || 'Không thể tải chi tiết mẻ sản xuất' })
+        } finally {
+            setLoadingBatchDetails(false)
+        }
+    }
+
+    const closeBatchDetailModal = () => {
+        setBatchDetailModal(false)
+        setBatchDetails(null)
+    }
+
     useEffect(() => {
         fetchProductMap()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     useEffect(() => {
         fetchInventoryData()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [Object.keys(productNameMap).length])
 
     const productOptions = useMemo(() => {
@@ -586,6 +669,53 @@ export default function BatchTraceabilityPage() {
                         </table>
                     </div>
                 </section>
+
+                <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-200 dark:border-slate-800">
+                        <h3 className="font-semibold text-lg">Lịch sử biến động (100 gần nhất)</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                    {['Thời gian', 'Sản phẩm', 'Hành động', 'Số lượng', 'Vị trí', 'Tham chiếu', 'Thao tác'].map((h) => (
+                                        <th key={h} className="px-5 py-4 text-xs font-semibold uppercase tracking-wider">{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {loading ? <tr><td colSpan={7} className="px-5 py-8 text-center text-sm">Đang tải dữ liệu...</td></tr> : null}
+                                {!loading && filteredLogs.length === 0 ? <tr><td colSpan={7} className="px-5 py-8 text-center text-sm">Không có lịch sử biến động.</td></tr> : null}
+                                {!loading && filteredLogs.map((log) => (
+                                    <tr key={`${log.id}-${log.createdAt}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                                        <td className="px-5 py-4 text-xs">{toReadableDate(log.createdAt)}</td>
+                                        <td className="px-5 py-4 text-sm font-medium">{log.productName}</td>
+                                        <td className="px-5 py-4 text-sm">{log.action}</td>
+                                        <td className="px-5 py-4 text-sm">
+                                            <span className={`font-semibold ${log.quantityChange < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                {log.quantityChange > 0 ? '+' : ''}{log.quantityChange}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-4 text-sm">{log.locationType} #{log.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `#${log.referenceId}` : ''}</td>
+                                        <td className="px-5 py-4 text-sm">
+                                            {log.referenceType === 'PRODUCTION_BATCH' && log.referenceId ? (
+                                                <button
+                                                    onClick={() => fetchBatchDetails(log)}
+                                                    className="text-primary hover:underline text-xs font-medium"
+                                                >
+                                                    Xem chi tiết
+                                                </button>
+                                            ) : (
+                                                <span className="text-slate-400 text-xs">-</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
 
             {isImportModalOpen ? (
@@ -673,6 +803,99 @@ export default function BatchTraceabilityPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            ) : null}
+
+            {batchDetailModal ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeBatchDetailModal}>
+                    <div
+                        className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất</h3>
+                            <button
+                                type="button"
+                                onClick={closeBatchDetailModal}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                aria-label="Đóng"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {loadingBatchDetails ? (
+                            <div className="py-8 text-center text-sm text-slate-500">Đang tải chi tiết...</div>
+                        ) : batchDetails?.error ? (
+                            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                                {batchDetails.error}
+                            </div>
+                        ) : batchDetails ? (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã mẻ</p>
+                                        <p className="mt-1 font-semibold">{batchDetails.batchCode}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Sản phẩm</p>
+                                        <p className="mt-1 font-semibold">{batchDetails.productName}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">SL kế hoạch</p>
+                                        <p className="mt-1 font-semibold">{batchDetails.quantityPlanned}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">SL thực tế</p>
+                                        <p className="mt-1 font-semibold text-emerald-600 dark:text-emerald-400">{batchDetails.quantityActual}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Ngày sản xuất</p>
+                                        <p className="mt-1 text-sm">{batchDetails.mfgDate || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Ngày hết hạn</p>
+                                        <p className="mt-1 text-sm">{batchDetails.expDate || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {batchDetails.materials && batchDetails.materials.length > 0 ? (
+                                    <div>
+                                        <h4 className="font-semibold mb-3">Nguyên liệu sử dụng</h4>
+                                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                            <table className="w-full text-left text-sm">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                                                        <th className="px-4 py-3 font-semibold">Nguyên liệu</th>
+                                                        <th className="px-4 py-3 font-semibold text-right">Định mức</th>
+                                                        <th className="px-4 py-3 font-semibold text-right">Hao hụt (%)</th>
+                                                        <th className="px-4 py-3 font-semibold text-right">Thực tế cần</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {batchDetails.materials.map((material, idx) => {
+                                                        const actualNeeded = material.quantityRequired * batchDetails.quantityActual * (1 + material.wasteAllowance / 100)
+                                                        return (
+                                                            <tr key={idx}>
+                                                                <td className="px-4 py-3">{material.materialName}</td>
+                                                                <td className="px-4 py-3 text-right">{material.quantityRequired}</td>
+                                                                <td className="px-4 py-3 text-right">{material.wasteAllowance}%</td>
+                                                                <td className="px-4 py-3 text-right font-semibold text-primary">{actualNeeded.toFixed(2)}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-sm text-slate-500">
+                                        Không có thông tin nguyên liệu
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             ) : null}

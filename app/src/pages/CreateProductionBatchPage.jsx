@@ -224,8 +224,25 @@ export default function CreateProductionBatchPage() {
     const [batches, setBatches] = useState([])
     const [batchesLoading, setBatchesLoading] = useState(false)
     const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
+    const [expDate, setExpDate] = useState(() => {
+        // Mặc định HSD = NSX + 7 ngày
+        const date = new Date()
+        date.setDate(date.getDate() + 7)
+        return date.toISOString().slice(0, 16)
+    })
     const [creatingRowKey, setCreatingRowKey] = useState('')
     const [completingBatchId, setCompletingBatchId] = useState(null)
+    const [batchActualQuantities, setBatchActualQuantities] = useState({})
+    const [showImportModal, setShowImportModal] = useState(false)
+    const [importForm, setImportForm] = useState({
+        productId: '',
+        quantity: '1',
+        supplierId: '',
+    })
+    const [rawProducts, setRawProducts] = useState([])
+    const [suppliers, setSuppliers] = useState([])
+    const [importing, setImporting] = useState(false)
+    const [importError, setImportError] = useState('')
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
 
@@ -460,6 +477,7 @@ export default function CreateProductionBatchPage() {
 
                     return {
                         id,
+                        status: status, // Thêm status để hiển thị
                         productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
                         productName: item?.product?.productName || item?.product?.name || `Sản phẩm #${item?.productId || 'N/A'}`,
                         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
@@ -490,52 +508,71 @@ export default function CreateProductionBatchPage() {
             return
         }
 
-        const actualQty = batch.quantityPlanned || 1
+        // Lấy số lượng thực tế từ input - KHÔNG dùng giá trị mặc định
+        const actualQty = batchActualQuantities[batch.id]
+
+        // Validation: Bắt buộc phải nhập số lượng thực tế
+        if (actualQty === undefined || actualQty === null || actualQty === '' || Number(actualQty) <= 0) {
+            setError(`Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ #${batch.id}!`)
+            return
+        }
+
+        const finalActualQty = Number(actualQty)
 
         setCompletingBatchId(batch.id)
         try {
-            // Thử nhiều variant payload vì backend có thể yêu cầu format khác nhau
-            const payloadVariants = [
-                { status: 'COMPLETED', quantityActual: actualQty },
-                { Status: 'COMPLETED', QuantityActual: actualQty },
-                { status: 'completed', quantityActual: actualQty },
-                { Status: 'completed', QuantityActual: actualQty },
-                { status: 'COMPLETED' },
-                { Status: 'COMPLETED' },
-            ]
-
-            let success = false
-            let lastError = ''
-
-            for (const payload of payloadVariants) {
-                const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
-                    method: 'PUT',
-                    headers: {
-                        accept: '*/*',
-                        Authorization: `Bearer ${tk}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                })
-
-                const data = await response.json().catch(() => ({}))
-
-                if (response.ok) {
-                    success = true
-                    break
-                }
-
-                lastError = data?.message || data?.title || `Lỗi ${response.status}`
-
-                // Nếu không phải lỗi validation thì dừng thử
-                if (response.status !== 400) {
-                    break
-                }
+            // Backend yêu cầu payload format: { status: "COMPLETED", quantityActual: number }
+            const payload = {
+                status: 'COMPLETED',
+                quantityActual: finalActualQty
             }
 
-            if (!success) {
-                throw new Error(lastError || 'Không thể hoàn thành mẻ sản xuất.')
+            console.log(`Completing batch #${batch.id} with payload:`, payload)
+
+            const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
+                method: 'PUT',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            })
+
+            const data = await response.json().catch(() => ({}))
+
+            if (!response.ok) {
+                const errorMsg = data?.message || data?.title || data?.error || `Lỗi ${response.status}`
+                console.error('❌ Failed to complete batch:', errorMsg, data)
+                
+                // Kiểm tra lỗi thiếu nguyên liệu
+                const lowerMsg = String(errorMsg).toLowerCase()
+                const isInsufficientMaterial = 
+                    lowerMsg.includes('insufficient') ||
+                    lowerMsg.includes('not enough') ||
+                    lowerMsg.includes('thiếu') ||
+                    lowerMsg.includes('không đủ') ||
+                    lowerMsg.includes('nguyên liệu') ||
+                    lowerMsg.includes('material') ||
+                    lowerMsg.includes('inventory') ||
+                    lowerMsg.includes('stock')
+                
+                if (isInsufficientMaterial) {
+                    throw new Error(
+                        `⚠️ THIẾU NGUYÊN LIỆU:\n\n${errorMsg}\n\n` +
+                        `💡 Lưu ý: Hệ thống tính nguyên liệu cần thiết dựa trên Recipe/BOM của sản phẩm.\n` +
+                        `Ví dụ: Nếu Recipe quy định 1 bánh cần 20,000g bột, thì làm ${batch.quantityPlanned} bánh cần ${batch.quantityPlanned * 20000}g.\n\n` +
+                        `Giải pháp:\n` +
+                        `1. Nhập thêm nguyên liệu vào kho (nút "Nhập nguyên liệu" ở trên)\n` +
+                        `2. Hoặc giảm số lượng thực tế xuống thấp hơn\n` +
+                        `3. Hoặc kiểm tra Recipe/BOM có đúng không`
+                    )
+                }
+                
+                throw new Error(errorMsg)
             }
+
+            console.log('✅ Batch completed successfully:', data)
 
             // Tự động chuyển đơn sang PRODUCED sau khi hoàn thành mẻ
             let orderUpdateWarning = ''
@@ -560,13 +597,164 @@ export default function CreateProductionBatchPage() {
                 }
             }
 
-            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
+            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${finalActualQty}.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
+            
+            // Xóa số lượng đã nhập khỏi state
+            setBatchActualQuantities(prev => {
+                const newState = { ...prev }
+                delete newState[batch.id]
+                return newState
+            })
+            
             await fetchInProgressBatches()
             await fetchApprovedOrders()
         } catch (requestError) {
             setError(requestError.message || 'Hoàn thành mẻ sản xuất thất bại.')
         } finally {
             setCompletingBatchId(null)
+        }
+    }
+
+    const updateBatchActualQuantity = (batchId, value) => {
+        const numValue = Number(value)
+        if (numValue >= 0) {
+            setBatchActualQuantities(prev => ({
+                ...prev,
+                [batchId]: numValue
+            }))
+        }
+    }
+
+    const fetchRawProductsAndSuppliers = async () => {
+        const tk = getToken()
+        if (!tk) return
+
+        try {
+            const headers = {
+                accept: '*/*',
+                Authorization: `Bearer ${tk}`,
+            }
+
+            const [rawRes, supplierRes] = await Promise.all([
+                fetch(`${apiBase}/Products/raw`, { method: 'GET', headers }),
+                fetch(`${apiBase}/Suppliers`, { method: 'GET', headers }),
+            ])
+
+            const rawData = await rawRes.json().catch(() => [])
+            const supplierData = await supplierRes.json().catch(() => [])
+
+            if (rawRes.ok) {
+                const normalized = parseArrayData(rawData)
+                    .map((item) => {
+                        const id = parseSafeNumber(item?.productId ?? item?.id, 0)
+                        if (!id) return null
+                        return {
+                            id,
+                            name: item?.productName || item?.name || `Sản phẩm #${id}`,
+                        }
+                    })
+                    .filter(Boolean)
+                setRawProducts(normalized)
+                
+                if (normalized.length > 0 && !importForm.productId) {
+                    setImportForm(prev => ({ ...prev, productId: String(normalized[0].id) }))
+                }
+            }
+
+            if (supplierRes.ok) {
+                const normalized = parseArrayData(supplierData)
+                    .map((item) => {
+                        const id = parseSafeNumber(item?.supplierId ?? item?.id, 0)
+                        if (!id) return null
+                        return {
+                            id,
+                            name: item?.supplierName || item?.name || `NCC #${id}`,
+                            isActive: item?.isActive !== false,
+                        }
+                    })
+                    .filter((item) => item?.isActive)
+                    .filter(Boolean)
+                setSuppliers(normalized)
+                
+                if (normalized.length > 0 && !importForm.supplierId) {
+                    setImportForm(prev => ({ ...prev, supplierId: String(normalized[0].id) }))
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching raw products/suppliers:', error)
+        }
+    }
+
+    const openImportModal = () => {
+        setShowImportModal(true)
+        setImportError('')
+        if (rawProducts.length === 0 || suppliers.length === 0) {
+            fetchRawProductsAndSuppliers()
+        }
+    }
+
+    const closeImportModal = () => {
+        if (importing) return
+        setShowImportModal(false)
+        setImportError('')
+    }
+
+    const handleImportSubmit = async (e) => {
+        e.preventDefault()
+        setImportError('')
+
+        const tk = getToken()
+        if (!tk) {
+            setImportError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        const productId = parseSafeNumber(importForm.productId, 0)
+        const supplierId = parseSafeNumber(importForm.supplierId, 0)
+        const quantity = parseSafeNumber(importForm.quantity, 0)
+
+        if (productId < 1) {
+            setImportError('Vui lòng chọn sản phẩm hợp lệ.')
+            return
+        }
+        if (supplierId < 1) {
+            setImportError('Vui lòng chọn nhà cung cấp hợp lệ.')
+            return
+        }
+        if (quantity <= 0) {
+            setImportError('Số lượng nhập phải lớn hơn 0.')
+            return
+        }
+
+        setImporting(true)
+        try {
+            const response = await fetch(`${apiBase}/Inventory/import`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${tk}`,
+                },
+                body: JSON.stringify({
+                    productId,
+                    quantity,
+                    supplierId,
+                }),
+            })
+
+            const data = await response.json().catch(() => null)
+            if (!response.ok) {
+                const errorMsg = data?.message || data?.title || 'Nhập kho thất bại.'
+                throw new Error(errorMsg)
+            }
+
+            setSuccess(data?.message || 'Nhập nguyên liệu thành công.')
+            setShowImportModal(false)
+            setImportForm({ productId: '', quantity: '1', supplierId: '' })
+        } catch (requestError) {
+            setImportError(requestError.message || 'Không thể nhập kho.')
+        } finally {
+            setImporting(false)
         }
     }
 
@@ -605,11 +793,16 @@ export default function CreateProductionBatchPage() {
         setCreatingRowKey(row.key)
         try {
             const mfgIso = new Date(mfgDate).toISOString()
+            const expIso = expDate ? new Date(expDate).toISOString() : null
 
             const payload = {
                 productId: pid,
                 quantityPlanned: qty,
                 mfgDate: mfgIso,
+            }
+
+            if (expIso) {
+                payload.expDate = expIso
             }
 
             if (row.orderId) {
@@ -798,13 +991,22 @@ export default function CreateProductionBatchPage() {
                     <span className="material-symbols-outlined text-primary text-[24px]">precision_manufacturing</span>
                     <h2 className="text-lg font-bold leading-tight">Tạo mẻ sản xuất từ đơn đã phê duyệt</h2>
                 </div>
-                <button
-                    className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm"
-                    onClick={refreshData}
-                    disabled={productsLoading || ordersLoading || !!creatingRowKey}
-                >
-                    {productsLoading || ordersLoading ? 'Đang tải...' : 'Tải lại'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        className="h-10 px-4 rounded-lg bg-[#4e5d43] text-white text-sm font-semibold hover:bg-[#415238] flex items-center gap-2"
+                        onClick={openImportModal}
+                    >
+                        <span className="material-symbols-outlined text-[18px]">add_box</span>
+                        Nhập nguyên liệu
+                    </button>
+                    <button
+                        className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm"
+                        onClick={refreshData}
+                        disabled={productsLoading || ordersLoading || !!creatingRowKey}
+                    >
+                        {productsLoading || ordersLoading ? 'Đang tải...' : 'Tải lại'}
+                    </button>
+                </div>
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 space-y-4">
@@ -815,11 +1017,20 @@ export default function CreateProductionBatchPage() {
                     </p>
                     <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
                         <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ngày sản xuất áp dụng</span>
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ngày sản xuất (NSX)</span>
                             <input
                                 type="datetime-local"
                                 value={mfgDate}
                                 onChange={(e) => setMfgDate(e.target.value)}
+                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Hạn sử dụng (HSD)</span>
+                            <input
+                                type="datetime-local"
+                                value={expDate}
+                                onChange={(e) => setExpDate(e.target.value)}
                                 className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
                             />
                         </label>
@@ -831,9 +1042,20 @@ export default function CreateProductionBatchPage() {
 
                 {batches.length > 0 && (
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-900/20">
-                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Mẻ đang sản xuất (IN_PROGRESS)</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">{batches.length} mẻ</p>
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-900/20">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Mẻ đang sản xuất (IN_PROGRESS)</p>
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400">{batches.length} mẻ</p>
+                            </div>
+                            <div className="mt-2 space-y-1">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                    ℹ️ Chỉ mẻ ở trạng thái IN_PROGRESS mới có thể hoàn thành. Nhập số lượng thực tế và nhấn "Hoàn thành".
+                                </p>
+                                <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
+                                    ⚠️ Lưu ý: Khi hoàn thành mẻ, hệ thống sẽ tự động trừ nguyên liệu theo Recipe/BOM và cộng thành phẩm vào kho. 
+                                    Đảm bảo đủ nguyên liệu trước khi hoàn thành!
+                                </p>
+                            </div>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -850,18 +1072,58 @@ export default function CreateProductionBatchPage() {
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {batches.map((batch) => {
                                         const isCompleting = completingBatchId === batch.id
+                                        const currentActualQty = batchActualQuantities[batch.id] ?? ''
+                                        const hasValidQuantity = currentActualQty !== '' && Number(currentActualQty) > 0
+                                        
+                                        // Kiểm tra status - chỉ IN_PROGRESS mới có thể hoàn thành
+                                        const batchStatus = String(batch.status || '').toUpperCase()
+                                        const isInProgress = batchStatus === 'IN_PROGRESS'
+                                        const canComplete = isInProgress && hasValidQuantity
+                                        
                                         return (
                                             <tr key={batch.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                <td className="px-4 py-3 text-sm font-semibold">#{batch.id}</td>
+                                                <td className="px-4 py-3 text-sm font-semibold">
+                                                    <div className="flex items-center gap-2">
+                                                        #{batch.id}
+                                                        {!isInProgress && (
+                                                            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                                                {batch.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-3 text-sm">{batch.productName}</td>
                                                 <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
-                                                <td className="px-4 py-3 text-sm">{batch.quantityActual || 0}</td>
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        step="1"
+                                                        value={currentActualQty}
+                                                        onChange={(e) => updateBatchActualQuantity(batch.id, e.target.value)}
+                                                        disabled={isCompleting || !!completingBatchId || !isInProgress}
+                                                        className={`w-24 h-9 rounded-lg border px-3 text-sm outline-none disabled:opacity-50 ${
+                                                            !hasValidQuantity && currentActualQty !== '' 
+                                                                ? 'border-red-500 focus:border-red-500' 
+                                                                : 'border-slate-300 dark:border-slate-700 focus:border-primary'
+                                                        } bg-white dark:bg-slate-800`}
+                                                        placeholder="Nhập SL"
+                                                        required
+                                                    />
+                                                </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCompleteBatch(batch)}
-                                                        disabled={isCompleting || !!completingBatchId}
-                                                        className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                                                        disabled={isCompleting || !!completingBatchId || !canComplete}
+                                                        className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={
+                                                            !isInProgress 
+                                                                ? `Mẻ phải ở trạng thái IN_PROGRESS (hiện tại: ${batch.status})` 
+                                                                : !hasValidQuantity 
+                                                                    ? 'Vui lòng nhập số lượng thực tế (> 0)' 
+                                                                    : ''
+                                                        }
                                                     >
                                                         {isCompleting ? 'Đang hoàn thành...' : 'Hoàn thành'}
                                                     </button>
@@ -938,6 +1200,105 @@ export default function CreateProductionBatchPage() {
                     </div>
                 </div>
             </div>
+
+            {showImportModal ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeImportModal}>
+                    <div
+                        className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h3 className="text-lg font-semibold">Nhập nguyên liệu vào kho</h3>
+                            <button
+                                type="button"
+                                onClick={closeImportModal}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                aria-label="Đóng"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleImportSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Nguyên liệu
+                                </label>
+                                <select
+                                    value={importForm.productId}
+                                    onChange={(e) => setImportForm({ ...importForm, productId: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    required
+                                >
+                                    <option value="">Chọn nguyên liệu</option>
+                                    {rawProducts.map((product) => (
+                                        <option key={product.id} value={product.id}>
+                                            {product.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Nhà cung cấp
+                                </label>
+                                <select
+                                    value={importForm.supplierId}
+                                    onChange={(e) => setImportForm({ ...importForm, supplierId: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    required
+                                >
+                                    <option value="">Chọn nhà cung cấp</option>
+                                    {suppliers.map((supplier) => (
+                                        <option key={supplier.id} value={supplier.id}>
+                                            {supplier.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Số lượng nhập
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={importForm.quantity}
+                                    onChange={(e) => setImportForm({ ...importForm, quantity: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    required
+                                />
+                            </div>
+
+                            {importError ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                                    {importError}
+                                </div>
+                            ) : null}
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeImportModal}
+                                    className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={importing}
+                                    className="h-10 px-4 rounded-lg bg-[#4e5d43] text-white text-sm font-semibold hover:bg-[#415238] disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {importing ? 'Đang nhập...' : 'Xác nhận nhập kho'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
         </div>
     )
 }

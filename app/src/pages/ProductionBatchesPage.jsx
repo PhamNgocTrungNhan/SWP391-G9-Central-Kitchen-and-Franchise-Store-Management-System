@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge, EmptyState, Field, PageHeader, SectionCard } from '../components/ui'
 
 const blankAllocation = { OrderId: 0, AllocatedQuantity: 0 }
@@ -22,6 +22,7 @@ export default function ProductionBatchesPage() {
   const [statusLoading, setStatusLoading] = useState(false)
   const [allocateLoading, setAllocateLoading] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [recentBatches, setRecentBatches] = useState([])
 
   const managedBatchId = useMemo(() => Number(managedId), [managedId])
 
@@ -87,12 +88,41 @@ export default function ProductionBatchesPage() {
         (typeof data === 'object' && (data?.message || data?.title || data?.error || validationMessage)) ||
         (typeof data === 'string' && data) ||
         `Yêu cầu thất bại (${response.status})`
+      
+      console.error('API Error:', { path, status: response.status, data })
+      
       const error = new Error(message)
       error.status = response.status
+      error.data = data
       throw error
     }
 
     return data
+  }
+
+  async function fetchRecentBatches() {
+    const tk = getToken()
+    if (!tk) return
+
+    try {
+      // Try to fetch recent batches - this might not be available in backend
+      const data = await callApi('/ProductionBatches', {
+        method: 'GET',
+      })
+
+      const batches = parseArrayData(data)
+      setRecentBatches(batches.slice(0, 10)) // Show only 10 most recent
+    } catch {
+      // If API doesn't exist, just ignore
+      setRecentBatches([])
+    }
+  }
+
+  function parseArrayData(raw) {
+    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw?.items)) return raw.items
+    if (Array.isArray(raw?.data)) return raw.data
+    return []
   }
 
   async function createBatch() {
@@ -133,6 +163,9 @@ export default function ProductionBatchesPage() {
       }
 
       setSuccess((data && data.message) || 'Tạo mẻ sản xuất thành công.')
+      
+      // Refresh recent batches list
+      fetchRecentBatches()
     } catch (requestError) {
       setError(requestError.message || 'Tạo mẻ sản xuất thất bại.')
     } finally {
@@ -149,52 +182,46 @@ export default function ProductionBatchesPage() {
       return
     }
 
+    const statusValue = statusForm.Status
+    const quantityActualValue = Number(statusForm.QuantityActual)
+
+    // Validation: Khi hoàn thành mẻ, số lượng thực tế phải lớn hơn 0
+    if (statusValue === 'COMPLETED' && (!quantityActualValue || quantityActualValue <= 0)) {
+      setError('Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!')
+      return
+    }
+
     setStatusLoading(true)
     try {
-      const statusValue = statusForm.Status
-      const quantityActualValue = Number(statusForm.QuantityActual)
-
-      const payloadVariants = [
-        { status: statusValue, quantityActual: quantityActualValue },
-        { Status: statusValue, QuantityActual: quantityActualValue },
-        { request: { status: statusValue, quantityActual: quantityActualValue } },
-        { request: { Status: statusValue, QuantityActual: quantityActualValue } },
-      ]
-
-      let data = null
-      let lastError = null
-
-      for (let index = 0; index < payloadVariants.length; index += 1) {
-        try {
-          data = await callApi(`/ProductionBatches/${managedBatchId}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payloadVariants[index]),
-          })
-          lastError = null
-          break
-        } catch (requestError) {
-          lastError = requestError
-          const isLastVariant = index === payloadVariants.length - 1
-          if (requestError?.status !== 400 || isLastVariant) {
-            throw requestError
-          }
-        }
+      // Use simple payload format first
+      const payload = {
+        status: statusValue,
+        quantityActual: quantityActualValue,
       }
 
-      if (lastError) throw lastError
+      console.log('Updating batch status:', { managedBatchId, payload })
+
+      const data = await callApi(`/ProductionBatches/${managedBatchId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
       setBatchSnapshot((current) => ({
         ...(current && current.id === managedBatchId ? current : { id: managedBatchId }),
         Status: statusValue,
         QuantityActual: quantityActualValue,
       }))
+      
       if (statusValue === 'IN_PROGRESS') {
         setSuccess((data && data.message) || 'Đã chuyển IN_PROGRESS. Backend sẽ đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.')
+      } else if (statusValue === 'COMPLETED') {
+        setSuccess((data && data.message) || `Hoàn thành mẻ sản xuất thành công! Số lượng thực tế: ${quantityActualValue}`)
       } else {
         setSuccess((data && data.message) || 'Cập nhật trạng thái thành công.')
       }
     } catch (requestError) {
+      console.error('Error updating batch status:', requestError)
       setError(requestError.message || 'Cập nhật trạng thái thất bại.')
     } finally {
       setStatusLoading(false)
@@ -288,6 +315,12 @@ export default function ProductionBatchesPage() {
     )
   }
 
+  // Load recent batches on mount
+  useEffect(() => {
+    fetchRecentBatches()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div>
       <PageHeader pageKey="productionBatches" />
@@ -329,6 +362,48 @@ export default function ProductionBatchesPage() {
           </div>
         </SectionCard>
 
+        {recentBatches.length > 0 && (
+          <SectionCard title="Mẻ Sản Xuất Gần Đây">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Mã Mẻ</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Sản Phẩm</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Kế Hoạch</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Thực Tế</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Trạng Thái</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {recentBatches.map((batch) => (
+                    <tr key={batch.batchId || batch.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                      <td className="px-4 py-3 text-sm font-medium">#{batch.batchId || batch.id}</td>
+                      <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm #${batch.productId}`}</td>
+                      <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{batch.quantityActual || 0}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <Badge tone={batch.status === 'CANCELLED' ? 'red' : batch.status === 'COMPLETED' ? 'green' : 'amber'}>
+                          {statusLabelMap[batch.status] || batch.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          className="text-primary hover:underline text-xs font-medium"
+                          onClick={() => setManagedId(String(batch.batchId || batch.id))}
+                        >
+                          Chọn
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        )}
+
         <SectionCard title="Thao Tác Mẻ">
           <Field label="Mã Mẻ">
             <input className="app-input" type="number" value={managedId} onChange={(event) => setManagedId(event.target.value)} />
@@ -356,6 +431,33 @@ export default function ProductionBatchesPage() {
                 <p className="mt-1 text-xs text-slate-500">
                   Khi chuyển sang IN_PROGRESS, backend sẽ đệ quy BOM đến RAW, gom theo nguyên liệu và trừ tồn kho.
                 </p>
+                
+                {statusForm.Status === 'IN_PROGRESS' && (
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                      ℹ️ <strong>Lưu ý quan trọng:</strong> Trước khi chuyển sang IN_PROGRESS, đảm bảo:
+                      <ul className="mt-1 ml-4 list-disc space-y-1">
+                        <li>Sản phẩm đã có Recipe/BOM (công thức nguyên liệu)</li>
+                        <li>Tồn kho nguyên liệu đủ để sản xuất</li>
+                        <li>Hệ thống sẽ tự động trừ nguyên liệu khi chuyển trạng thái</li>
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      ⚠️ Nếu gặp lỗi 400, kiểm tra:
+                      <ul className="mt-1 ml-4 list-disc">
+                        <li>Sản phẩm có Recipe/BOM chưa? (Vào menu Recipes để tạo)</li>
+                        <li>Nguyên liệu có đủ trong kho không? (Vào Inventory để kiểm tra)</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+                
+                {statusForm.Status === 'COMPLETED' && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    ⚠️ Để hoàn thành mẻ, phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!
+                  </div>
+                )}
+                
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Trạng Thái">
                     <select
@@ -369,13 +471,20 @@ export default function ProductionBatchesPage() {
                       <option value="CANCELLED">Đã hủy</option>
                     </select>
                   </Field>
-                  <Field label="Số Lượng Thực Tế">
+                  <Field label="Số Lượng Thực Tế" required={statusForm.Status === 'COMPLETED'}>
                     <input
-                      className="app-input"
+                      className={`app-input ${statusForm.Status === 'COMPLETED' && (!statusForm.QuantityActual || statusForm.QuantityActual <= 0) ? 'border-red-500 focus:border-red-500' : ''}`}
                       type="number"
+                      min="0"
+                      step="1"
                       value={statusForm.QuantityActual}
                       onChange={(event) => setStatusForm({ ...statusForm, QuantityActual: Number(event.target.value) })}
+                      placeholder={statusForm.Status === 'COMPLETED' ? 'Bắt buộc > 0' : 'Nhập số lượng'}
+                      required={statusForm.Status === 'COMPLETED'}
                     />
+                    {statusForm.Status === 'COMPLETED' && (!statusForm.QuantityActual || statusForm.QuantityActual <= 0) && (
+                      <p className="mt-1 text-xs text-red-600">Số lượng thực tế phải lớn hơn 0</p>
+                    )}
                   </Field>
                 </div>
                 <div className="mt-4">

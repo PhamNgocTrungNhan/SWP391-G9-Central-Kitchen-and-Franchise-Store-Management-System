@@ -61,7 +61,7 @@ function LoginOrHome() {
 const routeConfig = [
   { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
 
-  { path: '/inventory', element: <BatchTraceabilityPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/inventory', element: <InventoryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/organization/stores', element: <StoresPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/organization/kitchens', element: <Navigate to="/organization/stores" replace />, roles: [roles.ADMIN, roles.MANAGER] },
