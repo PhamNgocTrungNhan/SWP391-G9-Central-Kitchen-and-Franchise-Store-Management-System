@@ -4,10 +4,7 @@ using Shop2026.DLL;
 using Shop2026.DTOs;
 using System;
 using System.Linq;
-using System.Threading.Tasks;
-
-// ✅ THƯ VIỆN ĐỂ NHẬN WEBHOOK V2
-using PayOS.Models.Webhooks;
+using System.Collections.Generic;
 
 namespace Shop2026.Controllers
 {
@@ -111,11 +108,11 @@ namespace Shop2026.Controllers
         }
 
         // ==========================================
-        // 🚀 API LẤY LINK MÃ QR THANH TOÁN TỪ PAYOS
+        // 🚀 API LẤY LINK MÃ QR THANH TOÁN TỪ VNPAY
         // ==========================================
-        [HttpPost("{orderId}/payos-link")]
+        [HttpPost("{orderId}/vnpay-link")]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
-        public async Task<IActionResult> CreatePayOSLink(int orderId, [FromQuery] string returnUrl = "http://localhost:5173/success", [FromQuery] string cancelUrl = "http://localhost:5173/cancel")
+        public IActionResult CreateVnPayLink(int orderId, [FromQuery] string returnUrl = "http://localhost:5173/payment-result")
         {
             int storeIdToPass;
             if (IsAdmin())
@@ -139,10 +136,11 @@ namespace Shop2026.Controllers
 
             try
             {
-                string checkoutUrl = await _orderService.CreatePayOSLink(orderId, storeIdToPass, returnUrl, cancelUrl);
+                string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                string checkoutUrl = _orderService.CreateVnPayLink(orderId, storeIdToPass, returnUrl, ipAddress);
                 return Ok(new
                 {
-                    message = "Tạo link PayOS thành công",
+                    message = "Tạo link VNPAY thành công",
                     checkoutUrl
                 });
             }
@@ -150,26 +148,49 @@ namespace Shop2026.Controllers
         }
 
         // ==========================================
-        // 🤖 API HỨNG WEBHOOK TỪ PAYOS
+        // 🤖 API HỨNG IPN TỪ VNPAY (VNPAY BẮN VỀ)
         // ==========================================
-        [HttpPost("payos-webhook")]
-        [AllowAnonymous]
-        public async Task<IActionResult> PayOSWebhook([FromBody] Webhook webhookBody) // Đổi sang Webhook theo chuẩn
+        [HttpGet("vnpay-ipn")]
+        [AllowAnonymous] // Bắt buộc mở để máy chủ VNPAY chọc vào được
+        public IActionResult VnPayIPN()
         {
             try
             {
-                await _orderService.ProcessPayOSWebhook(webhookBody);
-                return Ok(new
+                var requestData = new Dictionary<string, string>();
+                foreach (var (key, value) in Request.Query)
                 {
-                    success = true
-                });
+                    if (!string.IsNullOrEmpty(key) && key.StartsWith("vnp_"))
+                    {
+                        requestData.Add(key, value.ToString());
+                    }
+                }
+
+                bool isSuccess = _orderService.ProcessVnPayIPN(requestData);
+
+                // VNPAY yêu cầu định dạng phản hồi chuẩn này để họ không gọi lại nữa
+                if (isSuccess)
+                {
+                    return Ok(new
+                    {
+                        RspCode = "00",
+                        Message = "Confirm Success"
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        RspCode = "97",
+                        Message = "Invalid Signature or Failed"
+                    });
+                }
             }
             catch (Exception ex)
             {
-                return BadRequest(new
+                return Ok(new
                 {
-                    success = false,
-                    message = ex.Message
+                    RspCode = "99",
+                    Message = "Unknown Error"
                 });
             }
         }

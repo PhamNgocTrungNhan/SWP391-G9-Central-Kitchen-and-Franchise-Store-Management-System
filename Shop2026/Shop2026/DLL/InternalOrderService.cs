@@ -1,15 +1,10 @@
-﻿// ✅ THƯ VIỆN PAYOS V2 
-using PayOS;
-using PayOS.Models;
-using PayOS.Models.V2.PaymentRequests;
-using PayOS.Models.Webhooks; // Bắt buộc phải có để hứng Webhook
-using Shop2026.DAL;
+﻿using Shop2026.DAL;
 using Shop2026.DTOs;
 using Shop2026.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 
 namespace Shop2026.DLL
 {
@@ -17,7 +12,7 @@ namespace Shop2026.DLL
     {
         private readonly InternalOrderRepository _orderRepository;
         private readonly InventoryService _inventoryService;
-        private readonly PayOSClient _payOS;
+        private readonly IConfiguration _configuration;
 
         public static readonly Dictionary<string, (string DisplayName, decimal Percentage)> RefundPolicies = new()
         {
@@ -30,11 +25,11 @@ namespace Shop2026.DLL
         public InternalOrderService(
             InternalOrderRepository orderRepository,
             InventoryService inventoryService,
-            PayOSClient payOS)
+            IConfiguration configuration)
         {
             _orderRepository = orderRepository;
             _inventoryService = inventoryService;
-            _payOS = payOS;
+            _configuration = configuration;
         }
 
         public InternalOrder CreateInternalOrder(CreateInternalOrderRequest request)
@@ -96,7 +91,7 @@ namespace Shop2026.DLL
                 Amount = order.TotalAmount ?? 0,
                 PaymentMethod = "Bank Transfer",
                 TransactionDate = DateTime.Now,
-                Note = $"Cửa hàng thanh toán chuyển khoản cho đơn hàng {order.OrderCode}"
+                Note = $"Cửa hàng thanh toán chuyển khoản thủ công cho đơn {order.OrderCode}"
             };
 
             _orderRepository.AddTransaction(transaction);
@@ -104,9 +99,9 @@ namespace Shop2026.DLL
         }
 
         // ==========================================
-        // 🚀 TẠO LINK THANH TOÁN QR PAYOS (FIX CHUẨN V2)
+        // 🚀 TẠO LINK THANH TOÁN VNPAY
         // ==========================================
-        public async Task<string> CreatePayOSLink(int orderId, int storeId, string returnUrl, string cancelUrl)
+        public string CreateVnPayLink(int orderId, int storeId, string returnUrl, string ipAddress)
         {
             var order = _orderRepository.GetOrderDetail(orderId);
             if (order == null)
@@ -116,51 +111,79 @@ namespace Shop2026.DLL
             if (order.PaymentStatus == "PAID")
                 throw new Exception("Đơn này đã thanh toán rồi!");
 
-            long payOsOrderCode = order.OrderId;
-            int totalAmount = (int)(order.TotalAmount ?? 0);
+            string vnp_TmnCode = _configuration["VNPAY:TmnCode"];
+            string vnp_HashSecret = _configuration["VNPAY:HashSecret"];
+            string vnp_Url = _configuration["VNPAY:BaseUrl"];
 
-            // PayOS V2 không bắt buộc truyền Items, bỏ luôn để tránh lằng nhằng lỗi thư viện
-            var paymentRequest = new CreatePaymentLinkRequest
-            {
-                OrderCode = payOsOrderCode,
-                Amount = totalAmount,
-                Description = $"Thanh toan don {order.OrderCode ?? orderId.ToString()}",
-                CancelUrl = cancelUrl,
-                ReturnUrl = returnUrl
-            };
+            VnPayLibrary vnpay = new VnPayLibrary();
 
-            var paymentLink = await _payOS.PaymentRequests.CreateAsync(paymentRequest);
-            return paymentLink.CheckoutUrl;
+            vnpay.AddRequestData("vnp_Version", "2.1.0");
+            vnpay.AddRequestData("vnp_Command", "pay");
+            vnpay.AddRequestData("vnp_TmnCode", vnp_TmnCode);
+            // VNPAY yêu cầu số tiền nhân với 100
+            vnpay.AddRequestData("vnp_Amount", ((long)(order.TotalAmount * 100)).ToString());
+            vnpay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
+            vnpay.AddRequestData("vnp_CurrCode", "VND");
+            vnpay.AddRequestData("vnp_IpAddr", ipAddress);
+            vnpay.AddRequestData("vnp_Locale", "vn");
+            vnpay.AddRequestData("vnp_OrderInfo", $"Thanh toan don hang {order.OrderId}");
+            vnpay.AddRequestData("vnp_OrderType", "other");
+            vnpay.AddRequestData("vnp_ReturnUrl", returnUrl);
+            vnpay.AddRequestData("vnp_TxnRef", order.OrderId.ToString() + "_" + DateTime.Now.Ticks.ToString());
+
+            string paymentUrl = vnpay.CreateRequestUrl(vnp_Url, vnp_HashSecret);
+            return paymentUrl;
         }
 
         // ==========================================
-        // 🤖 HỨNG WEBHOOK TỪ PAYOS (FIX CHUẨN V2)
+        // 🤖 HỨNG IPN TỪ VNPAY ĐỂ TỰ CHỐT ĐƠN
         // ==========================================
-        public async Task ProcessPayOSWebhook(Webhook webhookBody) // Dùng Webhook thay vì WebhookData
+        public bool ProcessVnPayIPN(Dictionary<string, string> requestData)
         {
-            var verifiedData = await _payOS.Webhooks.VerifyAsync(webhookBody);
-
-            int orderId = (int)verifiedData.OrderCode; // Viết hoa chữ O
-            var order = _orderRepository.GetOrderById(orderId);
-
-            if (order != null && order.PaymentStatus != "PAID")
+            VnPayLibrary vnpay = new VnPayLibrary();
+            foreach (var kv in requestData)
             {
-                order.PaymentStatus = "PAID";
-                order.UpdatedAt = DateTime.Now;
-                _orderRepository.UpdateOrder(order);
-
-                var transaction = new Transaction
+                if (kv.Key.StartsWith("vnp_"))
                 {
-                    InternalOrderId = orderId,
-                    TransactionType = "REVENUE",
-                    Amount = order.TotalAmount ?? 0,
-                    PaymentMethod = "PayOS_VietQR",
-                    TransactionDate = DateTime.Now,
-                    Note = $"PayOS tự động xác nhận chuyển khoản cho đơn {order.OrderCode}"
-                };
-
-                _orderRepository.AddTransaction(transaction);
+                    vnpay.AddResponseData(kv.Key, kv.Value);
+                }
             }
+
+            string vnp_HashSecret = _configuration["VNPAY:HashSecret"];
+            string vnp_SecureHash = requestData.ContainsKey("vnp_SecureHash") ? requestData["vnp_SecureHash"] : "";
+            bool checkSignature = vnpay.ValidateSignature(vnp_SecureHash, vnp_HashSecret);
+
+            if (!checkSignature)
+                return false;
+
+            // Thanh toán thành công (Mã 00)
+            if (vnpay.GetResponseData("vnp_ResponseCode") == "00" && vnpay.GetResponseData("vnp_TransactionStatus") == "00")
+            {
+                // Tách lấy OrderId từ TxnRef (Lúc tạo mình ghép dạng OrderId_Ticks)
+                string txnRef = vnpay.GetResponseData("vnp_TxnRef");
+                int orderId = int.Parse(txnRef.Split('_')[0]);
+
+                var order = _orderRepository.GetOrderById(orderId);
+                if (order != null && order.PaymentStatus != "PAID")
+                {
+                    order.PaymentStatus = "PAID";
+                    order.UpdatedAt = DateTime.Now;
+                    _orderRepository.UpdateOrder(order);
+
+                    var transaction = new Transaction
+                    {
+                        InternalOrderId = orderId,
+                        TransactionType = "REVENUE",
+                        Amount = order.TotalAmount ?? 0,
+                        PaymentMethod = "VNPAY",
+                        TransactionDate = DateTime.Now,
+                        Note = $"VNPAY thanh toán thành công mã GD: {vnpay.GetResponseData("vnp_TransactionNo")}"
+                    };
+                    _orderRepository.AddTransaction(transaction);
+                }
+                return true;
+            }
+            return false;
         }
 
         public Transaction? RefundOrderByPolicy(int orderId, int storeId, string policyCode, string? additionalNote)
@@ -168,7 +191,6 @@ namespace Shop2026.DLL
             if (!RefundPolicies.ContainsKey(policyCode))
                 throw new Exception("Mã chính sách hoàn tiền không hợp lệ.");
             var policy = RefundPolicies[policyCode];
-
             string fullReason = policy.DisplayName;
             if (!string.IsNullOrWhiteSpace(additionalNote))
                 fullReason += $" - Ghi chú: {additionalNote}";
