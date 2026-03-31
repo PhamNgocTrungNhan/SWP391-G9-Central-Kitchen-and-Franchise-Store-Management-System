@@ -25,6 +25,8 @@ import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import UsersPage from './pages/UsersPage'
 import StoresPage from './pages/StoresPage'
 import LandingPage from './pages/LandingPage'
+import PaymentsPage from './pages/PaymentsPage'
+import PaymentResultPage from './pages/PaymentResultPage'
 import Layout from './components/Layout'
 import { getDefaultPathByRole, roles } from './data/appSchema'
 import { getCurrentUserRole, getStoredToken } from './utils/auth'
@@ -74,6 +76,9 @@ const routeConfig = [
   { path: '/users', element: <UsersPage />, roles: [roles.ADMIN] },
   { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.MANAGER, roles.STORE_STAFF] },
   { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/payments', element: <PaymentsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+  { path: '/success', element: <PaymentResultPage variant="success" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+  { path: '/cancel', element: <PaymentResultPage variant="cancel" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },

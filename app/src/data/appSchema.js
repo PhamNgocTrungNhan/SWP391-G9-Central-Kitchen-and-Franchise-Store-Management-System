@@ -37,6 +37,7 @@ export const navigationGroups = [
       { to: '/inventory-logs', key: 'inventoryLogs', label: 'Lịch sử tồn kho', icon: 'history', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
       { to: '/store-orders', key: 'storeOrders', label: 'Đơn cửa hàng', icon: 'shopping_cart', roles: [roles.MANAGER, roles.STORE_STAFF] },
       { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/payments', key: 'payments', label: 'Thanh toán', icon: 'payments', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
       { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ SX', icon: 'precision_manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
     ],
   },
@@ -165,5 +166,17 @@ export const pageCatalog = {
       { method: 'DELETE', path: '/api/User/{userId}' },
     ],
   },
+  payments: {
+    controller: 'InternalOrderController',
+    title: 'Thanh toán và hoàn tiền',
+    description: 'Workspace thanh toán tích hợp PayOS QR code và xử lý hoàn tiền theo chính sách. Hỗ trợ tạo link thanh toán, webhook tự động và hoàn tiền theo policy.',
+    authorize: 'ADMIN, MANAGER, STORE_STAFF',
+    endpoints: [
+      { method: 'POST', path: '/api/internal-orders/{orderId}/payos-link', params: 'returnUrl, cancelUrl' },
+      { method: 'POST', path: '/api/internal-orders/payos-webhook', note: 'PayOS tự động gọi' },
+      { method: 'POST', path: '/api/internal-orders/{orderId}/pay', note: 'Thanh toán thủ công' },
+      { method: 'GET', path: '/api/internal-orders/refund-policies' },
+      { method: 'POST', path: '/api/internal-orders/{orderId}/refund', body: 'RefundRequest' },
+    ],
+  },
 }
-

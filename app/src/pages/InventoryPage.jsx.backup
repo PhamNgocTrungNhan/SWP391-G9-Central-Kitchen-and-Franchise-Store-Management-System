@@ -26,17 +26,6 @@ function toReadableDate(dateString) {
   })
 }
 
-function toShortDate(dateString) {
-  if (!dateString) return 'N/A'
-  const d = new Date(dateString)
-  if (Number.isNaN(d.getTime())) return String(dateString)
-  return d.toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
-
 export default function InventoryPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
   const [activeTab, setActiveTab] = useState('stock')
@@ -47,6 +36,11 @@ export default function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20
 
+  // Expiry tracking modal states
+  const [showExpiryDetailModal, setShowExpiryDetailModal] = useState(false)
+  const [selectedExpiryItem, setSelectedExpiryItem] = useState(null)
+  const [expiryDetailLoading, setExpiryDetailLoading] = useState(false)
+
   // Expired scan states
   const [scanning, setScanning] = useState(false)
   const [message, setMessage] = useState(null)
@@ -55,11 +49,6 @@ export default function InventoryPage() {
   const [selectedExpiredItem, setSelectedExpiredItem] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-
-  // Expiry tracking modal states
-  const [showExpiryDetailModal, setShowExpiryDetailModal] = useState(false)
-  const [selectedExpiryItem, setSelectedExpiryItem] = useState(null)
-  const [expiryDetailLoading, setExpiryDetailLoading] = useState(false)
 
   // Import ingredient states
   const [showImportModal, setShowImportModal] = useState(false)
@@ -210,7 +199,7 @@ export default function InventoryPage() {
 
     setLoading(true)
     try {
-      // Fetch products để lấy tên sản phẩm
+      // Fetch all products
       const productsRes = await fetch(`${apiBase}/Products`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -225,24 +214,33 @@ export default function InventoryPage() {
         })
       }
 
-      // Fetch tất cả mẻ COMPLETED có expDate
+      // Fetch current stock
+      const stockRes = await fetch(`${apiBase}/Inventory/stock`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      const stockData = stockRes.ok ? await stockRes.json() : []
+      const stockMap = {}
+      if (Array.isArray(stockData)) {
+        stockData.forEach((item) => {
+          const qty = Number(item.currentQuantity || item.quantity || 0)
+          if (qty > 0) {
+            stockMap[item.productId] = qty
+          }
+        })
+      }
+
+      // Fetch all COMPLETED batches
       const batchesRes = await fetch(`${apiBase}/ProductionBatches`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
       const batchesData = batchesRes.ok ? await batchesRes.json() : []
 
-      console.log('All batches from API:', batchesData)
-
+      // Filter COMPLETED batches only
       const completedBatches = (Array.isArray(batchesData) ? batchesData : [])
-        .filter((b) => {
-          const isCompleted = String(b.status || '').toUpperCase() === 'COMPLETED'
-          const hasExpDate = !!b.expDate
-          console.log(`Batch #${b.batchId} (${b.batchCode}): status=${b.status}, expDate=${b.expDate}, quantityActual=${b.quantityActual}, isCompleted=${isCompleted}, hasExpDate=${hasExpDate}`)
-          return isCompleted && hasExpDate
-        })
+        .filter((b) => b.status === 'COMPLETED')
         .map((b) => ({
           batchId: b.batchId,
-          batchCode: b.batchCode || `BATCH-${b.batchId}`,
+          batchCode: b.batchCode,
           productId: b.productId,
           quantityPlanned: Number(b.quantityPlanned || 0),
           quantityActual: Number(b.quantityActual || 0),
@@ -251,51 +249,70 @@ export default function InventoryPage() {
           status: b.status
         }))
 
-      console.log('Filtered completed batches:', completedBatches)
-
-      // Sắp xếp theo FIFO (mfgDate cũ → mới)
+      // FIFO: Sort by mfgDate ascending (oldest first)
       completedBatches.sort((a, b) => new Date(a.mfgDate) - new Date(b.mfgDate))
 
-      // Hiển thị TẤT CẢ mẻ COMPLETED có expDate, không cần phân bổ tồn kho
-      const result = completedBatches.map((batch) => {
+      console.log('Raw batches data:', completedBatches)
+
+      // Allocate stock to batches using FIFO
+      const result = []
+      const productStockRemaining = { ...stockMap }
+
+      for (const batch of completedBatches) {
         const productInfo = productMap[batch.productId] || { name: `Sản phẩm #${batch.productId}`, sku: 'N/A' }
-        const now = new Date()
-        const expDate = batch.expDate ? new Date(batch.expDate) : null
-        let expiryStatus = 'N/A'
-        let daysRemaining = null
+        const remainingStock = productStockRemaining[batch.productId] || 0
 
-        if (expDate) {
-          const diffTime = expDate - now
-          daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        console.log(`Processing batch:`, batch)
 
-          if (daysRemaining < 0) {
-            expiryStatus = 'Hết hạn'
-          } else if (daysRemaining <= 3) {
-            expiryStatus = 'Sắp hết hạn'
-          } else if (daysRemaining <= 7) {
-            expiryStatus = 'Cảnh báo'
-          } else {
-            expiryStatus = 'Còn hạn'
+        if (remainingStock <= 0) {
+          // Không còn tồn kho cho sản phẩm này
+          continue
+        }
+
+        // Phân bổ tồn kho cho mẻ này
+        const allocatedQty = Math.min(remainingStock, batch.quantityActual)
+        productStockRemaining[batch.productId] = remainingStock - allocatedQty
+
+        if (allocatedQty > 0) {
+          // Tính trạng thái HSD
+          const now = new Date()
+          const expDate = batch.expDate ? new Date(batch.expDate) : null
+          let expiryStatus = 'N/A'
+          let daysRemaining = null
+
+          if (expDate) {
+            const diffTime = expDate - now
+            daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+            if (daysRemaining < 0) {
+              expiryStatus = 'Hết hạn'
+            } else if (daysRemaining <= 3) {
+              expiryStatus = 'Sắp hết hạn'
+            } else if (daysRemaining <= 7) {
+              expiryStatus = 'Cảnh báo'
+            } else {
+              expiryStatus = 'Còn hạn'
+            }
           }
-        }
 
-        return {
-          batchId: batch.batchId,
-          batchCode: batch.batchCode,
-          productId: batch.productId,
-          productName: productInfo.name,
-          sku: productInfo.sku,
-          quantity: batch.quantityActual, // Hiển thị số lượng thực tế của mẻ
-          quantityPlanned: batch.quantityPlanned,
-          quantityActual: batch.quantityActual,
-          mfgDate: batch.mfgDate,
-          expDate: batch.expDate,
-          expiryStatus,
-          daysRemaining
+          result.push({
+            batchId: batch.batchId,
+            batchCode: batch.batchCode,
+            productId: batch.productId,
+            productName: productInfo.name,
+            sku: productInfo.sku,
+            quantity: allocatedQty,
+            quantityPlanned: batch.quantityPlanned,
+            quantityActual: batch.quantityActual,
+            mfgDate: batch.mfgDate,
+            expDate: batch.expDate,
+            expiryStatus,
+            daysRemaining
+          })
         }
-      })
+      }
 
-      console.log('Final expiry tracking result:', result)
+      console.log('Normalized expiry tracking:', result)
       setExpiryTracking(result)
     } catch (error) {
       console.error('Error fetching expiry tracking:', error)
@@ -466,6 +483,7 @@ export default function InventoryPage() {
     setExpiryDetailLoading(true)
 
     try {
+      // Fetch batch details
       const batchRes = await fetch(`${apiBase}/ProductionBatches/${item.batchId}`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -799,14 +817,14 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-sm">{log.action}</td>
                         <td className="px-4 py-3 text-sm">{log.actor}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={String(log.quantity).startsWith('+') ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                          <span className={log.quantity.startsWith('+') ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
                             {log.quantity}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs">{log.date}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {String(log.quantity).startsWith('+') ? 'Nhập' : 'Xuất'}
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${log.quantity.startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {log.quantity.startsWith('+') ? 'Nhập' : 'Xuất'}
                           </span>
                         </td>
                       </tr>
@@ -846,16 +864,17 @@ export default function InventoryPage() {
               <div className="px-4 py-3 text-sm text-slate-500">Không có dữ liệu theo dõi hạn sử dụng</div>
             ) : (
               <>
-                <table className="w-full text-left border-collapse">
+                <table className="w-full table-fixed text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">NSX</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">HSD</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
+                      <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                      <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL mẻ</th>
+                      <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày SX</th>
+                      <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">HSD</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Còn lại</th>
+                      <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -863,11 +882,12 @@ export default function InventoryPage() {
                       <tr key={item.batchId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
                         <td className="px-4 py-3 text-sm">{item.batchCode}</td>
+                        <td className="px-4 py-3 text-sm">{item.quantityActual}</td>
+                        <td className="px-4 py-3 text-xs">{toReadableDate(item.mfgDate)}</td>
+                        <td className="px-4 py-3 text-xs">{toReadableDate(item.expDate)}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className="text-emerald-600 font-semibold">{item.quantityActual}</span>
+                          <span className="text-emerald-600 font-semibold">{item.quantity}</span>
                         </td>
-                        <td className="px-4 py-3 text-xs">{toShortDate(item.mfgDate)}</td>
-                        <td className="px-4 py-3 text-xs font-medium">{toShortDate(item.expDate)}</td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
                             item.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
@@ -918,428 +938,456 @@ export default function InventoryPage() {
               </>
             )
           )}
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+          Sau
+        </button>
+      </div>
+    </div>
+  )
+}
+              </>
+            )
+          )}
+        </div >
+      </div >
+
+
+  {/* Expired Items Modal */ }
+{
+  showExpiredModal && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="text-lg font-bold">Danh sách sản phẩm hết hạn</h3>
+          <button
+            onClick={() => setShowExpiredModal(false)}
+            className="text-slate-400 hover:text-slate-600"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50">
+              <tr className="border-b border-slate-200 dark:border-slate-800">
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL hết hạn</th>
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">NSX</th>
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">HSD</th>
+                <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {expiredItems.map((item) => (
+                <tr key={item.batchId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                  <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
+                  <td className="px-4 py-3 text-sm">{item.batchCode}</td>
+                  <td className="px-4 py-3 text-sm text-red-600 font-semibold">{item.expiredQuantity}</td>
+                  <td className="px-4 py-3 text-xs">{toReadableDate(item.mfgDate)}</td>
+                  <td className="px-4 py-3 text-xs text-red-600">{toReadableDate(item.expDate)}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <button
+                      onClick={() => handleViewExpiredDetail(item)}
+                      className="text-primary hover:underline text-sm font-medium"
+                    >
+                      Chi tiết
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+          <button
+            onClick={() => setShowExpiredModal(false)}
+            className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
+          >
+            Đóng
+          </button>
         </div>
       </div>
+    </div>
+  )
+}
 
 
-      {/* Expiry Detail Modal */}
-      {showExpiryDetailModal && selectedExpiryItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={() => setShowExpiryDetailModal(false)}>
-          <div
-            className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
+{/* Detail Modal */ }
+{
+  showDetailModal && selectedExpiredItem && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="text-lg font-bold">Chi tiết sản phẩm hết hạn</h3>
+          <button
+            onClick={() => setShowDetailModal(false)}
+            className="text-slate-400 hover:text-slate-600"
           >
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất #{selectedExpiryItem.batchId}</h3>
-              <button
-                type="button"
-                onClick={() => setShowExpiryDetailModal(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                aria-label="Đóng"
-              >
-                ×
-              </button>
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="overflow-auto flex-1 px-6 py-4">
+          {detailLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <span className="text-slate-500">Đang tải...</span>
             </div>
-
-            {expiryDetailLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <span className="text-slate-500">Đang tải...</span>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-red-600 text-[24px]">warning</span>
+                  <div>
+                    <h4 className="font-semibold text-red-800 dark:text-red-400">Cảnh báo hết hạn sử dụng</h4>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      Sản phẩm này đã hết hạn sử dụng và cần được xử lý theo quy định.
+                    </p>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {selectedExpiryItem.expiryStatus && selectedExpiryItem.expiryStatus !== 'Còn hạn' && (
-                  <div className={`rounded-lg border p-4 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' :
-                    selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800' :
-                      'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
-                    }`}>
-                    <div className="flex items-start gap-3">
-                      <span className={`material-symbols-outlined text-[24px] ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-600' :
-                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-600' :
-                          'text-amber-600'
-                        }`}>warning</span>
-                      <div>
-                        <h4 className={`font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-800 dark:text-red-400' :
-                          selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-800 dark:text-orange-400' :
-                            'text-amber-800 dark:text-amber-400'
-                          }`}>
-                          {selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'Cảnh báo hết hạn sử dụng' :
-                            selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'Sắp hết hạn sử dụng' :
-                              'Cảnh báo gần hết hạn'}
-                        </h4>
-                        <p className={`text-sm mt-1 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-700 dark:text-red-300' :
-                          selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-700 dark:text-orange-300' :
-                            'text-amber-700 dark:text-amber-300'
-                          }`}>
-                          {selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining < 0
-                            ? `Đã hết hạn ${Math.abs(selectedExpiryItem.daysRemaining)} ngày`
-                            : selectedExpiryItem.daysRemaining !== null
-                              ? `Còn ${selectedExpiryItem.daysRemaining} ngày`
-                              : 'Vui lòng kiểm tra hạn sử dụng'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                  <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin sản phẩm</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Tên sản phẩm</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.productName}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã SKU</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.sku || 'N/A'}</p>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Mã mẻ sản xuất</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiredItem.batchCode}</p>
                 </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                  <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin mẻ sản xuất</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã mẻ</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.batchCode}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">SL kế hoạch</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.quantityPlanned}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">SL thực tế</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.quantityActual}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">SL còn lại trong kho</label>
-                      <p className="text-sm font-medium mt-1 text-emerald-600">{selectedExpiryItem.quantity}</p>
-                    </div>
-                  </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Sản phẩm</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiredItem.productName}</p>
                 </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">SL dự kiến</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiredItem.plannedQuantity || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">SL thực tế</label>
+                  <p className="text-sm font-medium mt-1 text-red-600">{selectedExpiredItem.actualQuantity || selectedExpiredItem.expiredQuantity || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
+                  <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiredItem.mfgDate)}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
+                  <p className="text-sm font-medium mt-1 text-red-600">{toReadableDate(selectedExpiredItem.expDate)}</p>
+                </div>
+              </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                  <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin ngày tháng</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
-                      <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiryItem.mfgDate)}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
-                      <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-600' :
-                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-600' :
-                          selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'text-amber-600' :
-                            'text-emerald-600'
-                        }`}>
-                        {toReadableDate(selectedExpiryItem.expDate)}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Số ngày còn lại</label>
-                      <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining < 0 ? 'text-red-600' :
-                        selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining <= 3 ? 'text-orange-600' :
-                          selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining <= 7 ? 'text-amber-600' :
-                            'text-emerald-600'
-                        }`}>
-                        {selectedExpiryItem.daysRemaining !== null
-                          ? selectedExpiryItem.daysRemaining < 0
-                            ? `Quá hạn ${Math.abs(selectedExpiryItem.daysRemaining)} ngày`
-                            : `${selectedExpiryItem.daysRemaining} ngày`
-                          : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Trạng thái</label>
-                      <p className="text-sm font-medium mt-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
-                          selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
-                            selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
-                              'bg-emerald-100 text-emerald-700'
-                          }`}>
-                          {selectedExpiryItem.expiryStatus}
-                        </span>
-                      </p>
-                    </div>
+              {selectedExpiredItem.recipe && selectedExpiredItem.recipe.materials && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Nguyên liệu đã sử dụng (Công thức)</h4>
+                  <table className="w-full text-left border-collapse border border-slate-200 dark:border-slate-800">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50">
+                        <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">Nguyên liệu</th>
+                        <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">SL yêu cầu</th>
+                        <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">Hao hụt (%)</th>
+                        <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">SL thực tế cần</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedExpiredItem.recipe.materials.map((mat, idx) => {
+                        const actualNeeded = mat.quantityRequired * (1 + (mat.wasteAllowancePercent || 0) / 100)
+                        return (
+                          <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
+                            <td className="px-3 py-2 text-sm">{mat.materialName || `Material #${mat.materialId}`}</td>
+                            <td className="px-3 py-2 text-sm">{mat.quantityRequired}</td>
+                            <td className="px-3 py-2 text-sm">{mat.wasteAllowancePercent || 0}%</td>
+                            <td className="px-3 py-2 text-sm font-semibold">{actualNeeded.toFixed(2)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+          <button
+            onClick={() => setShowDetailModal(false)}
+            className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+{/* Import Ingredient Modal */ }
+{
+  showImportModal && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" onClick={closeImportModal}>
+      <div
+        className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg font-semibold">Nhập nguyên liệu vào kho</h3>
+          <button
+            type="button"
+            onClick={closeImportModal}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+            aria-label="Đóng"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <form onSubmit={handleImportSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Nguyên liệu
+            </label>
+            <select
+              value={importForm.productId}
+              onChange={(e) => setImportForm({ ...importForm, productId: e.target.value })}
+              className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+              required
+            >
+              <option value="">Chọn nguyên liệu</option>
+              {rawProducts.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Nhà cung cấp
+            </label>
+            <select
+              value={importForm.supplierId}
+              onChange={(e) => setImportForm({ ...importForm, supplierId: e.target.value })}
+              className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+              required
+            >
+              <option value="">Chọn nhà cung cấp</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Số lượng nhập
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              value={importForm.quantity}
+              onChange={(e) => setImportForm({ ...importForm, quantity: e.target.value })}
+              className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+              required
+            />
+          </div>
+
+          {importError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+              {importError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={closeImportModal}
+              className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={importing}
+              className="h-10 px-4 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {importing ? 'Đang nhập...' : 'Xác nhận nhập kho'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+    </div >
+  )
+}
+
+
+{/* Expiry Detail Modal */ }
+{
+  showExpiryDetailModal && selectedExpiryItem && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={() => setShowExpiryDetailModal(false)}>
+      <div
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất #{selectedExpiryItem.batchId}</h3>
+          <button
+            type="button"
+            onClick={() => setShowExpiryDetailModal(false)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+            aria-label="Đóng"
+          >
+            ×
+          </button>
+        </div>
+
+        {expiryDetailLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <span className="text-slate-500">Đang tải...</span>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Cảnh báo trạng thái */}
+            {selectedExpiryItem.expiryStatus && selectedExpiryItem.expiryStatus !== 'Còn hạn' && (
+              <div className={`rounded-lg border p-4 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' :
+                  selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800' :
+                    'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
+                }`}>
+                <div className="flex items-start gap-3">
+                  <span className={`material-symbols-outlined text-[24px] ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-600' :
+                      selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-600' :
+                        'text-amber-600'
+                    }`}>warning</span>
+                  <div>
+                    <h4 className={`font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-800 dark:text-red-400' :
+                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-800 dark:text-orange-400' :
+                          'text-amber-800 dark:text-amber-400'
+                      }`}>
+                      {selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'Cảnh báo hết hạn sử dụng' :
+                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'Sắp hết hạn sử dụng' :
+                          'Cảnh báo gần hết hạn'}
+                    </h4>
+                    <p className={`text-sm mt-1 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-700 dark:text-red-300' :
+                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-700 dark:text-orange-300' :
+                          'text-amber-700 dark:text-amber-300'
+                      }`}>
+                      {selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining < 0
+                        ? `Đã hết hạn ${Math.abs(selectedExpiryItem.daysRemaining)} ngày`
+                        : selectedExpiryItem.daysRemaining !== null
+                          ? `Còn ${selectedExpiryItem.daysRemaining} ngày`
+                          : 'Vui lòng kiểm tra hạn sử dụng'}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowExpiryDetailModal(false)}
-                className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Expired Items Modal */}
-      {showExpiredModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold">Danh sách sản phẩm hết hạn</h3>
-              <button
-                onClick={() => setShowExpiredModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="overflow-auto flex-1">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50">
-                  <tr className="border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL hết hạn</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">NSX</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">HSD</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {expiredItems.map((item) => (
-                    <tr key={item.batchId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                      <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
-                      <td className="px-4 py-3 text-sm">{item.batchCode}</td>
-                      <td className="px-4 py-3 text-sm text-red-600 font-semibold">{item.expiredQuantity}</td>
-                      <td className="px-4 py-3 text-xs">{toReadableDate(item.mfgDate)}</td>
-                      <td className="px-4 py-3 text-xs text-red-600">{toReadableDate(item.expDate)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <button
-                          onClick={() => handleViewExpiredDetail(item)}
-                          className="text-primary hover:underline text-sm font-medium"
-                        >
-                          Chi tiết
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-              <button
-                onClick={() => setShowExpiredModal(false)}
-                className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Detail Modal */}
-      {showDetailModal && selectedExpiredItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold">Chi tiết sản phẩm hết hạn</h3>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="overflow-auto flex-1 px-6 py-4">
-              {detailLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <span className="text-slate-500">Đang tải...</span>
+            {/* Thông tin sản phẩm */}
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin sản phẩm</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Tên sản phẩm</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiryItem.productName}</p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-red-600 text-[24px]">warning</span>
-                      <div>
-                        <h4 className="font-semibold text-red-800 dark:text-red-400">Cảnh báo hết hạn sử dụng</h4>
-                        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                          Sản phẩm này đã hết hạn sử dụng và cần được xử lý theo quy định.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã mẻ sản xuất</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiredItem.batchCode}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Sản phẩm</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiredItem.productName}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">SL dự kiến</label>
-                      <p className="text-sm font-medium mt-1">{selectedExpiredItem.plannedQuantity || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">SL thực tế</label>
-                      <p className="text-sm font-medium mt-1 text-red-600">{selectedExpiredItem.actualQuantity || selectedExpiredItem.expiredQuantity || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
-                      <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiredItem.mfgDate)}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
-                      <p className="text-sm font-medium mt-1 text-red-600">{toReadableDate(selectedExpiredItem.expDate)}</p>
-                    </div>
-                  </div>
-
-                  {selectedExpiredItem.recipe && selectedExpiredItem.recipe.materials && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Nguyên liệu đã sử dụng (Công thức)</h4>
-                      <table className="w-full text-left border-collapse border border-slate-200 dark:border-slate-800">
-                        <thead>
-                          <tr className="bg-slate-50 dark:bg-slate-800/50">
-                            <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">Nguyên liệu</th>
-                            <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">SL yêu cầu</th>
-                            <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">Hao hụt (%)</th>
-                            <th className="px-3 py-2 text-xs font-semibold border-b border-slate-200 dark:border-slate-800">SL thực tế cần</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedExpiredItem.recipe.materials.map((mat, idx) => {
-                            const actualNeeded = mat.quantityRequired * (1 + (mat.wasteAllowancePercent || 0) / 100)
-                            return (
-                              <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
-                                <td className="px-3 py-2 text-sm">{mat.materialName || `Material #${mat.materialId}`}</td>
-                                <td className="px-3 py-2 text-sm">{mat.quantityRequired}</td>
-                                <td className="px-3 py-2 text-sm">{mat.wasteAllowancePercent || 0}%</td>
-                                <td className="px-3 py-2 text-sm font-semibold">{actualNeeded.toFixed(2)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Mã SKU</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiryItem.sku || 'N/A'}</p>
                 </div>
-              )}
+              </div>
             </div>
-            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
-              >
-                Đóng
-              </button>
+
+            {/* Thông tin mẻ sản xuất */}
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin mẻ sản xuất</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Mã mẻ</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiryItem.batchCode}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">SL kế hoạch</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiryItem.quantityPlanned}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">SL thực tế</label>
+                  <p className="text-sm font-medium mt-1">{selectedExpiryItem.quantityActual}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">SL còn lại trong kho</label>
+                  <p className="text-sm font-medium mt-1 text-emerald-600">{selectedExpiryItem.quantity}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Thông tin ngày tháng */}
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin ngày tháng</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
+                  <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiryItem.mfgDate)}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
+                  <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'text-red-600' :
+                      selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'text-orange-600' :
+                        selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'text-amber-600' :
+                          'text-emerald-600'
+                    }`}>
+                    {toReadableDate(selectedExpiryItem.expDate)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Số ngày còn lại</label>
+                  <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining < 0 ? 'text-red-600' :
+                      selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining <= 3 ? 'text-orange-600' :
+                        selectedExpiryItem.daysRemaining !== null && selectedExpiryItem.daysRemaining <= 7 ? 'text-amber-600' :
+                          'text-emerald-600'
+                    }`}>
+                    {selectedExpiryItem.daysRemaining !== null
+                      ? selectedExpiryItem.daysRemaining < 0
+                        ? `Quá hạn ${Math.abs(selectedExpiryItem.daysRemaining)} ngày`
+                        : `${selectedExpiryItem.daysRemaining} ngày`
+                      : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Trạng thái</label>
+                  <p className="text-sm font-medium mt-1">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
+                        selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
+                          selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
+                            'bg-emerald-100 text-emerald-700'
+                      }`}>
+                      {selectedExpiryItem.expiryStatus}
+                    </span>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-
-      {/* Import Ingredient Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" onClick={closeImportModal}>
-          <div
-            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+        <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => setShowExpiryDetailModal(false)}
+            className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
           >
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-lg font-semibold">Nhập nguyên liệu vào kho</h3>
-              <button
-                type="button"
-                onClick={closeImportModal}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                aria-label="Đóng"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleImportSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Nguyên liệu
-                </label>
-                <select
-                  value={importForm.productId}
-                  onChange={(e) => setImportForm({ ...importForm, productId: e.target.value })}
-                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                  required
-                >
-                  <option value="">Chọn nguyên liệu</option>
-                  {rawProducts.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Nhà cung cấp
-                </label>
-                <select
-                  value={importForm.supplierId}
-                  onChange={(e) => setImportForm({ ...importForm, supplierId: e.target.value })}
-                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                  required
-                >
-                  <option value="">Chọn nhà cung cấp</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Số lượng nhập
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  value={importForm.quantity}
-                  onChange={(e) => setImportForm({ ...importForm, quantity: e.target.value })}
-                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                  required
-                />
-              </div>
-
-              {importError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
-                  {importError}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeImportModal}
-                  className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={importing}
-                  className="h-10 px-4 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {importing ? 'Đang nhập...' : 'Xác nhận nhập kho'}
-                </button>
-              </div>
-            </form>
-          </div>
+            Đóng
+          </button>
         </div>
-      )}
+      </div>
     </div>
+  )
+}
+    </div >
   )
 }

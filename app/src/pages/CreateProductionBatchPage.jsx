@@ -223,16 +223,20 @@ export default function CreateProductionBatchPage() {
     const [productsLoading, setProductsLoading] = useState(false)
     const [batches, setBatches] = useState([])
     const [batchesLoading, setBatchesLoading] = useState(false)
-    const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().slice(0, 16))
-    const [expDate, setExpDate] = useState(() => {
-        // Mặc định HSD = NSX + 7 ngày
-        const date = new Date()
-        date.setDate(date.getDate() + 7)
-        return date.toISOString().slice(0, 16)
-    })
     const [creatingRowKey, setCreatingRowKey] = useState('')
+    const [showCreateBatchModal, setShowCreateBatchModal] = useState(false)
+    const [selectedRowToCreate, setSelectedRowToCreate] = useState(null)
+    const [createBatchForm, setCreateBatchForm] = useState({
+        mfgDate: '',
+        expDate: ''
+    })
     const [completingBatchId, setCompletingBatchId] = useState(null)
     const [batchActualQuantities, setBatchActualQuantities] = useState({})
+    const [showCompleteBatchModal, setShowCompleteBatchModal] = useState(false)
+    const [selectedBatchToComplete, setSelectedBatchToComplete] = useState(null)
+    const [completeBatchForm, setCompleteBatchForm] = useState({
+        actualQuantity: ''
+    })
     const [showImportModal, setShowImportModal] = useState(false)
     const [importForm, setImportForm] = useState({
         productId: '',
@@ -498,9 +502,31 @@ export default function CreateProductionBatchPage() {
         }
     }
 
-    const handleCompleteBatch = async (batch) => {
+    const openCompleteBatchModal = (batch) => {
+        setSelectedBatchToComplete(batch)
+        setCompleteBatchForm({
+            actualQuantity: batchActualQuantities[batch.id] || ''
+        })
+        setShowCompleteBatchModal(true)
+        setError('')
+    }
+
+    const closeCompleteBatchModal = () => {
+        if (completingBatchId) return // Đang xử lý thì không cho đóng
+        setShowCompleteBatchModal(false)
+        setSelectedBatchToComplete(null)
+        setCompleteBatchForm({
+            actualQuantity: ''
+        })
+    }
+
+    const handleCompleteBatchSubmit = async (e) => {
+        e.preventDefault()
         setError('')
         setSuccess('')
+
+        const batch = selectedBatchToComplete
+        if (!batch) return
 
         const tk = getToken()
         if (!tk) {
@@ -508,23 +534,20 @@ export default function CreateProductionBatchPage() {
             return
         }
 
-        // Lấy số lượng thực tế từ input - KHÔNG dùng giá trị mặc định
-        const actualQty = batchActualQuantities[batch.id]
-
         // Validation: Bắt buộc phải nhập số lượng thực tế
-        if (actualQty === undefined || actualQty === null || actualQty === '' || Number(actualQty) <= 0) {
+        const actualQty = Number(completeBatchForm.actualQuantity)
+        if (!actualQty || actualQty <= 0) {
             setError(`Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ #${batch.id}!`)
             return
         }
 
-        const finalActualQty = Number(actualQty)
-
         setCompletingBatchId(batch.id)
         try {
-            // Backend yêu cầu payload format: { status: "COMPLETED", quantityActual: number }
+            // Backend chỉ nhận: { status: "COMPLETED", quantityActual: number }
+            // ExpDate phải nhập khi TẠO mẻ, không thể update khi hoàn thành
             const payload = {
                 status: 'COMPLETED',
-                quantityActual: finalActualQty
+                quantityActual: actualQty
             }
 
             console.log(`Completing batch #${batch.id} with payload:`, payload)
@@ -544,10 +567,10 @@ export default function CreateProductionBatchPage() {
             if (!response.ok) {
                 const errorMsg = data?.message || data?.title || data?.error || `Lỗi ${response.status}`
                 console.error('❌ Failed to complete batch:', errorMsg, data)
-                
+
                 // Kiểm tra lỗi thiếu nguyên liệu
                 const lowerMsg = String(errorMsg).toLowerCase()
-                const isInsufficientMaterial = 
+                const isInsufficientMaterial =
                     lowerMsg.includes('insufficient') ||
                     lowerMsg.includes('not enough') ||
                     lowerMsg.includes('thiếu') ||
@@ -556,11 +579,11 @@ export default function CreateProductionBatchPage() {
                     lowerMsg.includes('material') ||
                     lowerMsg.includes('inventory') ||
                     lowerMsg.includes('stock')
-                
+
                 if (isInsufficientMaterial) {
                     throw new Error(
-                        `⚠️ THIẾU NGUYÊN LIỆU:\n\n${errorMsg}\n\n` +
-                        `💡 Lưu ý: Hệ thống tính nguyên liệu cần thiết dựa trên Recipe/BOM của sản phẩm.\n` +
+                        `THIẾU NGUYÊN LIỆU:\n\n${errorMsg}\n\n` +
+                        `Lưu ý: Hệ thống tính nguyên liệu cần thiết dựa trên Recipe/BOM của sản phẩm.\n` +
                         `Ví dụ: Nếu Recipe quy định 1 bánh cần 20,000g bột, thì làm ${batch.quantityPlanned} bánh cần ${batch.quantityPlanned * 20000}g.\n\n` +
                         `Giải pháp:\n` +
                         `1. Nhập thêm nguyên liệu vào kho (nút "Nhập nguyên liệu" ở trên)\n` +
@@ -568,7 +591,7 @@ export default function CreateProductionBatchPage() {
                         `3. Hoặc kiểm tra Recipe/BOM có đúng không`
                     )
                 }
-                
+
                 throw new Error(errorMsg)
             }
 
@@ -597,15 +620,22 @@ export default function CreateProductionBatchPage() {
                 }
             }
 
-            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${finalActualQty}.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
-            
+            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${actualQty}.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
+
+            // Đóng modal và reset form
+            setShowCompleteBatchModal(false)
+            setSelectedBatchToComplete(null)
+            setCompleteBatchForm({
+                actualQuantity: ''
+            })
+
             // Xóa số lượng đã nhập khỏi state
             setBatchActualQuantities(prev => {
                 const newState = { ...prev }
                 delete newState[batch.id]
                 return newState
             })
-            
+
             await fetchInProgressBatches()
             await fetchApprovedOrders()
         } catch (requestError) {
@@ -655,7 +685,7 @@ export default function CreateProductionBatchPage() {
                     })
                     .filter(Boolean)
                 setRawProducts(normalized)
-                
+
                 if (normalized.length > 0 && !importForm.productId) {
                     setImportForm(prev => ({ ...prev, productId: String(normalized[0].id) }))
                 }
@@ -675,7 +705,7 @@ export default function CreateProductionBatchPage() {
                     .filter((item) => item?.isActive)
                     .filter(Boolean)
                 setSuppliers(normalized)
-                
+
                 if (normalized.length > 0 && !importForm.supplierId) {
                     setImportForm(prev => ({ ...prev, supplierId: String(normalized[0].id) }))
                 }
@@ -763,7 +793,45 @@ export default function CreateProductionBatchPage() {
         await fetchInProgressBatches()
     }
 
-    const handleCreateFromRow = async (row) => {
+    const openCreateBatchModal = (row) => {
+        setSelectedRowToCreate(row)
+        const today = new Date()
+        const nextWeek = new Date()
+        nextWeek.setDate(today.getDate() + 7)
+
+        setCreateBatchForm({
+            mfgDate: `${today.toISOString().slice(0, 10)}T00:00`,
+            expDate: `${nextWeek.toISOString().slice(0, 10)}T23:59`
+        })
+        setShowCreateBatchModal(true)
+        setError('')
+    }
+
+    const closeCreateBatchModal = () => {
+        if (creatingRowKey) return // Đang tạo thì không cho đóng
+        setShowCreateBatchModal(false)
+        setSelectedRowToCreate(null)
+        setCreateBatchForm({
+            mfgDate: '',
+            expDate: ''
+        })
+    }
+
+    const handleCreateBatchSubmit = async (e) => {
+        e.preventDefault()
+        const row = selectedRowToCreate
+        if (!row) return
+
+        await handleCreateFromRow(row, createBatchForm.mfgDate, createBatchForm.expDate)
+
+        if (!creatingRowKey) {
+            // Nếu tạo thành công (không còn loading), đóng modal
+            setShowCreateBatchModal(false)
+            setSelectedRowToCreate(null)
+        }
+    }
+
+    const handleCreateFromRow = async (row, mfgDate, expDate) => {
         setError('')
         setSuccess('')
 
@@ -782,11 +850,6 @@ export default function CreateProductionBatchPage() {
 
         if (String(row?.productType || '').toUpperCase() === 'RAW') {
             setError('Sản phẩm RAW không thể tạo mẻ theo BOM. Chỉ tạo mẻ cho thành phẩm hoặc bán thành phẩm.')
-            return
-        }
-
-        if (!mfgDate) {
-            setError('Vui lòng nhập ngày sản xuất.')
             return
         }
 
@@ -809,6 +872,9 @@ export default function CreateProductionBatchPage() {
                 payload.orderId = row.orderId
             }
 
+            console.log('📦 Creating batch with payload:', JSON.stringify(payload, null, 2))
+            console.log('📅 ExpDate input:', expDate, '→ ISO:', expIso)
+
             const response = await fetch(`${apiBase}/ProductionBatches`, {
                 method: 'POST',
                 headers: {
@@ -820,6 +886,8 @@ export default function CreateProductionBatchPage() {
             })
 
             const { json: data, text: rawCreateText } = await readResponsePayload(response)
+            console.log('✅ Create batch response:', response.status, data)
+
             if (!response.ok) {
                 const errorMsg = data?.message || data?.title || rawCreateText || 'Không thể tạo mẻ sản xuất.'
 
@@ -835,7 +903,7 @@ export default function CreateProductionBatchPage() {
                     lowerMsg.includes('inventory')
 
                 if (isInsufficientMaterial) {
-                    throw new Error(`⚠️ THIẾU NGUYÊN LIỆU: ${errorMsg}`)
+                    throw new Error(`THIẾU NGUYÊN LIỆU: ${errorMsg}`)
                 }
 
                 throw new Error(errorMsg)
@@ -852,6 +920,8 @@ export default function CreateProductionBatchPage() {
             if (!createdBatchId) {
                 createdBatchId = await discoverBatchIdByProbe(apiBase, tk, qty, mfgIso)
             }
+
+            console.log('🆔 Created batch ID:', createdBatchId)
 
             if (!createdBatchId) {
                 setError(
@@ -989,16 +1059,9 @@ export default function CreateProductionBatchPage() {
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <span className="material-symbols-outlined text-primary text-[24px]">precision_manufacturing</span>
-                    <h2 className="text-lg font-bold leading-tight">Tạo mẻ sản xuất từ đơn đã phê duyệt</h2>
+                    <h2 className="text-lg font-bold leading-tight">Tạo mẻ sản xuất</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        className="h-10 px-4 rounded-lg bg-[#4e5d43] text-white text-sm font-semibold hover:bg-[#415238] flex items-center gap-2"
-                        onClick={openImportModal}
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add_box</span>
-                        Nhập nguyên liệu
-                    </button>
                     <button
                         className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm"
                         onClick={refreshData}
@@ -1010,51 +1073,12 @@ export default function CreateProductionBatchPage() {
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 space-y-4">
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Trang này chỉ dùng để tạo mẻ từ đơn hàng đã phê duyệt. Mỗi dòng sản phẩm có nút tạo mẻ riêng.
-                        Sau khi tạo, hệ thống sẽ chuyển mẻ sang IN_PROGRESS để kitchen xử lý tiếp.
-                    </p>
-                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ngày sản xuất (NSX)</span>
-                            <input
-                                type="datetime-local"
-                                value={mfgDate}
-                                onChange={(e) => setMfgDate(e.target.value)}
-                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Hạn sử dụng (HSD)</span>
-                            <input
-                                type="datetime-local"
-                                value={expDate}
-                                onChange={(e) => setExpDate(e.target.value)}
-                                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
-                            />
-                        </label>
-                        <p className="text-xs text-emerald-700 dark:text-emerald-300 pt-1 sm:pt-6">
-                            Mặc định: sau khi tạo mẻ hệ thống sẽ chuyển IN_PROGRESS.
-                        </p>
-                    </div>
-                </div>
-
                 {batches.length > 0 && (
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-900/20">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Mẻ đang sản xuất (IN_PROGRESS)</p>
+                                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Mẻ đang sản xuất</p>
                                 <p className="text-xs text-emerald-600 dark:text-emerald-400">{batches.length} mẻ</p>
-                            </div>
-                            <div className="mt-2 space-y-1">
-                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                    ℹ️ Chỉ mẻ ở trạng thái IN_PROGRESS mới có thể hoàn thành. Nhập số lượng thực tế và nhấn "Hoàn thành".
-                                </p>
-                                <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
-                                    ⚠️ Lưu ý: Khi hoàn thành mẻ, hệ thống sẽ tự động trừ nguyên liệu theo Recipe/BOM và cộng thành phẩm vào kho. 
-                                    Đảm bảo đủ nguyên liệu trước khi hoàn thành!
-                                </p>
                             </div>
                         </div>
 
@@ -1065,21 +1089,17 @@ export default function CreateProductionBatchPage() {
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Mẻ #</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">SL kế hoạch</th>
-                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">SL thực tế</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {batches.map((batch) => {
                                         const isCompleting = completingBatchId === batch.id
-                                        const currentActualQty = batchActualQuantities[batch.id] ?? ''
-                                        const hasValidQuantity = currentActualQty !== '' && Number(currentActualQty) > 0
-                                        
+
                                         // Kiểm tra status - chỉ IN_PROGRESS mới có thể hoàn thành
                                         const batchStatus = String(batch.status || '').toUpperCase()
                                         const isInProgress = batchStatus === 'IN_PROGRESS'
-                                        const canComplete = isInProgress && hasValidQuantity
-                                        
+
                                         return (
                                             <tr key={batch.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                 <td className="px-4 py-3 text-sm font-semibold">
@@ -1094,35 +1114,16 @@ export default function CreateProductionBatchPage() {
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">{batch.productName}</td>
                                                 <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
-                                                <td className="px-4 py-3">
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        step="1"
-                                                        value={currentActualQty}
-                                                        onChange={(e) => updateBatchActualQuantity(batch.id, e.target.value)}
-                                                        disabled={isCompleting || !!completingBatchId || !isInProgress}
-                                                        className={`w-24 h-9 rounded-lg border px-3 text-sm outline-none disabled:opacity-50 ${
-                                                            !hasValidQuantity && currentActualQty !== '' 
-                                                                ? 'border-red-500 focus:border-red-500' 
-                                                                : 'border-slate-300 dark:border-slate-700 focus:border-primary'
-                                                        } bg-white dark:bg-slate-800`}
-                                                        placeholder="Nhập SL"
-                                                        required
-                                                    />
-                                                </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleCompleteBatch(batch)}
-                                                        disabled={isCompleting || !!completingBatchId || !canComplete}
+                                                        onClick={() => openCompleteBatchModal(batch)}
+                                                        disabled={isCompleting || !!completingBatchId || !isInProgress}
                                                         className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                                         title={
-                                                            !isInProgress 
-                                                                ? `Mẻ phải ở trạng thái IN_PROGRESS (hiện tại: ${batch.status})` 
-                                                                : !hasValidQuantity 
-                                                                    ? 'Vui lòng nhập số lượng thực tế (> 0)' 
-                                                                    : ''
+                                                            !isInProgress
+                                                                ? `Mẻ phải ở trạng thái IN_PROGRESS (hiện tại: ${batch.status})`
+                                                                : ''
                                                         }
                                                     >
                                                         {isCompleting ? 'Đang hoàn thành...' : 'Hoàn thành'}
@@ -1139,8 +1140,8 @@ export default function CreateProductionBatchPage() {
 
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold">Danh sách dòng sản phẩm từ đơn Approved</p>
-                        <p className="text-xs text-slate-500">{approvedDemandRows.length} dòng</p>
+                        <p className="text-sm font-semibold">Đơn hàng đã phê duyệt</p>
+                        <p className="text-xs text-slate-500">{approvedDemandRows.length} sản phẩm</p>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -1158,12 +1159,12 @@ export default function CreateProductionBatchPage() {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {(ordersLoading || productsLoading) ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500">Đang tải dữ liệu đơn hàng...</td>
+                                        <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500">Đang tải...</td>
                                     </tr>
                                 ) : null}
                                 {!ordersLoading && !productsLoading && approvedDemandRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500">Chưa có đơn Approved có chi tiết sản phẩm.</td>
+                                        <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500">Chưa có đơn hàng</td>
                                     </tr>
                                 ) : null}
                                 {!ordersLoading && !productsLoading && approvedDemandRows.map((row) => {
@@ -1184,7 +1185,7 @@ export default function CreateProductionBatchPage() {
                                             <td className="px-4 py-3 text-right">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleCreateFromRow(row)}
+                                                    onClick={() => openCreateBatchModal(row)}
                                                     disabled={isCreating || !!creatingRowKey || isRaw}
                                                     className="h-9 px-3 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                                                     title={isRaw ? 'RAW không tạo mẻ theo BOM' : ''}
@@ -1200,6 +1201,78 @@ export default function CreateProductionBatchPage() {
                     </div>
                 </div>
             </div>
+
+            {showCompleteBatchModal && selectedBatchToComplete ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeCompleteBatchModal}>
+                    <div
+                        className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h3 className="text-lg font-semibold">Hoàn thành mẻ #{selectedBatchToComplete.id}</h3>
+                            <button
+                                type="button"
+                                onClick={closeCompleteBatchModal}
+                                disabled={!!completingBatchId}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                aria-label="Đóng"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <p className="text-sm"><span className="font-semibold">Sản phẩm:</span> {selectedBatchToComplete.productName}</p>
+                            <p className="text-sm mt-1"><span className="font-semibold">Kế hoạch:</span> {selectedBatchToComplete.quantityPlanned}</p>
+                        </div>
+
+                        <form onSubmit={handleCompleteBatchSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Số lượng thực tế <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={completeBatchForm.actualQuantity}
+                                    onChange={(e) => setCompleteBatchForm({ ...completeBatchForm, actualQuantity: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    placeholder="Nhập số lượng"
+                                    required
+                                />
+                                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    Lưu ý: Hạn sử dụng đã được nhập khi tạo mẻ. Nếu cần thay đổi, vui lòng liên hệ quản trị viên.
+                                </p>
+                            </div>
+
+                            {error && showCompleteBatchModal ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                                    {error}
+                                </div>
+                            ) : null}
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeCompleteBatchModal}
+                                    disabled={!!completingBatchId}
+                                    className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!!completingBatchId}
+                                    className="h-10 px-4 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {completingBatchId ? 'Đang hoàn thành...' : 'Xác nhận hoàn thành'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
 
             {showImportModal ? (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeImportModal}>
@@ -1293,6 +1366,92 @@ export default function CreateProductionBatchPage() {
                                     className="h-10 px-4 rounded-lg bg-[#4e5d43] text-white text-sm font-semibold hover:bg-[#415238] disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {importing ? 'Đang nhập...' : 'Xác nhận nhập kho'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
+
+            {showCreateBatchModal && selectedRowToCreate ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeCreateBatchModal}>
+                    <div
+                        className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h3 className="text-lg font-semibold">Tạo mẻ sản xuất</h3>
+                            <button
+                                type="button"
+                                onClick={closeCreateBatchModal}
+                                disabled={!!creatingRowKey}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                aria-label="Đóng"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <p className="text-sm"><span className="font-semibold">Đơn hàng:</span> {selectedRowToCreate.orderCode}</p>
+                            <p className="text-sm mt-1"><span className="font-semibold">Sản phẩm:</span> {selectedRowToCreate.productName}</p>
+                            <p className="text-sm mt-1"><span className="font-semibold">Số lượng:</span> {selectedRowToCreate.quantityOrdered}</p>
+                        </div>
+
+                        <form onSubmit={handleCreateBatchSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Ngày sản xuất <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    value={createBatchForm.mfgDate.slice(0, 10)}
+                                    onChange={(e) => setCreateBatchForm({ ...createBatchForm, mfgDate: e.target.value ? `${e.target.value}T00:00` : '' })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Hạn sử dụng <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    value={createBatchForm.expDate.slice(0, 10)}
+                                    onChange={(e) => setCreateBatchForm({ ...createBatchForm, expDate: e.target.value ? `${e.target.value}T23:59` : '' })}
+                                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                                    required
+                                />
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                                <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    Lưu ý: Hạn sử dụng chỉ có thể nhập khi tạo mẻ. Sau khi tạo, không thể thay đổi.
+                                </p>
+                            </div>
+
+                            {error && showCreateBatchModal ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                                    {error}
+                                </div>
+                            ) : null}
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeCreateBatchModal}
+                                    disabled={!!creatingRowKey}
+                                    className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!!creatingRowKey}
+                                    className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {creatingRowKey ? 'Đang tạo mẻ...' : 'Xác nhận tạo mẻ'}
                                 </button>
                             </div>
                         </form>
