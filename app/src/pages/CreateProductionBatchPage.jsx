@@ -223,6 +223,8 @@ export default function CreateProductionBatchPage() {
     const [productsLoading, setProductsLoading] = useState(false)
     const [batches, setBatches] = useState([])
     const [batchesLoading, setBatchesLoading] = useState(false)
+    const [allBatches, setAllBatches] = useState([]) // Tất cả batches (để check sản phẩm nào đã có batch)
+    const [orderBatchProgress, setOrderBatchProgress] = useState({}) // { orderId: { created: 2, total: 3 } }
     const [creatingRowKey, setCreatingRowKey] = useState('')
     const [showCreateBatchModal, setShowCreateBatchModal] = useState(false)
     const [selectedRowToCreate, setSelectedRowToCreate] = useState(null)
@@ -281,22 +283,38 @@ export default function CreateProductionBatchPage() {
     const approvedDemandRows = useMemo(() => {
         const rows = []
         orders.forEach((order) => {
-            ; (order.details || []).forEach((detail) => {
-                const productInfo = productMap[Number(detail.productId)] || null
-                rows.push({
-                    key: detail.key,
-                    orderId: order.orderId,
-                    orderCode: order.orderCode,
-                    storeName: order.storeName,
-                    productId: Number(detail.productId),
-                    productName: detail.productName,
-                    quantityOrdered: Number(detail.quantityOrdered || 0),
-                    productType: productInfo?.productType || 'N/A',
-                })
+            // Lấy danh sách productId đã có batch cho order này
+            const productsWithBatch = new Set()
+            allBatches.forEach((batch) => {
+                const batchOrderId = parseSafeNumber(batch?.orderId ?? batch?.internalOrderId, 0)
+                if (batchOrderId === order.orderId) {
+                    const productId = parseSafeNumber(batch?.productId, 0)
+                    if (productId > 0) {
+                        productsWithBatch.add(productId)
+                    }
+                }
             })
+
+                ; (order.details || []).forEach((detail) => {
+                    const productInfo = productMap[Number(detail.productId)] || null
+
+                    // Chỉ hiển thị sản phẩm CHƯA CÓ BATCH
+                    if (!productsWithBatch.has(Number(detail.productId))) {
+                        rows.push({
+                            key: detail.key,
+                            orderId: order.orderId,
+                            orderCode: order.orderCode,
+                            storeName: order.storeName,
+                            productId: Number(detail.productId),
+                            productName: detail.productName,
+                            quantityOrdered: Number(detail.quantityOrdered || 0),
+                            productType: productInfo?.productType || 'N/A',
+                        })
+                    }
+                })
         })
         return rows
-    }, [orders, productMap])
+    }, [orders, productMap, allBatches])
 
     const fetchProducts = async () => {
         const tk = getToken()
@@ -406,6 +424,7 @@ export default function CreateProductionBatchPage() {
             let records = []
             const defaultStoreId = resolveDefaultStoreId()
             try {
+                // Chỉ fetch APPROVED vì PROCESSING đã tạo đủ batch rồi
                 records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(defaultStoreId)}&status=APPROVED`)
             } catch {
                 records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(defaultStoreId)}`)
@@ -450,6 +469,7 @@ export default function CreateProductionBatchPage() {
     useEffect(() => {
         fetchApprovedOrders()
         fetchInProgressBatches()
+        calculateBatchProgress()
     }, [products.length])
 
     const fetchInProgressBatches = async () => {
@@ -481,7 +501,7 @@ export default function CreateProductionBatchPage() {
 
                     return {
                         id,
-                        status: status, // Thêm status để hiển thị
+                        status: status,
                         productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
                         productName: item?.product?.productName || item?.product?.name || `Sản phẩm #${item?.productId || 'N/A'}`,
                         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
@@ -495,10 +515,83 @@ export default function CreateProductionBatchPage() {
                 .sort((a, b) => new Date(b.mfgDate || 0).getTime() - new Date(a.mfgDate || 0).getTime())
 
             setBatches(normalized)
+            await calculateBatchProgress() // Tính lại progress sau khi fetch batches
         } catch (requestError) {
             setBatches([])
         } finally {
             setBatchesLoading(false)
+        }
+    }
+
+    const calculateBatchProgress = async () => {
+        const tk = getToken()
+        if (!tk) return
+
+        try {
+            // Fetch tất cả batches
+            const response = await fetch(`${apiBase}/ProductionBatches`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${tk}`,
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) return
+
+            const allBatchesData = parseArrayData(data)
+            console.log('📊 All batches fetched:', allBatchesData.length, 'batches')
+
+            // Enrich batches với orderId từ orderIds array
+            const enrichedBatches = []
+            allBatchesData.forEach((batch) => {
+                const orderIds = Array.isArray(batch?.orderIds) ? batch.orderIds : []
+                if (orderIds.length > 0) {
+                    // Batch có orderIds → tạo bản sao cho mỗi orderId
+                    orderIds.forEach(orderId => {
+                        enrichedBatches.push({
+                            ...batch,
+                            orderId: orderId,
+                            internalOrderId: orderId
+                        })
+                    })
+                } else {
+                    // Batch không có orderIds → giữ nguyên
+                    enrichedBatches.push(batch)
+                }
+            })
+
+            console.log('📊 Enriched batches:', enrichedBatches.filter(b => b.orderId).length, 'batches with orderId')
+            setAllBatches(enrichedBatches)
+
+            // Tính progress cho từng order
+            const progressMap = {}
+            orders.forEach((order) => {
+                const totalProducts = (order.details || []).length
+                const productsWithBatch = new Set()
+
+                enrichedBatches.forEach((batch) => {
+                    const batchOrderId = parseSafeNumber(batch?.orderId ?? batch?.internalOrderId, 0)
+                    if (batchOrderId === order.orderId) {
+                        const productId = parseSafeNumber(batch?.productId, 0)
+                        if (productId > 0) {
+                            productsWithBatch.add(productId)
+                        }
+                    }
+                })
+
+                progressMap[order.orderId] = {
+                    created: productsWithBatch.size,
+                    total: totalProducts
+                }
+
+                console.log(`📊 Order #${order.orderId}: ${productsWithBatch.size}/${totalProducts} products with batch`, Array.from(productsWithBatch))
+            })
+
+            setOrderBatchProgress(progressMap)
+        } catch (error) {
+            console.error('Error calculating batch progress:', error)
         }
     }
 
@@ -597,30 +690,7 @@ export default function CreateProductionBatchPage() {
 
             console.log('✅ Batch completed successfully:', data)
 
-            // Tự động chuyển đơn sang PRODUCED sau khi hoàn thành mẻ
-            let orderUpdateWarning = ''
-            if (batch.orderId) {
-                try {
-                    const orderStatusRes = await fetch(`${apiBase}/internal-orders/${batch.orderId}/status`, {
-                        method: 'PUT',
-                        headers: {
-                            accept: '*/*',
-                            Authorization: `Bearer ${tk}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ status: 'PRODUCED' }),
-                    })
-
-                    if (!orderStatusRes.ok) {
-                        const orderData = await orderStatusRes.json().catch(() => ({}))
-                        orderUpdateWarning = ` (Lưu ý: Mẻ đã hoàn thành nhưng không thể tự động chuyển đơn sang PRODUCED: ${orderData?.message || 'Lỗi không xác định'})`
-                    }
-                } catch {
-                    orderUpdateWarning = ' (Lưu ý: Mẻ đã hoàn thành nhưng không thể tự động chuyển đơn sang PRODUCED)'
-                }
-            }
-
-            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${actualQty}.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
+            setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${actualQty}. Backend sẽ tự động chuyển đơn sang PRODUCED khi hoàn thành tất cả mẻ.`)
 
             // Đóng modal và reset form
             setShowCompleteBatchModal(false)
@@ -638,6 +708,7 @@ export default function CreateProductionBatchPage() {
 
             await fetchInProgressBatches()
             await fetchApprovedOrders()
+            await calculateBatchProgress() // Cập nhật tiến độ và allBatches
         } catch (requestError) {
             setError(requestError.message || 'Hoàn thành mẻ sản xuất thất bại.')
         } finally {
@@ -989,31 +1060,9 @@ export default function CreateProductionBatchPage() {
                 }
             }
 
-            // Tự động chuyển đơn sang PROCESSING sau khi tạo mẻ thành công
-            if (row.orderId && !statusWarning) {
-                try {
-                    const orderStatusRes = await fetch(`${apiBase}/internal-orders/${row.orderId}/status`, {
-                        method: 'PUT',
-                        headers: {
-                            accept: '*/*',
-                            Authorization: `Bearer ${tk}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ status: 'PROCESSING' }),
-                    })
-
-                    if (!orderStatusRes.ok) {
-                        const orderData = await orderStatusRes.json().catch(() => ({}))
-                        statusWarning = `Mẻ đã tạo nhưng không thể chuyển đơn sang PROCESSING: ${orderData?.message || 'Lỗi không xác định'}`
-                    }
-                } catch {
-                    statusWarning = 'Mẻ đã tạo nhưng không thể chuyển đơn sang PROCESSING.'
-                }
-            }
-
             const inventoryHint = statusWarning
                 ? ` ${statusWarning}`
-                : ' Mẻ đã vào IN_PROGRESS và đơn đã chuyển PROCESSING.'
+                : ' Mẻ đã vào IN_PROGRESS. Backend sẽ tự động chuyển đơn sang PROCESSING khi đủ mẻ cho tất cả sản phẩm.'
 
             setSuccess(
                 (data?.message || 'Tạo mẻ sản xuất thành công.')
@@ -1023,6 +1072,7 @@ export default function CreateProductionBatchPage() {
 
             await fetchApprovedOrders()
             await fetchInProgressBatches()
+            await calculateBatchProgress() // Cập nhật tiến độ và allBatches
         } catch (requestError) {
             setError(requestError.message || 'Tạo mẻ sản xuất thất bại.')
         } finally {
@@ -1140,7 +1190,7 @@ export default function CreateProductionBatchPage() {
 
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold">Đơn hàng đã phê duyệt</p>
+                        <p className="text-sm font-semibold">Đơn hàng đã phê duyệt (chưa đủ batch)</p>
                         <p className="text-xs text-slate-500">{approvedDemandRows.length} sản phẩm</p>
                     </div>
 
@@ -1153,6 +1203,7 @@ export default function CreateProductionBatchPage() {
                                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
                                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Loại</th>
                                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Số lượng</th>
+                                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Tiến độ</th>
                                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
                                 </tr>
                             </thead>
@@ -1170,6 +1221,8 @@ export default function CreateProductionBatchPage() {
                                 {!ordersLoading && !productsLoading && approvedDemandRows.map((row) => {
                                     const isCreating = creatingRowKey === row.key
                                     const isRaw = String(row.productType).toUpperCase() === 'RAW'
+                                    const progress = orderBatchProgress[row.orderId] || { created: 0, total: 0 }
+                                    const isComplete = progress.created >= progress.total && progress.total > 0
 
                                     return (
                                         <tr key={row.key}>
@@ -1182,6 +1235,18 @@ export default function CreateProductionBatchPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-sm font-semibold">{row.quantityOrdered}</td>
+                                            <td className="px-4 py-3 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs font-semibold ${isComplete ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {progress.created}/{progress.total}
+                                                    </span>
+                                                    {isComplete && (
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                            Đủ
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="px-4 py-3 text-right">
                                                 <button
                                                     type="button"

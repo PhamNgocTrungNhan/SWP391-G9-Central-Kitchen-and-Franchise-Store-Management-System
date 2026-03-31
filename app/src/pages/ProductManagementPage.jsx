@@ -7,6 +7,17 @@ const productColumns = [
     { key: 'categoryName', label: 'Danh mục' },
     { key: 'productType', label: 'Loại sản phẩm' },
     { key: 'baseUnit', label: 'Đơn vị gốc' },
+    { key: 'internalPrice', label: 'Giá nội bộ' },
+]
+
+const ingredientColumns = [
+    { key: 'id', label: 'Mã sản phẩm' },
+    { key: 'sku', label: 'SKU' },
+    { key: 'name', label: 'Tên sản phẩm' },
+    { key: 'categoryName', label: 'Danh mục' },
+    { key: 'productType', label: 'Loại sản phẩm' },
+    { key: 'baseUnit', label: 'Đơn vị gốc' },
+    { key: 'purchasePrice', label: 'Giá mua' },
 ]
 
 const scopeConfig = {
@@ -41,6 +52,7 @@ function normalizeProductType(rawType) {
 export default function ProductManagementPage({ scope = 'finished' }) {
     const normalizedScope = scope === 'ingredient' ? 'ingredient' : 'finished'
     const scopeMeta = scopeConfig[normalizedScope]
+    const columns = normalizedScope === 'ingredient' ? ingredientColumns : productColumns
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
     const getToken = () => {
@@ -71,6 +83,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const [formCategoryId, setFormCategoryId] = useState('')
     const [formBaseUnit, setFormBaseUnit] = useState('')
     const [formProductType, setFormProductType] = useState(scopeMeta.defaultType)
+    const [formPurchasePrice, setFormPurchasePrice] = useState('')
+    const [formInternalPrice, setFormInternalPrice] = useState('')
 
     const [showEditModal, setShowEditModal] = useState(false)
     const [editLoading, setEditLoading] = useState(false)
@@ -82,6 +96,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const [editCategoryId, setEditCategoryId] = useState('')
     const [editBaseUnit, setEditBaseUnit] = useState('')
     const [editProductType, setEditProductType] = useState(scopeMeta.defaultType)
+    const [editPurchasePrice, setEditPurchasePrice] = useState('')
+    const [editInternalPrice, setEditInternalPrice] = useState('')
 
     const [showViewModal, setShowViewModal] = useState(false)
     const [viewProduct, setViewProduct] = useState(null)
@@ -115,6 +131,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                     categoryName: item?.category?.name || 'N/A',
                     productType: normalizeProductType(item?.productType),
                     baseUnit: item?.baseUnit || 'N/A',
+                    purchasePrice: Number(item?.purchasePrice ?? 0),
+                    internalPrice: Number(item?.internalPrice ?? 0),
                 }
             })
             .filter(Boolean)
@@ -187,6 +205,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         setFormProductName('')
         setFormCategoryId(categories.length > 0 ? String(categories[0].categoryId) : '')
         setFormBaseUnit('')
+        setFormPurchasePrice('')
+        setFormInternalPrice('')
         setFormProductType(scopeMeta.defaultType)
     }
 
@@ -213,6 +233,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             categoryId: Number(formCategoryId),
             baseUnit: formBaseUnit.trim(),
             productType: normalizedScope === 'finished' ? 'FINISHED' : normalizeProductType(formProductType.trim()),
+            purchasePrice: Number(formPurchasePrice) || 0,
+            internalPrice: Number(formInternalPrice) || 0,
         }
 
         if (!payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
@@ -262,6 +284,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         setEditProductName(item.name || '')
         setEditCategoryId(item.categoryId > 0 ? String(item.categoryId) : (categories[0] ? String(categories[0].categoryId) : ''))
         setEditBaseUnit(item.baseUnit === 'N/A' ? '' : item.baseUnit)
+        setEditPurchasePrice(item.purchasePrice > 0 ? String(item.purchasePrice) : '')
+        setEditInternalPrice(item.internalPrice > 0 ? String(item.internalPrice) : '')
         setEditProductType(
             normalizedScope === 'finished'
                 ? 'FINISHED'
@@ -287,7 +311,11 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             categoryId: Number(editCategoryId),
             baseUnit: editBaseUnit.trim(),
             productType: normalizedScope === 'finished' ? 'FINISHED' : normalizeProductType(editProductType.trim()),
+            purchasePrice: Number(editPurchasePrice) || 0,
+            internalPrice: Number(editInternalPrice) || 0,
         }
+
+        console.log('📝 Updating product with payload:', payload)
 
         if (!productId || !payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
             setEditError('Vui lòng nhập đầy đủ SKU, Tên sản phẩm, Danh mục, Đơn vị gốc và Loại sản phẩm.')
@@ -307,6 +335,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             })
 
             const data = await response.json().catch(() => ({}))
+            console.log('✅ Update product response:', response.status, data)
+
             if (!response.ok) {
                 const backendMessage = data?.message || data?.title || 'Cập nhật sản phẩm thất bại.'
                 const hint = response.status === 400 ? ' Dữ liệu không hợp lệ hoặc bị trùng.' : ''
@@ -441,7 +471,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                         <table className="w-full min-w-[820px] text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    {productColumns.map((col) => (
+                                    {columns.map((col) => (
                                         <th key={col.key} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{col.label}</th>
                                     ))}
                                     <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hành động</th>
@@ -457,6 +487,11 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                             <td className="px-5 py-3 text-sm">{item.categoryName}</td>
                                             <td className="px-5 py-3 text-sm">{item.productType}</td>
                                             <td className="px-5 py-3 text-sm">{item.baseUnit}</td>
+                                            {normalizedScope === 'ingredient' ? (
+                                                <td className="px-5 py-3 text-sm text-right">{item.purchasePrice.toLocaleString('vi-VN')}đ</td>
+                                            ) : (
+                                                <td className="px-5 py-3 text-sm text-right">{item.internalPrice.toLocaleString('vi-VN')}đ</td>
+                                            )}
                                             <td className="px-5 py-3 text-sm">
                                                 <div className="flex items-center gap-2">
                                                     <button
@@ -559,6 +594,33 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
                             </label>
+                            {normalizedScope === 'ingredient' ? (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Giá mua (đ)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        value={formPurchasePrice}
+                                        onChange={(e) => setFormPurchasePrice(e.target.value)}
+                                        placeholder="Giá mua từ nhà cung cấp"
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            ) : (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Giá nội bộ (đ)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        value={formInternalPrice}
+                                        onChange={(e) => setFormInternalPrice(e.target.value)}
+                                        placeholder="Giá chuyển nội bộ"
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            )}
                             {normalizedScope === 'ingredient' ? (
                                 <label className="flex flex-col gap-1">
                                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
@@ -665,6 +727,33 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </label>
                             {normalizedScope === 'ingredient' ? (
                                 <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Giá mua (đ)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        value={editPurchasePrice}
+                                        onChange={(e) => setEditPurchasePrice(e.target.value)}
+                                        placeholder="Giá mua từ nhà cung cấp"
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            ) : (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Giá nội bộ (đ)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        value={editInternalPrice}
+                                        onChange={(e) => setEditInternalPrice(e.target.value)}
+                                        placeholder="Giá chuyển nội bộ"
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            )}
+                            {normalizedScope === 'ingredient' ? (
+                                <label className="flex flex-col gap-1">
                                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Loại sản phẩm</span>
                                     <select
                                         value={editProductType}
@@ -753,10 +842,10 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Loại</p>
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${viewProduct.productType === 'FINISHED'
-                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                            : viewProduct.productType === 'RAW'
-                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                        : viewProduct.productType === 'RAW'
+                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                                         }`}>
                                         {viewProduct.productType}
                                     </span>
