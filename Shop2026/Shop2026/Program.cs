@@ -5,8 +5,6 @@ using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 using System.Text;
 
-using PayOS;
-
 using Shop2026.Context;
 using Shop2026.DAL;
 using Shop2026.DLL;
@@ -20,9 +18,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddRazorPages();
 
+// Bắt buộc thêm dòng này cho VNPAY để lấy IP Address
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
 
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "ChuoiBiMatCuaBanPhaiDaiHon16KyTu_123456789";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -46,7 +46,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Shop2026 API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = " Token + Key with format: Bearer {token}",
+        Description = "Nhập Token vào đây theo format: Bearer {token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -64,17 +64,6 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-
-string clientId = builder.Configuration["PayOS:ClientId"] ?? throw new Exception("Lack PayOS:ClientId");
-string apiKey = builder.Configuration["PayOS:ApiKey"] ?? throw new Exception("Lack PayOS:ApiKey");
-string checksumKey = builder.Configuration["PayOS:ChecksumKey"] ?? throw new Exception("Lack PayOS:ChecksumKey");
-
-PayOSClient payOS = new PayOSClient(clientId, apiKey, checksumKey);
-builder.Services.AddSingleton(payOS);
-
-// ==========================================
-// ĐĂNG KÝ REPOSITORY & SERVICE
-// ==========================================
 builder.Services.AddScoped<AuthRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<OrganizationRepository>();

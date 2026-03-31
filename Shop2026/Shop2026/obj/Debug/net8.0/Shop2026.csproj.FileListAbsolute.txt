@@ -36,7 +36,6 @@ E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Sho
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Microsoft.SqlServer.Server.dll
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Microsoft.Win32.SystemEvents.dll
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Mono.TextTemplating.dll
-E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\PayOS.dll
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Swashbuckle.AspNetCore.Swagger.dll
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 E:\Study\SWP\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerUI.dll
