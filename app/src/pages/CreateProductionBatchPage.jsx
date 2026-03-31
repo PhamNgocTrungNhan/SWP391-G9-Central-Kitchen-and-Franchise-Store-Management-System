@@ -544,10 +544,10 @@ export default function CreateProductionBatchPage() {
             if (!response.ok) {
                 const errorMsg = data?.message || data?.title || data?.error || `Lỗi ${response.status}`
                 console.error('❌ Failed to complete batch:', errorMsg, data)
-                
+
                 // Kiểm tra lỗi thiếu nguyên liệu
                 const lowerMsg = String(errorMsg).toLowerCase()
-                const isInsufficientMaterial = 
+                const isInsufficientMaterial =
                     lowerMsg.includes('insufficient') ||
                     lowerMsg.includes('not enough') ||
                     lowerMsg.includes('thiếu') ||
@@ -556,7 +556,7 @@ export default function CreateProductionBatchPage() {
                     lowerMsg.includes('material') ||
                     lowerMsg.includes('inventory') ||
                     lowerMsg.includes('stock')
-                
+
                 if (isInsufficientMaterial) {
                     throw new Error(
                         `⚠️ THIẾU NGUYÊN LIỆU:\n\n${errorMsg}\n\n` +
@@ -568,7 +568,7 @@ export default function CreateProductionBatchPage() {
                         `3. Hoặc kiểm tra Recipe/BOM có đúng không`
                     )
                 }
-                
+
                 throw new Error(errorMsg)
             }
 
@@ -598,14 +598,14 @@ export default function CreateProductionBatchPage() {
             }
 
             setSuccess(`Mẻ #${batch.id} đã hoàn thành sản xuất với SL thực tế: ${finalActualQty}.${orderUpdateWarning || ' Đơn hàng đã sẵn sàng xuất kho.'}`)
-            
+
             // Xóa số lượng đã nhập khỏi state
             setBatchActualQuantities(prev => {
                 const newState = { ...prev }
                 delete newState[batch.id]
                 return newState
             })
-            
+
             await fetchInProgressBatches()
             await fetchApprovedOrders()
         } catch (requestError) {
@@ -655,7 +655,7 @@ export default function CreateProductionBatchPage() {
                     })
                     .filter(Boolean)
                 setRawProducts(normalized)
-                
+
                 if (normalized.length > 0 && !importForm.productId) {
                     setImportForm(prev => ({ ...prev, productId: String(normalized[0].id) }))
                 }
@@ -675,7 +675,7 @@ export default function CreateProductionBatchPage() {
                     .filter((item) => item?.isActive)
                     .filter(Boolean)
                 setSuppliers(normalized)
-                
+
                 if (normalized.length > 0 && !importForm.supplierId) {
                     setImportForm(prev => ({ ...prev, supplierId: String(normalized[0].id) }))
                 }
@@ -993,13 +993,6 @@ export default function CreateProductionBatchPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        className="h-10 px-4 rounded-lg bg-[#4e5d43] text-white text-sm font-semibold hover:bg-[#415238] flex items-center gap-2"
-                        onClick={openImportModal}
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add_box</span>
-                        Nhập nguyên liệu
-                    </button>
-                    <button
                         className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm"
                         onClick={refreshData}
                         disabled={productsLoading || ordersLoading || !!creatingRowKey}
@@ -1052,7 +1045,7 @@ export default function CreateProductionBatchPage() {
                                     ℹ️ Chỉ mẻ ở trạng thái IN_PROGRESS mới có thể hoàn thành. Nhập số lượng thực tế và nhấn "Hoàn thành".
                                 </p>
                                 <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
-                                    ⚠️ Lưu ý: Khi hoàn thành mẻ, hệ thống sẽ tự động trừ nguyên liệu theo Recipe/BOM và cộng thành phẩm vào kho. 
+                                    ⚠️ Lưu ý: Khi hoàn thành mẻ, hệ thống sẽ tự động trừ nguyên liệu theo Recipe/BOM và cộng thành phẩm vào kho.
                                     Đảm bảo đủ nguyên liệu trước khi hoàn thành!
                                 </p>
                             </div>
@@ -1074,12 +1067,12 @@ export default function CreateProductionBatchPage() {
                                         const isCompleting = completingBatchId === batch.id
                                         const currentActualQty = batchActualQuantities[batch.id] ?? ''
                                         const hasValidQuantity = currentActualQty !== '' && Number(currentActualQty) > 0
-                                        
+
                                         // Kiểm tra status - chỉ IN_PROGRESS mới có thể hoàn thành
                                         const batchStatus = String(batch.status || '').toUpperCase()
                                         const isInProgress = batchStatus === 'IN_PROGRESS'
                                         const canComplete = isInProgress && hasValidQuantity
-                                        
+
                                         return (
                                             <tr key={batch.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                 <td className="px-4 py-3 text-sm font-semibold">
@@ -1102,11 +1095,10 @@ export default function CreateProductionBatchPage() {
                                                         value={currentActualQty}
                                                         onChange={(e) => updateBatchActualQuantity(batch.id, e.target.value)}
                                                         disabled={isCompleting || !!completingBatchId || !isInProgress}
-                                                        className={`w-24 h-9 rounded-lg border px-3 text-sm outline-none disabled:opacity-50 ${
-                                                            !hasValidQuantity && currentActualQty !== '' 
-                                                                ? 'border-red-500 focus:border-red-500' 
+                                                        className={`w-24 h-9 rounded-lg border px-3 text-sm outline-none disabled:opacity-50 ${!hasValidQuantity && currentActualQty !== ''
+                                                                ? 'border-red-500 focus:border-red-500'
                                                                 : 'border-slate-300 dark:border-slate-700 focus:border-primary'
-                                                        } bg-white dark:bg-slate-800`}
+                                                            } bg-white dark:bg-slate-800`}
                                                         placeholder="Nhập SL"
                                                         required
                                                     />
@@ -1118,10 +1110,10 @@ export default function CreateProductionBatchPage() {
                                                         disabled={isCompleting || !!completingBatchId || !canComplete}
                                                         className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                                         title={
-                                                            !isInProgress 
-                                                                ? `Mẻ phải ở trạng thái IN_PROGRESS (hiện tại: ${batch.status})` 
-                                                                : !hasValidQuantity 
-                                                                    ? 'Vui lòng nhập số lượng thực tế (> 0)' 
+                                                            !isInProgress
+                                                                ? `Mẻ phải ở trạng thái IN_PROGRESS (hiện tại: ${batch.status})`
+                                                                : !hasValidQuantity
+                                                                    ? 'Vui lòng nhập số lượng thực tế (> 0)'
                                                                     : ''
                                                         }
                                                     >

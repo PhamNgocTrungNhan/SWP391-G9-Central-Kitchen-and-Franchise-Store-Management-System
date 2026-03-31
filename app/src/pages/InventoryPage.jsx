@@ -31,6 +31,7 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState('stock')
   const [stock, setStock] = useState([])
   const [logs, setLogs] = useState([])
+  const [expiryTracking, setExpiryTracking] = useState([])
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20
@@ -43,6 +44,10 @@ export default function InventoryPage() {
   const [selectedExpiredItem, setSelectedExpiredItem] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // Expiry tracking detail modal
+  const [showExpiryDetailModal, setShowExpiryDetailModal] = useState(false)
+  const [selectedExpiryItem, setSelectedExpiryItem] = useState(null)
 
   // Import ingredient states
   const [showImportModal, setShowImportModal] = useState(false)
@@ -75,6 +80,7 @@ export default function InventoryPage() {
         })
       }
 
+      // Fetch inventory stock
       const response = await fetch(`${apiBase}/Inventory/stock`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -91,10 +97,30 @@ export default function InventoryPage() {
         return
       }
 
+      // Fetch production batches to get expiry dates
+      const batchesRes = await fetch(`${apiBase}/ProductionBatches`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      const batchesData = batchesRes.ok ? await batchesRes.json() : []
+
+      // Create map of earliest expiry date per product
+      const expiryMap = {}
+      if (Array.isArray(batchesData)) {
+        batchesData
+          .filter(b => b.status === 'COMPLETED' && b.expDate)
+          .forEach(b => {
+            const expDate = new Date(b.expDate)
+            if (!expiryMap[b.productId] || expDate < expiryMap[b.productId]) {
+              expiryMap[b.productId] = expDate
+            }
+          })
+      }
+
       const normalized = data.map((item) => {
         const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
         const location = item.location || item.locationName || 'Bếp trung tâm #1'
         const quantity = Number(item.currentQuantity || item.quantity || 0)
+        const expDate = expiryMap[item.productId]
 
         return {
           id: item.inventoryId || item.stockId || item.productId,
@@ -103,6 +129,8 @@ export default function InventoryPage() {
           location,
           quantity,
           unit: item.product?.baseUnit || item.baseUnit || 'unit',
+          expDate: expDate ? expDate.toLocaleDateString('vi-VN') : 'N/A',
+          expDateRaw: expDate,
         }
       })
 
@@ -182,6 +210,145 @@ export default function InventoryPage() {
       setLogs(normalized)
     } catch {
       setLogs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchExpiryTracking = async () => {
+    const tk = getToken()
+    if (!tk) return
+
+    setLoading(true)
+    try {
+      // Fetch products
+      const productsRes = await fetch(`${apiBase}/Products`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      const productsData = productsRes.ok ? await productsRes.json() : []
+      const productMap = {}
+      if (Array.isArray(productsData)) {
+        productsData.forEach((p) => {
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+        })
+      }
+
+      // Fetch current inventory stock
+      const stockRes = await fetch(`${apiBase}/Inventory/stock`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      const stockData = stockRes.ok ? await stockRes.json() : []
+
+      // Create map of current stock by productId
+      const stockByProduct = {}
+      if (Array.isArray(stockData)) {
+        stockData.forEach(item => {
+          const productId = item.productId
+          const qty = Number(item.currentQuantity || item.quantity || 0)
+          if (qty > 0) {
+            stockByProduct[productId] = (stockByProduct[productId] || 0) + qty
+          }
+        })
+      }
+
+      // Fetch production batches
+      const batchesRes = await fetch(`${apiBase}/ProductionBatches`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+      const batchesData = batchesRes.ok ? await batchesRes.json() : []
+
+      if (!Array.isArray(batchesData)) {
+        setExpiryTracking([])
+        return
+      }
+
+      // Group batches by productId and sort by FIFO (mfgDate, then expDate)
+      const batchesByProduct = {}
+      batchesData
+        .filter(b => b.status === 'COMPLETED' && b.expDate && (b.quantityActual > 0 || b.quantityPlanned > 0))
+        .forEach(b => {
+          if (!batchesByProduct[b.productId]) {
+            batchesByProduct[b.productId] = []
+          }
+          batchesByProduct[b.productId].push(b)
+        })
+
+      // Sort each product's batches by FIFO (oldest first)
+      Object.keys(batchesByProduct).forEach(productId => {
+        batchesByProduct[productId].sort((a, b) => {
+          const dateA = new Date(a.mfgDate)
+          const dateB = new Date(b.mfgDate)
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA - dateB
+          }
+          return new Date(a.expDate) - new Date(b.expDate)
+        })
+      })
+
+      const now = new Date()
+      const normalized = []
+
+      // For each product with stock, allocate stock to batches using FIFO
+      Object.keys(stockByProduct).forEach(productId => {
+        let remainingStock = stockByProduct[productId]
+        const batches = batchesByProduct[productId]
+
+        if (!batches || batches.length === 0) {
+          // Product in stock but no batch info (raw material)
+          return
+        }
+
+        // Allocate stock to batches in FIFO order
+        batches.forEach(batch => {
+          if (remainingStock <= 0) return
+
+          const batchProduced = batch.quantityActual || batch.quantityPlanned || 0
+          const batchRemaining = Math.min(batchProduced, remainingStock)
+
+          if (batchRemaining > 0) {
+            const expDate = new Date(batch.expDate)
+            const mfgDate = new Date(batch.mfgDate)
+            const daysUntilExpiry = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24))
+
+            let status = 'good'
+            if (daysUntilExpiry < 0) status = 'expired'
+            else if (daysUntilExpiry <= 7) status = 'critical'
+            else if (daysUntilExpiry <= 30) status = 'warning'
+
+            normalized.push({
+              batchId: batch.batchId,
+              batchCode: batch.batchCode,
+              productId: batch.productId,
+              productName: productMap[batch.productId] || batch.product?.productName || `Sản phẩm #${batch.productId}`,
+              currentStock: batchRemaining,
+              quantityPlanned: batch.quantityPlanned || 0,
+              quantityActual: batch.quantityActual || 0,
+              mfgDate: mfgDate.toLocaleDateString('vi-VN'),
+              mfgDateRaw: batch.mfgDate,
+              expDate: expDate.toLocaleDateString('vi-VN'),
+              expDateRaw: batch.expDate,
+              daysUntilExpiry,
+              status,
+              location: 'Bếp trung tâm #1',
+            })
+
+            remainingStock -= batchRemaining
+          }
+        })
+      })
+
+      // Sort by expiry urgency (most urgent first), then by mfgDate (FIFO)
+      normalized.sort((a, b) => {
+        if (a.daysUntilExpiry !== b.daysUntilExpiry) {
+          return a.daysUntilExpiry - b.daysUntilExpiry
+        }
+        return new Date(a.mfgDateRaw) - new Date(b.mfgDateRaw)
+      })
+
+      setExpiryTracking(normalized)
+    } catch (err) {
+      console.error('Error fetching expiry tracking:', err)
+      setExpiryTracking([])
     } finally {
       setLoading(false)
     }
@@ -332,8 +499,10 @@ export default function InventoryPage() {
     setCurrentPage(1)
     if (activeTab === 'stock') {
       fetchStock()
-    } else {
+    } else if (activeTab === 'logs') {
       fetchLogs()
+    } else if (activeTab === 'expiry') {
+      fetchExpiryTracking()
     }
   }
 
@@ -460,13 +629,15 @@ export default function InventoryPage() {
     setCurrentPage(1)
     if (activeTab === 'stock') {
       fetchStock()
-    } else {
+    } else if (activeTab === 'logs') {
       fetchLogs()
+    } else if (activeTab === 'expiry') {
+      fetchExpiryTracking()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
-  const currentData = activeTab === 'stock' ? stock : logs
+  const currentData = activeTab === 'stock' ? stock : activeTab === 'logs' ? logs : expiryTracking
   const totalPages = Math.ceil(currentData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
@@ -545,6 +716,15 @@ export default function InventoryPage() {
               Tồn kho
             </button>
             <button
+              onClick={() => setActiveTab('expiry')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'expiry'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              Theo dõi hạn sử dụng
+            </button>
+            <button
               onClick={() => setActiveTab('logs')}
               className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'logs'
                 ? 'border-b-2 border-primary text-primary'
@@ -566,37 +746,148 @@ export default function InventoryPage() {
                 <table className="w-full table-fixed text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="w-[35%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                      <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Vị trí</th>
-                      <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tồn hiện tại</th>
+                      <th className="w-[30%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                      <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Vị trí</th>
+                      <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tồn hiện tại</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
+                      <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Hạn sử dụng</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cảnh báo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {paginatedData.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium">{item.product}</td>
-                        <td className="px-4 py-3 text-sm">{item.location}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={item.quantity > 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
-                            {item.quantity}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">{item.unit}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                            {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {paginatedData.map((item) => {
+                      let expiryColor = 'text-slate-600'
+                      if (item.expDateRaw) {
+                        const daysUntilExpiry = Math.ceil((item.expDateRaw - new Date()) / (1000 * 60 * 60 * 24))
+                        if (daysUntilExpiry < 0) expiryColor = 'text-red-600 font-semibold'
+                        else if (daysUntilExpiry <= 7) expiryColor = 'text-orange-600 font-semibold'
+                        else if (daysUntilExpiry <= 30) expiryColor = 'text-amber-600 font-semibold'
+                      }
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium">{item.product}</td>
+                          <td className="px-4 py-3 text-sm">{item.location}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={item.quantity > 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                              {item.quantity}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">{item.unit}</td>
+                          <td className={`px-4 py-3 text-sm ${expiryColor}`}>{item.expDate}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                              {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800">
                     <div className="text-sm text-slate-500">
                       Hiển thị {startIndex + 1}-{Math.min(endIndex, stock.length)} trong tổng số {stock.length} mục
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Trước
+                      </button>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">
+                        Trang {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          ) : activeTab === 'expiry' ? (
+            expiryTracking.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-slate-500">Không có dữ liệu theo dõi hạn sử dụng</div>
+            ) : (
+              <>
+                <table className="w-full table-fixed text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                      <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                      <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL mẻ</th>
+                      <th className="w-[13%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày SX</th>
+                      <th className="w-[13%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Hạn SD</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Còn lại</th>
+                      <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
+                      <th className="w-[9%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {paginatedData.map((item) => {
+                      let statusBadge = ''
+                      let statusText = ''
+                      if (item.status === 'expired') {
+                        statusBadge = 'bg-red-100 text-red-700'
+                        statusText = 'Hết hạn'
+                      } else if (item.status === 'critical') {
+                        statusBadge = 'bg-orange-100 text-orange-700'
+                        statusText = 'Nguy cấp'
+                      } else if (item.status === 'warning') {
+                        statusBadge = 'bg-amber-100 text-amber-700'
+                        statusText = 'Cảnh báo'
+                      } else {
+                        statusBadge = 'bg-emerald-100 text-emerald-700'
+                        statusText = 'Tốt'
+                      }
+
+                      return (
+                        <tr key={item.batchId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
+                          <td className="px-4 py-3 text-sm">{item.batchCode}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="text-emerald-600 font-semibold">{item.currentStock}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs">{item.mfgDate}</td>
+                          <td className="px-4 py-3 text-xs">{item.expDate}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={item.daysUntilExpiry < 0 ? 'text-red-600 font-semibold' : item.daysUntilExpiry <= 7 ? 'text-orange-600 font-semibold' : ''}>
+                              {item.daysUntilExpiry < 0 ? `${Math.abs(item.daysUntilExpiry)} ngày` : `${item.daysUntilExpiry} ngày`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusBadge}`}>
+                              {statusText}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <button
+                              onClick={() => {
+                                setSelectedExpiryItem(item)
+                                setShowExpiryDetailModal(true)
+                              }}
+                              className="text-primary hover:underline text-sm font-medium"
+                            >
+                              Chi tiết
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800">
+                    <div className="text-sm text-slate-500">
+                      Hiển thị {startIndex + 1}-{Math.min(endIndex, expiryTracking.length)} trong tổng số {expiryTracking.length} mục
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -843,6 +1134,162 @@ export default function InventoryPage() {
             <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
               <button
                 onClick={() => setShowDetailModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* Expiry Detail Modal */}
+      {showExpiryDetailModal && selectedExpiryItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-primary/10 to-primary/5">
+              <h3 className="text-lg font-bold">Chi tiết mẻ sản xuất</h3>
+              <button
+                onClick={() => setShowExpiryDetailModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="overflow-auto flex-1 px-6 py-4">
+              <div className="space-y-4">
+                {/* Status Badge */}
+                {selectedExpiryItem.status === 'expired' && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-red-600 text-[24px]">warning</span>
+                      <div>
+                        <h4 className="font-semibold text-red-800 dark:text-red-400">Sản phẩm đã hết hạn sử dụng</h4>
+                        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                          Mẻ sản xuất này đã hết hạn và cần được xử lý theo quy định.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {selectedExpiryItem.status === 'critical' && (
+                  <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-orange-600 text-[24px]">error</span>
+                      <div>
+                        <h4 className="font-semibold text-orange-800 dark:text-orange-400">Cảnh báo nguy cấp</h4>
+                        <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                          Sản phẩm sắp hết hạn trong vòng 7 ngày. Cần ưu tiên sử dụng hoặc xuất kho.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {selectedExpiryItem.status === 'warning' && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-amber-600 text-[24px]">info</span>
+                      <div>
+                        <h4 className="font-semibold text-amber-800 dark:text-amber-400">Cảnh báo</h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                          Sản phẩm sẽ hết hạn trong vòng 30 ngày. Cần theo dõi và lên kế hoạch sử dụng.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Product Information */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                    Thông tin sản phẩm
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Tên sản phẩm</label>
+                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.productName}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã sản phẩm</label>
+                      <p className="text-sm font-medium mt-1">#{selectedExpiryItem.productId}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Batch Information */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">package_2</span>
+                    Thông tin mẻ sản xuất
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã mẻ sản xuất</label>
+                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.batchCode}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Mã batch</label>
+                      <p className="text-sm font-medium mt-1">#{selectedExpiryItem.batchId}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">SL kế hoạch</label>
+                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.quantityPlanned || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">SL thực tế (mẻ này)</label>
+                      <p className="text-sm font-medium mt-1 text-emerald-600 text-lg">{selectedExpiryItem.quantityActual || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date Information */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+                    Thông tin ngày tháng
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
+                      <p className="text-sm font-medium mt-1">{selectedExpiryItem.mfgDate}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
+                      <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.status === 'expired' ? 'text-red-600' : selectedExpiryItem.status === 'critical' ? 'text-orange-600' : selectedExpiryItem.status === 'warning' ? 'text-amber-600' : ''}`}>
+                        {selectedExpiryItem.expDate}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Thời gian còn lại</label>
+                      <p className={`text-sm font-medium mt-1 ${selectedExpiryItem.daysUntilExpiry < 0 ? 'text-red-600' : selectedExpiryItem.daysUntilExpiry <= 7 ? 'text-orange-600' : ''}`}>
+                        {selectedExpiryItem.daysUntilExpiry < 0
+                          ? `Đã hết hạn ${Math.abs(selectedExpiryItem.daysUntilExpiry)} ngày`
+                          : `Còn ${selectedExpiryItem.daysUntilExpiry} ngày`}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Trạng thái</label>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${selectedExpiryItem.status === 'expired' ? 'bg-red-100 text-red-700' :
+                          selectedExpiryItem.status === 'critical' ? 'bg-orange-100 text-orange-700' :
+                            selectedExpiryItem.status === 'warning' ? 'bg-amber-100 text-amber-700' :
+                              'bg-emerald-100 text-emerald-700'
+                          }`}>
+                          {selectedExpiryItem.status === 'expired' ? 'Hết hạn' :
+                            selectedExpiryItem.status === 'critical' ? 'Nguy cấp' :
+                              selectedExpiryItem.status === 'warning' ? 'Cảnh báo' : 'Tốt'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+              <button
+                onClick={() => setShowExpiryDetailModal(false)}
                 className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
               >
                 Đóng
