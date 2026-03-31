@@ -13,7 +13,11 @@ namespace Shop2026.DAL
 
         public IEnumerable<ProductionBatch> GetAll()
         {
-            return _context.ProductionBatches.Include(b => b.Product).OrderByDescending(b => b.BatchId).ToList();
+            return _context.ProductionBatches
+                .Include(b => b.Product)
+                .Include(b => b.ProductionBatchOrders) // ✅ Include để lấy OrderIds
+                .OrderByDescending(b => b.BatchId)
+                .ToList();
         }
 
         public ProductionBatch? GetById(int id)
@@ -28,6 +32,7 @@ namespace Shop2026.DAL
         {
             return _context.ProductionBatches
                 .Include(b => b.Product) // Lấy luôn thông tin sản phẩm (Tên bánh)
+                .Include(b => b.ProductionBatchOrders) // ✅ Include để lấy OrderIds
                 .Where(b => _context.ProductionBatchOrders.Any(pbo => pbo.BatchId == b.BatchId && pbo.OrderId == orderId))
                 .OrderBy(b => b.BatchId)
                 .ToList();
