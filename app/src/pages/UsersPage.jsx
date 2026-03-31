@@ -13,6 +13,8 @@ function getToken() {
 export default function UsersPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
   const [users, setUsers] = useState([])
+  const [stores, setStores] = useState([])
+  const [kitchens, setKitchens] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState({
     userId: 0,
@@ -72,8 +74,54 @@ export default function UsersPage() {
     }
   }
 
+  const fetchStores = async () => {
+    const tk = getToken()
+    if (!tk) return
+
+    try {
+      const response = await fetch(`${apiBase}/Organization/stores`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const storesArray = Array.isArray(data) ? data : []
+        setStores(storesArray)
+        console.log('Stores loaded:', storesArray)
+      } else {
+        console.error('Failed to fetch stores:', response.status)
+      }
+    } catch (error) {
+      console.error('Error fetching stores:', error)
+    }
+  }
+
+  const fetchKitchens = async () => {
+    const tk = getToken()
+    if (!tk) return
+
+    try {
+      const response = await fetch(`${apiBase}/Organization/kitchens`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const kitchensArray = Array.isArray(data) ? data : []
+        setKitchens(kitchensArray)
+        console.log('Kitchens loaded:', kitchensArray)
+      } else {
+        console.error('Failed to fetch kitchens:', response.status)
+      }
+    } catch (error) {
+      console.error('Error fetching kitchens:', error)
+    }
+  }
+
   useEffect(() => {
     fetchUsers()
+    fetchStores()
+    fetchKitchens()
   }, [])
 
   function openCreateModal() {
@@ -482,27 +530,41 @@ export default function UsersPage() {
                   </select>
                 </label>
 
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    type="number"
-                    value={form.storeId ?? ''}
-                    onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="Để trống nếu không phân công"
-                  />
-                </label>
+                {form.roleId !== 4 && (
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng</span>
+                    <select
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.storeId ?? ''}
+                      onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
+                    >
+                      <option value="">-- Chọn cửa hàng --</option>
+                      {stores.map((store) => (
+                        <option key={store.storeId} value={store.storeId}>
+                          {store.storeName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
-                <label className="block sm:col-span-2">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    type="number"
-                    value={form.kitchenId ?? ''}
-                    onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="Để trống nếu không phân công"
-                  />
-                </label>
+                {form.roleId === 4 && (
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp</span>
+                    <select
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.kitchenId ?? ''}
+                      onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
+                    >
+                      <option value="">-- Chọn bếp --</option>
+                      {kitchens.map((kitchen) => (
+                        <option key={kitchen.kitchenId} value={kitchen.kitchenId}>
+                          {kitchen.kitchenName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             </div>
 

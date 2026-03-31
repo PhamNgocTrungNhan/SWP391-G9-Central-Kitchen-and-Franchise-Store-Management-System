@@ -338,20 +338,34 @@ export default function DashboardPage() {
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                {orderBuckets.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-xl border border-[#e7dccd] bg-[#fffdf8] p-4 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-[#8a7858]">{item.label}</p>
-                        <p className="mt-1 text-2xl font-bold text-[#324334]">{item.value}</p>
+                {orderBuckets.map((item) => {
+                  const colorMap = {
+                    'red': { border: 'border-red-200', bg: 'from-red-50 to-red-100', text: 'text-red-600', textBold: 'text-red-900', bgIcon: 'bg-red-500' },
+                    'green': { border: 'border-green-200', bg: 'from-green-50 to-green-100', text: 'text-green-600', textBold: 'text-green-900', bgIcon: 'bg-green-500' },
+                    'amber': { border: 'border-amber-200', bg: 'from-amber-50 to-amber-100', text: 'text-amber-600', textBold: 'text-amber-900', bgIcon: 'bg-amber-500' },
+                    'blue': { border: 'border-blue-200', bg: 'from-blue-50 to-blue-100', text: 'text-blue-600', textBold: 'text-blue-900', bgIcon: 'bg-blue-500' },
+                    'stone': { border: 'border-slate-200', bg: 'from-slate-50 to-slate-100', text: 'text-slate-600', textBold: 'text-slate-900', bgIcon: 'bg-slate-500' },
+                  }
+                  const colors = colorMap[item.tone] || colorMap['stone']
+
+                  return (
+                    <div
+                      key={item.label}
+                      className={`rounded-xl border-2 ${colors.border} bg-gradient-to-br ${colors.bg} p-6 shadow-lg hover:shadow-xl transition-shadow`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>{item.label}</p>
+                          <p className={`mt-2 text-3xl font-bold ${colors.textBold}`}>{item.value}</p>
+                          <p className={`text-xs ${colors.text} mt-1`}>{totalOrders > 0 ? ((item.value / totalOrders) * 100).toFixed(0) : 0}% tổng đơn</p>
+                        </div>
+                        <div className={`h-12 w-12 rounded-full ${colors.bgIcon} flex items-center justify-center`}>
+                          <span className="material-symbols-outlined text-white text-[28px]">shopping_cart</span>
+                        </div>
                       </div>
-                      <Badge tone={item.tone}>{totalOrders > 0 ? ((item.value / totalOrders) * 100).toFixed(0) : 0}%</Badge>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -426,92 +440,7 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Tổng quan tồn kho" className="mt-6">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Hết hàng</p>
-                <p className="mt-2 text-3xl font-bold text-red-900">{inventory.outOfStock}</p>
-                <p className="text-xs text-red-600 mt-1">Số lượng = 0</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-[28px]">error</span>
-              </div>
-            </div>
-          </div>
 
-          <div className="rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Sắp hết</p>
-                <p className="mt-2 text-3xl font-bold text-amber-900">{inventory.lowStock}</p>
-                <p className="text-xs text-amber-600 mt-1">Dưới mức tối thiểu</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-amber-500 flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-[28px]">warning</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tổng mặt hàng</p>
-                <p className="mt-2 text-3xl font-bold text-blue-900">{inventory.totalItems}</p>
-                <p className="text-xs text-blue-600 mt-1">Trong kho</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-[28px]">inventory</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {inventory.alertItems && inventory.alertItems.length > 0 && (
-          <div className="mt-6 rounded-xl border border-[#e7dccd] bg-white overflow-hidden shadow-sm">
-            <div className="bg-[#fffdf8] px-4 py-3 border-b border-[#e7dccd]">
-              <h3 className="text-sm font-semibold text-[#324334]">Cảnh báo tồn kho (Top 10)</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Sản phẩm</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Vị trí</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">Số lượng</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">Tối thiểu</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-600">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {inventory.alertItems.map((item, index) => (
-                    <tr key={index} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                        {item.productName || `Sản phẩm #${item.productId}`}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {item.locationName || `Vị trí #${item.locationId}`}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-semibold text-slate-900">
-                        {item.quantity || 0}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right text-slate-600">
-                        {item.minStockLevel || 0}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Badge tone={item.status === 'critical' ? 'red' : 'amber'}>
-                          {item.statusLabel}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </SectionCard>
     </div>
   )
 }
