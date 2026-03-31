@@ -34,7 +34,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20
-  
+
   // Expired scan states
   const [scanning, setScanning] = useState(false)
   const [message, setMessage] = useState(null)
@@ -81,11 +81,11 @@ export default function InventoryPage() {
 
       const normalized = data.map((item) => {
         const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
-        const location = item.location || 'Bếp trung tâm #1'
-        const quantity = Number(item.quantity || 0)
+        const location = item.location || item.locationName || 'Bếp trung tâm #1'
+        const quantity = Number(item.currentQuantity || item.quantity || 0)
 
         return {
-          id: item.stockId || item.productId,
+          id: item.inventoryId || item.stockId || item.productId,
           productId: item.productId,
           product: productName,
           location,
@@ -399,21 +399,19 @@ export default function InventoryPage() {
           <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800">
             <button
               onClick={() => setActiveTab('stock')}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'stock'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'stock'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-slate-500 hover:text-slate-700'
+                }`}
             >
               Tồn kho
             </button>
             <button
               onClick={() => setActiveTab('logs')}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'logs'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'logs'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-slate-500 hover:text-slate-700'
+                }`}
             >
               Lịch sử thay đổi
             </button>

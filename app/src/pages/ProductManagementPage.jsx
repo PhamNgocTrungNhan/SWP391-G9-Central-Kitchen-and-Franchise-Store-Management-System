@@ -707,23 +707,75 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             )}
 
             {showViewModal && viewProduct && (
-                <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
-                    <div className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <p className="text-base font-semibold">Chi tiết sản phẩm #{viewProduct.id}</p>
+                <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="w-full max-w-2xl rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+                        <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-primary text-[24px]">{scopeMeta.icon}</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                                            {normalizedScope === 'ingredient' ? 'Chi tiết nguyên liệu' : 'Chi tiết sản phẩm'}
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã #{viewProduct.id}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowViewModal(false)}
+                                    className="h-9 w-9 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">SKU</p>
+                                    <p className="text-base font-mono font-semibold text-slate-900 dark:text-slate-100">{viewProduct.sku}</p>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                                        {normalizedScope === 'ingredient' ? 'Tên nguyên liệu' : 'Tên sản phẩm'}
+                                    </p>
+                                    <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{viewProduct.name}</p>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Danh mục</p>
+                                    <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{viewProduct.categoryName}</p>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Loại</p>
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${viewProduct.productType === 'FINISHED'
+                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                            : viewProduct.productType === 'RAW'
+                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                        }`}>
+                                        {viewProduct.productType}
+                                    </span>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 md:col-span-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Đơn vị gốc</p>
+                                    <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{viewProduct.baseUnit}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
                             <button
                                 onClick={() => setShowViewModal(false)}
-                                className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                                className="h-10 px-6 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                             >
                                 Đóng
                             </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2 text-sm">
-                            <p><span className="font-semibold">SKU:</span> {viewProduct.sku}</p>
-                            <p><span className="font-semibold">Tên sản phẩm:</span> {viewProduct.name}</p>
-                            <p><span className="font-semibold">Danh mục:</span> {viewProduct.categoryName}</p>
-                            <p><span className="font-semibold">Loại sản phẩm:</span> {viewProduct.productType}</p>
-                            <p><span className="font-semibold">Đơn vị gốc:</span> {viewProduct.baseUnit}</p>
                         </div>
                     </div>
                 </div>
