@@ -275,21 +275,41 @@ export default function SuppliersPage() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {[
-                        { label: 'Tổng nhà cung cấp', value: stats.total, icon: 'inventory_2', color: 'text-blue-600 dark:text-blue-400' },
-                        { label: 'Đang hoạt động', value: stats.active, icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400' },
-                        { label: 'Ngừng hoạt động', value: stats.inactive, icon: 'cancel', color: 'text-slate-600 dark:text-slate-400' },
-                    ].map((card) => (
-                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3">
-                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                                <div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
+                    <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-white text-[28px]">inventory_2</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tổng nhà cung cấp</p>
+                                <p className="mt-1 text-3xl font-bold text-blue-900">{stats.total}</p>
                             </div>
                         </div>
-                    ))}
+                    </div>
+
+                    <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-white text-[28px]">check_circle</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Đang hoạt động</p>
+                                <p className="mt-1 text-3xl font-bold text-emerald-900">{stats.active}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-white text-[28px]">cancel</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Ngừng hoạt động</p>
+                                <p className="mt-1 text-3xl font-bold text-red-900">{stats.inactive}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
@@ -343,7 +363,7 @@ export default function SuppliersPage() {
                                         <td className="px-4 py-3 text-sm">{supplier.contactInfo}</td>
                                         <td className="px-4 py-3 text-sm">{supplier.address}</td>
                                         <td className="px-4 py-3 text-sm">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${supplier.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${supplier.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                                                 {supplier.isActive ? 'Hoạt động' : 'Ngừng'}
                                             </span>
                                         </td>

@@ -44,6 +44,18 @@ export default function InventoryPage() {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
 
+  // Import ingredient states
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [rawProducts, setRawProducts] = useState([])
+  const [suppliers, setSuppliers] = useState([])
+  const [importForm, setImportForm] = useState({
+    productId: '',
+    quantity: '1',
+    supplierId: '',
+  })
+
 
   const fetchStock = async () => {
     const tk = getToken()
@@ -325,6 +337,125 @@ export default function InventoryPage() {
     }
   }
 
+  const fetchRawProductsAndSuppliers = async () => {
+    const tk = getToken()
+    if (!tk) return
+
+    try {
+      const [productsRes, suppliersRes] = await Promise.all([
+        fetch(`${apiBase}/Products/raw`, {
+          headers: { Authorization: `Bearer ${tk}` },
+        }),
+        fetch(`${apiBase}/Suppliers`, {
+          headers: { Authorization: `Bearer ${tk}` },
+        }),
+      ])
+
+      if (productsRes.ok) {
+        const data = await productsRes.json()
+        const normalized = (Array.isArray(data) ? data : []).map((p) => ({
+          id: p.productId || p.id,
+          name: p.productName || p.name || `Sản phẩm #${p.productId || p.id}`,
+        }))
+        setRawProducts(normalized)
+
+        if (normalized.length > 0 && !importForm.productId) {
+          setImportForm((prev) => ({ ...prev, productId: String(normalized[0].id) }))
+        }
+      }
+
+      if (suppliersRes.ok) {
+        const data = await suppliersRes.json()
+        const normalized = (Array.isArray(data) ? data : []).map((s) => ({
+          id: s.supplierId || s.id,
+          name: s.supplierName || s.name || `NCC #${s.supplierId || s.id}`,
+        }))
+        setSuppliers(normalized)
+
+        if (normalized.length > 0 && !importForm.supplierId) {
+          setImportForm((prev) => ({ ...prev, supplierId: String(normalized[0].id) }))
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching raw products/suppliers:', error)
+    }
+  }
+
+  const openImportModal = () => {
+    setShowImportModal(true)
+    setImportError('')
+    if (rawProducts.length === 0 || suppliers.length === 0) {
+      fetchRawProductsAndSuppliers()
+    }
+  }
+
+  const closeImportModal = () => {
+    if (importing) return
+    setShowImportModal(false)
+    setImportError('')
+  }
+
+  const handleImportSubmit = async (e) => {
+    e.preventDefault()
+    setImportError('')
+
+    const tk = getToken()
+    if (!tk) {
+      setImportError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+      return
+    }
+
+    const productId = Number(importForm.productId || 0)
+    const supplierId = Number(importForm.supplierId || 0)
+    const quantity = Number(importForm.quantity || 0)
+
+    if (productId < 1) {
+      setImportError('Vui lòng chọn sản phẩm hợp lệ.')
+      return
+    }
+    if (supplierId < 1) {
+      setImportError('Vui lòng chọn nhà cung cấp hợp lệ.')
+      return
+    }
+    if (quantity <= 0) {
+      setImportError('Số lượng nhập phải lớn hơn 0.')
+      return
+    }
+
+    setImporting(true)
+    try {
+      const response = await fetch(`${apiBase}/Inventory/import`, {
+        method: 'POST',
+        headers: {
+          accept: '*/*',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tk}`,
+        },
+        body: JSON.stringify({
+          productId,
+          quantity,
+          supplierId,
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        const errorMsg = data?.message || data?.title || 'Nhập kho thất bại.'
+        throw new Error(errorMsg)
+      }
+
+      setMessage({ type: 'success', text: data?.message || 'Nhập nguyên liệu thành công.' })
+      setShowImportModal(false)
+      setImportForm({ productId: '', quantity: '1', supplierId: '' })
+      fetchStock()
+      fetchLogs()
+    } catch (requestError) {
+      setImportError(requestError.message || 'Không thể nhập kho.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   useEffect(() => {
     setCurrentPage(1)
     if (activeTab === 'stock') {
@@ -356,6 +487,13 @@ export default function InventoryPage() {
           <h2 className="text-lg font-bold leading-tight">Quản lý tồn kho</h2>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={openImportModal}
+            className="flex items-center gap-2 h-10 px-4 rounded-lg bg-green-500 text-white text-sm font-bold hover:bg-green-600 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">add_box</span>
+            Nhập nguyên liệu
+          </button>
           <button
             onClick={handleScanExpired}
             disabled={scanning}
@@ -710,6 +848,107 @@ export default function InventoryPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* Import Ingredient Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" onClick={closeImportModal}>
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold">Nhập nguyên liệu vào kho</h3>
+              <button
+                type="button"
+                onClick={closeImportModal}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                aria-label="Đóng"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleImportSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Nguyên liệu
+                </label>
+                <select
+                  value={importForm.productId}
+                  onChange={(e) => setImportForm({ ...importForm, productId: e.target.value })}
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                  required
+                >
+                  <option value="">Chọn nguyên liệu</option>
+                  {rawProducts.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Nhà cung cấp
+                </label>
+                <select
+                  value={importForm.supplierId}
+                  onChange={(e) => setImportForm({ ...importForm, supplierId: e.target.value })}
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                  required
+                >
+                  <option value="">Chọn nhà cung cấp</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Số lượng nhập
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={importForm.quantity}
+                  onChange={(e) => setImportForm({ ...importForm, quantity: e.target.value })}
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                  required
+                />
+              </div>
+
+              {importError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                  {importError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeImportModal}
+                  className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={importing}
+                  className="h-10 px-4 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {importing ? 'Đang nhập...' : 'Xác nhận nhập kho'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

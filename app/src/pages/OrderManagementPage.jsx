@@ -742,15 +742,6 @@ export default function OrderManagementPage() {
                                                                 {transferLoadingId === order.orderId ? 'Đang xuất kho...' : 'Xuất kho'}
                                                             </button>
                                                         )}
-                                                        {canConfirmCompleted(order.status) && (
-                                                            <button
-                                                                className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60"
-                                                                disabled={actionLoadingId === order.orderId}
-                                                                onClick={() => confirmCompleted(order)}
-                                                            >
-                                                                {actionLoadingId === order.orderId ? 'Đang xử lý...' : 'Hoàn tất'}
-                                                            </button>
-                                                        )}
                                                         {canCancelOrder(order.status) && (
                                                             <button
                                                                 className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"

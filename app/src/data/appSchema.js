@@ -33,10 +33,10 @@ export const navigationGroups = [
   {
     title: 'Vận hành',
     items: [
-      { to: '/inventory', key: 'inventory', label: 'Tồn kho', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/inventory', key: 'inventory', label: 'Quản lý kho', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
       { to: '/inventory-logs', key: 'inventoryLogs', label: 'Lịch sử tồn kho', icon: 'history', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
-      { to: '/store-orders', key: 'storeOrders', label: 'Đơn cửa hàng', icon: 'shopping_cart', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
-      { to: '/order-management', key: 'orderManagement', label: 'Đơn nội bộ', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/store-orders', key: 'storeOrders', label: 'Đơn cửa hàng', icon: 'shopping_cart', roles: [roles.MANAGER, roles.STORE_STAFF] },
+      { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
       { to: '/production-batches/create', key: 'createProductionBatch', label: 'Tạo mẻ SX', icon: 'precision_manufacturing', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
     ],
   },

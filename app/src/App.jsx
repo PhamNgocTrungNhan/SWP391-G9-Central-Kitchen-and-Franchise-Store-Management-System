@@ -72,7 +72,7 @@ const routeConfig = [
   { path: '/dispatch', element: <SupplyDispatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.SUPPLY_COORDINATOR] },
   { path: '/production-batches/create', element: <CreateProductionBatchPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
   { path: '/users', element: <UsersPage />, roles: [roles.ADMIN] },
-  { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+  { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.MANAGER, roles.STORE_STAFF] },
   { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
