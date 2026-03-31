@@ -28,6 +28,19 @@ namespace Shop2026.DTOs
         }
     }
 
+    public class BatchResponse
+    {
+        public int BatchId { get; set; }
+        public int? ProductId { get; set; }
+        public string? ProductName { get; set; }
+        public string? BatchCode { get; set; }
+        public decimal? QuantityPlanned { get; set; }
+        public decimal? QuantityActual { get; set; }
+        public DateTime? MfgDate { get; set; }
+        public DateTime? ExpDate { get; set; }
+        public string? Status { get; set; }
+    }
+
     public class BatchStatusUpdateRequest
     {
         [JsonPropertyName("status")]
