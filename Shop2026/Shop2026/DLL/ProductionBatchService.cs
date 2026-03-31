@@ -4,6 +4,7 @@ using Shop2026.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace Shop2026.DLL
 {
@@ -56,12 +57,38 @@ namespace Shop2026.DLL
                 };
                 _repo.AllocateOrders(new List<ProductionBatchOrder> { allocation });
 
-                var order = _repo.GetContext().InternalOrders.Find(request.OrderId.Value);
-                if (order != null)
+                // ✅ SỬA LOGIC: Chỉ chuyển status sang PROCESSING khi đã tạo batch cho TẤT CẢ product trong order
+                var order = _repo.GetContext().InternalOrders
+                    .Include(o => o.InternalOrderDetails)
+                    .FirstOrDefault(o => o.OrderId == request.OrderId.Value);
+
+                if (order != null && order.OrderStatus == "APPROVED")
                 {
-                    order.OrderStatus = "PROCESSING";
-                    order.UpdatedAt = DateTime.Now;
-                    _repo.GetContext().SaveChanges();
+                    // Lấy danh sách các product trong order
+                    var productIdsInOrder = order.InternalOrderDetails
+                        .Select(d => d.ProductId)
+                        .Distinct()
+                        .ToList();
+
+                    // Lấy danh sách các product đã có batch
+                    var productIdsWithBatch = _repo.GetContext().ProductionBatchOrders
+                        .Where(pbo => pbo.OrderId == request.OrderId.Value)
+                        .Join(_repo.GetContext().ProductionBatches,
+                            pbo => pbo.BatchId,
+                            pb => pb.BatchId,
+                            (pbo, pb) => pb.ProductId)
+                        .Distinct()
+                        .ToList();
+
+                    // Chỉ chuyển sang PROCESSING nếu đã tạo batch cho TẤT CẢ product
+                    bool allProductsHaveBatch = productIdsInOrder.All(pid => productIdsWithBatch.Contains(pid));
+
+                    if (allProductsHaveBatch)
+                    {
+                        order.OrderStatus = "PROCESSING";
+                        order.UpdatedAt = DateTime.Now;
+                        _repo.GetContext().SaveChanges();
+                    }
                 }
             }
 
