@@ -144,7 +144,7 @@ export const pageCatalog = {
   },
   payments: {
     controller: 'InternalOrderController',
-    title: 'Trung tam thanh toan',
+    title: 'Trung tâm thanh toán',
     description: 'UI thanh toan cho internal order bam theo bo endpoint thanh toan, tao PayOS link, callback success/cancel, webhook va hoan tien. Trang nay chi dung giao dien, chua goi API.',
     authorize: 'ADMIN, STORE_STAFF',
     endpoints: [

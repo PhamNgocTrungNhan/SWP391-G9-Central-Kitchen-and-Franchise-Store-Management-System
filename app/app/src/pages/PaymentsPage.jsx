@@ -3,17 +3,17 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, EmptyState, Field, PageHeader, SectionCard, StatCard } from '../components/ui'
 
 const statusMeta = {
-  AwaitingLink: { label: 'Cho tao link', tone: 'amber' },
-  PendingPayment: { label: 'Cho thanh toan', tone: 'blue' },
-  Paid: { label: 'Da thanh toan', tone: 'green' },
-  RefundRequested: { label: 'Cho hoan tien', tone: 'amber' },
-  Refunded: { label: 'Da hoan tien', tone: 'stone' },
+  AwaitingLink: { label: 'Chờ tạo link', tone: 'amber' },
+  PendingPayment: { label: 'Chờ thanh toán', tone: 'blue' },
+  Paid: { label: 'Đã thanh toán', tone: 'green' },
+  RefundRequested: { label: 'Chờ hoàn tiền', tone: 'amber' },
+  Refunded: { label: 'Đã hoàn tiền', tone: 'stone' },
 }
 
 const policies = [
-  { id: 'flex', name: 'Hoan 100% truoc 4 gio giao', sla: '2 gio', rate: '100%' },
-  { id: 'standard', name: 'Hoan 80% truoc 2 gio giao', sla: 'Trong ngay', rate: '80%' },
-  { id: 'review', name: 'Can kiem duyet sau giao', sla: '24-48 gio', rate: 'Case by case' },
+  { id: 'flex', name: 'Hoàn 100% trước 4 giờ giao', sla: '2 giờ', rate: '100%' },
+  { id: 'standard', name: 'Hoàn 80% trước 2 giờ giao', sla: 'Trong ngày', rate: '80%' },
+  { id: 'review', name: 'Cần kiểm duyệt sau giao', sla: '24-48 giờ', rate: 'Case by case' },
 ]
 
 const seedOrders = [
@@ -27,11 +27,11 @@ const seedOrders = [
     outstandingAmount: 1580000,
     createdAt: '2026-03-31T08:45:00',
     dueAt: '2026-03-31T17:30:00',
-    notes: 'Don can giao truoc 11h30.',
+    notes: 'Đơn cần giao trước 11h30.',
     items: [
-      { id: 9001, name: 'Pizza de song', quantity: 12, lineTotal: 540000 },
-      { id: 9002, name: 'Sot ca chua nen', quantity: 10, lineTotal: 280000 },
-      { id: 9010, name: 'Pho mai shredded', quantity: 8, lineTotal: 736000 },
+      { id: 9001, name: 'Pizza đế sống', quantity: 12, lineTotal: 540000 },
+      { id: 9002, name: 'Sốt cà chua nền', quantity: 10, lineTotal: 280000 },
+      { id: 9010, name: 'Phô mai shredded', quantity: 8, lineTotal: 736000 },
     ],
   },
   {
@@ -44,10 +44,10 @@ const seedOrders = [
     outstandingAmount: 920000,
     createdAt: '2026-03-31T09:25:00',
     dueAt: '2026-04-01T10:00:00',
-    notes: 'Cho xac nhan so tien va tao link moi.',
+    notes: 'Chờ xác nhận số tiền và tạo link mới.',
     items: [
-      { id: 9022, name: 'Bot mi da dung', quantity: 15, lineTotal: 360000 },
-      { id: 9031, name: 'Sot burger signature', quantity: 10, lineTotal: 560000 },
+      { id: 9022, name: 'Bột mì đa dụng', quantity: 15, lineTotal: 360000 },
+      { id: 9031, name: 'Sốt burger signature', quantity: 10, lineTotal: 560000 },
     ],
   },
   {
@@ -60,10 +60,10 @@ const seedOrders = [
     outstandingAmount: 0,
     createdAt: '2026-03-29T14:05:00',
     dueAt: '2026-03-29T16:30:00',
-    notes: 'Khach bao giao thieu hang, dang doi hoan tien.',
+    notes: 'Khách báo giao thiếu hàng, đang đợi hoàn tiền.',
     items: [
-      { id: 9018, name: 'Bot phu gion', quantity: 24, lineTotal: 600000 },
-      { id: 9042, name: 'La hung tuoi', quantity: 16, lineTotal: 720000 },
+      { id: 9018, name: 'Bột phủ giòn', quantity: 24, lineTotal: 600000 },
+      { id: 9042, name: 'Lá húng tươi', quantity: 16, lineTotal: 720000 },
     ],
   },
 ]
@@ -88,7 +88,7 @@ function toIncomingOrder(raw) {
   const items = Array.isArray(raw.orderDetails) ? raw.orderDetails : Array.isArray(raw.items) ? raw.items : []
   const normalizedItems = items.map((item, index) => ({
     id: Number(item.productId || item.id || index + 1),
-    name: item.productName || item.name || `San pham #${item.productId || item.id || index + 1}`,
+    name: item.productName || item.name || `Sản phẩm #${item.productId || item.id || index + 1}`,
     quantity: Number(item.quantityOrdered || item.quantity || 0),
     lineTotal: Number(item.lineTotal || item.total || 0),
   }))
@@ -103,7 +103,7 @@ function toIncomingOrder(raw) {
     outstandingAmount: Number(raw.outstandingAmount || raw.totalAmount || raw.amount || 0),
     createdAt: raw.createdAt || raw.orderDate || raw.expectedDeliveryDate,
     dueAt: raw.dueAt || raw.expectedDeliveryDate,
-    notes: raw.notes || raw.rejectReason || 'Du lieu duoc mo tu man hinh don hang.',
+    notes: raw.notes || raw.rejectReason || 'Dữ liệu được mở từ màn hình đơn hàng.',
     items: normalizedItems,
   }
 }
@@ -185,34 +185,34 @@ export default function PaymentsPage() {
       <PageHeader pageKey="payments" />
 
       <div className="space-y-6">
-        <SectionCard title="Workspace thanh toan">
+        <SectionCard title="Workspace thanh toán">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Dang cho xu ly" value={stats.pending} tone="amber" />
-            <StatCard label="Da thanh toan" value={stats.paid} tone="green" />
-            <StatCard label="Hoan tien" value={stats.refunding} tone="stone" />
-            <StatCard label="Cong no hien tai" value={money(stats.receivable)} tone="blue" />
+            <StatCard label="Đang chờ xử lý" value={stats.pending} tone="amber" />
+            <StatCard label="Đã thanh toán" value={stats.paid} tone="green" />
+            <StatCard label="Hoàn tiền" value={stats.refunding} tone="stone" />
+            <StatCard label="Công nợ hiện tại" value={money(stats.receivable)} tone="blue" />
           </div>
         </SectionCard>
 
         <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          <SectionCard title="Danh sach giao dich">
+          <SectionCard title="Danh sách giao dịch">
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-              <Field label="Tim nhanh">
+              <Field label="Tìm nhanh">
                 <input
                   className="app-input"
                   value={filter.q}
                   onChange={(event) => setFilter((current) => ({ ...current, q: event.target.value }))}
-                  placeholder="Nhap order id, store hoac payment code"
+                  placeholder="Nhập order id, store hoặc payment code"
                 />
               </Field>
 
-              <Field label="Trang thai">
+              <Field label="Trạng thái">
                 <select
                   className="app-input"
                   value={filter.status}
                   onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value }))}
                 >
-                  <option value="All">Tat ca</option>
+                  <option value="All">Tất cả</option>
                   {Object.keys(statusMeta).map((status) => (
                     <option key={status} value={status}>{statusMeta[status].label}</option>
                   ))}
@@ -238,34 +238,34 @@ export default function PaymentsPage() {
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-[1.1rem] border border-[#ece1d2] bg-[#fff8ef] px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Tong tien</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Tổng tiền</p>
                       <p className="mt-2 text-base font-bold text-[#263626]">{money(order.totalAmount)}</p>
                     </div>
                     <div className="rounded-[1.1rem] border border-[#ece1d2] bg-[#fff8ef] px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Con phai thu</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Còn phải thu</p>
                       <p className="mt-2 text-base font-bold text-[#263626]">{money(order.outstandingAmount)}</p>
                     </div>
                     <div className="rounded-[1.1rem] border border-[#ece1d2] bg-[#fff8ef] px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Han thanh toan</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Hạn thanh toán</p>
                       <p className="mt-2 text-sm font-semibold text-[#263626]">{dateTime(order.dueAt)}</p>
                     </div>
                   </div>
                 </button>
               )) : (
                 <EmptyState
-                  title="Khong co giao dich phu hop"
-                  description="Thu doi bo loc de chon lai don can tao link, ghi nhan thanh toan hoac xu ly hoan tien."
+                  title="Không có giao dịch phù hợp"
+                  description="Thử đổi bộ lọc để chọn lại đơn cần tạo link, ghi nhận thanh toán hoặc xử lý hoàn tiền."
                   icon="payments"
                 />
               )}
             </div>
           </SectionCard>
 
-          <SectionCard title="Chi tiet thanh toan">
+          <SectionCard title="Chi tiết thanh toán">
             {!selectedOrder ? (
               <EmptyState
-                title="Chua chon don hang"
-                description="Danh sach hien khong co ban ghi nao phu hop voi bo loc hien tai."
+                title="Chưa chọn đơn hàng"
+                description="Danh sách hiện không có bản ghi nào phù hợp với bộ lọc hiện tại."
                 icon="receipt_long"
               />
             ) : (
@@ -275,22 +275,22 @@ export default function PaymentsPage() {
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b7652]">Internal order</p>
                       <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-[#203224]">#{selectedOrder.orderId}</h2>
-                      <p className="mt-1 text-sm text-slate-600">{selectedOrder.storeName} | Tao luc {dateTime(selectedOrder.createdAt)}</p>
+                      <p className="mt-1 text-sm text-slate-600">{selectedOrder.storeName} | Tạo lúc {dateTime(selectedOrder.createdAt)}</p>
                     </div>
                     <Badge tone={statusMeta[selectedOrder.status]?.tone || 'neutral'}>{statusMeta[selectedOrder.status]?.label || selectedOrder.status}</Badge>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-[1.1rem] border border-white/60 bg-white/70 px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">So mat hang</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Số mặt hàng</p>
                       <p className="mt-2 text-lg font-bold text-[#263626]">{selectedOrder.items.length}</p>
                     </div>
                     <div className="rounded-[1.1rem] border border-white/60 bg-white/70 px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Tong thanh toan</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Tổng thanh toán</p>
                       <p className="mt-2 text-lg font-bold text-[#263626]">{money(selectedOrder.totalAmount)}</p>
                     </div>
                     <div className="rounded-[1.1rem] border border-white/60 bg-white/70 px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Con phai thu</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Còn phải thu</p>
                       <p className="mt-2 text-lg font-bold text-[#263626]">{money(selectedOrder.outstandingAmount)}</p>
                     </div>
                   </div>
@@ -298,7 +298,7 @@ export default function PaymentsPage() {
 
                 <div className="app-subcard">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-display text-lg font-bold text-[#243428]">Dong san pham</p>
+                    <p className="font-display text-lg font-bold text-[#243428]">Dòng sản phẩm</p>
                   </div>
                   <div className="mt-4 space-y-3">
                     {selectedOrder.items.map((item) => (
@@ -306,7 +306,7 @@ export default function PaymentsPage() {
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="font-semibold text-[#263626]">{item.name}</p>
-                            <p className="mt-1 text-sm text-slate-500">Product #{item.id} | So luong {item.quantity}</p>
+                            <p className="mt-1 text-sm text-slate-500">Product #{item.id} | Số lượng {item.quantity}</p>
                           </div>
                           <p className="text-sm font-semibold text-[#263626]">{money(item.lineTotal)}</p>
                         </div>
@@ -317,7 +317,7 @@ export default function PaymentsPage() {
 
                 <div className="app-subcard">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <p className="font-display text-lg font-bold text-[#243428]">Tao link va callback</p>
+                    <p className="font-display text-lg font-bold text-[#243428]">Tạo link và callback</p>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -360,7 +360,7 @@ export default function PaymentsPage() {
 
                 <div className="app-subcard">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <p className="font-display text-lg font-bold text-[#243428]">Hoan tien</p>
+                    <p className="font-display text-lg font-bold text-[#243428]">Hoàn tiền</p>
                   </div>
 
                   <div className="mt-4 grid gap-3">
@@ -382,12 +382,12 @@ export default function PaymentsPage() {
                     ))}
                   </div>
 
-                  <Field className="mt-4" label="Ly do hoan tien">
+                  <Field className="mt-4" label="Lý do hoàn tiền">
                     <textarea
                       className="app-textarea"
                       value={draft.refundReason}
                       onChange={(event) => setDraft((current) => ({ ...current, refundReason: event.target.value }))}
-                      placeholder="Nhap ly do hoan tien"
+                      placeholder="Nhập lý do hoàn tiền"
                     />
                   </Field>
                 </div>
