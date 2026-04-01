@@ -220,6 +220,7 @@ export default function StoreOrderPage() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
     const [paymentLoading, setPaymentLoading] = useState(false)
+    const [openDropdownId, setOpenDropdownId] = useState(null)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
     const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Store #${id}`
@@ -1442,30 +1443,30 @@ export default function StoreOrderPage() {
                         )}
                         {!ordersLoading && !ordersError && orders.length > 0 && (
                             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
-                                <table className="w-full min-w-[720px] text-left border-collapse">
+                                <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cửa hàng</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sản phẩm</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Số lượng</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng tiền</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Thanh toán</th>
-                                            <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hành động</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Cửa hàng</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Sản phẩm</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">SL</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">Tổng tiền</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trạng thái</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Thanh toán</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {pagedOrders.map((order) => (
                                             <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-5 py-3 text-sm font-semibold">{order.id}</td>
-                                                <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{order.storeName}</td>
-                                                <td className="px-5 py-3 text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{order.productLabel}</span>
+                                                <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
+                                                <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
+                                                <td className="px-3 py-2 text-xs max-w-[180px]">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="truncate">{order.productLabel}</span>
                                                         {order.hasMultipleProducts && (
-                                                            <div className="relative group">
-                                                                <span className="material-symbols-outlined text-[16px] text-slate-400 hover:text-primary cursor-help">
+                                                            <div className="relative group flex-shrink-0">
+                                                                <span className="material-symbols-outlined text-[14px] text-slate-400 hover:text-primary cursor-help">
                                                                     info
                                                                 </span>
                                                                 <div className="absolute left-0 top-6 hidden group-hover:block z-50 w-max max-w-xs bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg p-3 border border-slate-700">
@@ -1477,83 +1478,120 @@ export default function StoreOrderPage() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-5 py-3 text-sm">{order.totalQuantity}</td>
-                                                <td className="px-5 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                <td className="px-3 py-2 text-xs text-center">{order.totalQuantity}</td>
+                                                <td className="px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 text-right whitespace-nowrap">
                                                     {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
                                                 </td>
-                                                <td className="px-5 py-3">
-                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>{order.status}</span>
+                                                <td className="px-3 py-2 text-center">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
                                                 </td>
-                                                <td className="px-5 py-3">
-                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${paymentStatusStyle[order.paymentStatus] || paymentStatusStyle.UNPAID}`}>
+                                                <td className="px-3 py-2 text-center">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[order.paymentStatus] || paymentStatusStyle.UNPAID}`}>
                                                         {paymentStatusLabel[order.paymentStatus] || order.paymentStatus}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        {order.paymentStatus === 'UNPAID' && (
-                                                            <button
-                                                                onClick={() => openPaymentModal(order)}
-                                                                className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors"
-                                                                title="Thanh toán"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[16px] mr-1">payments</span>
-                                                                Thanh toán
-                                                            </button>
-                                                        )}
+                                                <td className="px-3 py-2">
+                                                    <div className="relative">
                                                         <button
-                                                            onClick={() => {
-                                                                const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
-                                                                if (selectedId > 0) {
-                                                                    setDetailOrderId(String(selectedId))
-                                                                    fetchOrderById(selectedId)
-                                                                }
-                                                            }}
-                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                            title="Xem chi tiết"
+                                                            onClick={() => setOpenDropdownId(openDropdownId === order.id ? null : order.id)}
+                                                            className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Thao tác"
                                                         >
-                                                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
                                                         </button>
-                                                        {getOrderStatusActions(order.status).map((action) => (
-                                                            <button
-                                                                key={`${order.orderId}-${action.status}`}
-                                                                onClick={() => updateOrderStatusById(order.orderId, action.status)}
-                                                                disabled={statusUpdating === `${order.orderId}-${action.status}` || cancelLoading || receiveLoading || returnLoading}
-                                                                className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60"
-                                                                title={action.label}
-                                                            >
-                                                                {statusUpdating === `${order.orderId}-${action.status}` ? 'Đang cập nhật...' : action.label}
-                                                            </button>
-                                                        ))}
-                                                        {isShippedLikeStatus(order.status) && (
+
+                                                        {openDropdownId === order.id && (
                                                             <>
-                                                                <button
-                                                                    onClick={() => confirmReceivedById(order.orderId)}
-                                                                    disabled={receiveLoading || returnLoading}
-                                                                    className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
-                                                                    title="Xác nhận đã nhận hàng"
-                                                                >
-                                                                    Đã nhận hàng
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => returnOrderById(order.orderId)}
-                                                                    disabled={receiveLoading || returnLoading}
-                                                                    className="h-8 px-3 inline-flex items-center justify-center rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors disabled:opacity-60"
-                                                                    title="Trả hàng"
-                                                                >
-                                                                    Trả hàng
-                                                                </button>
+                                                                <div
+                                                                    className="fixed inset-0 z-40"
+                                                                    onClick={() => setOpenDropdownId(null)}
+                                                                ></div>
+                                                                <div className="absolute right-0 top-8 z-50 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
+                                                                            if (selectedId > 0) {
+                                                                                setDetailOrderId(String(selectedId))
+                                                                                fetchOrderById(selectedId)
+                                                                            }
+                                                                            setOpenDropdownId(null)
+                                                                        }}
+                                                                        className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                                        Xem chi tiết
+                                                                    </button>
+
+                                                                    {order.paymentStatus === 'UNPAID' && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                openPaymentModal(order)
+                                                                                setOpenDropdownId(null)
+                                                                            }}
+                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-blue-600"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[18px]">payments</span>
+                                                                            Thanh toán
+                                                                        </button>
+                                                                    )}
+
+                                                                    {getOrderStatusActions(order.status).map((action) => (
+                                                                        <button
+                                                                            key={`${order.orderId}-${action.status}`}
+                                                                            onClick={() => {
+                                                                                updateOrderStatusById(order.orderId, action.status)
+                                                                                setOpenDropdownId(null)
+                                                                            }}
+                                                                            disabled={statusUpdating === `${order.orderId}-${action.status}`}
+                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[18px]">update</span>
+                                                                            {action.label}
+                                                                        </button>
+                                                                    ))}
+
+                                                                    {isShippedLikeStatus(order.status) && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    confirmReceivedById(order.orderId)
+                                                                                    setOpenDropdownId(null)
+                                                                                }}
+                                                                                disabled={receiveLoading || returnLoading}
+                                                                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-emerald-600 disabled:opacity-50"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                                                                                Đã nhận hàng
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    returnOrderById(order.orderId)
+                                                                                    setOpenDropdownId(null)
+                                                                                }}
+                                                                                disabled={receiveLoading || returnLoading}
+                                                                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-rose-600 disabled:opacity-50"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
+                                                                                Trả hàng
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+
+                                                                    {order.status !== 'Đã hủy' && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                cancelOrderById(order.orderId)
+                                                                                setOpenDropdownId(null)
+                                                                            }}
+                                                                            disabled={cancelLoading || receiveLoading || returnLoading}
+                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-red-600 disabled:opacity-50 border-t border-slate-200 dark:border-slate-700"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                                            Hủy đơn
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </>
-                                                        )}
-                                                        {order.status !== 'Đã hủy' && (
-                                                            <button
-                                                                onClick={() => cancelOrderById(order.orderId)}
-                                                                disabled={cancelLoading || receiveLoading || returnLoading}
-                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
-                                                                title="Hủy đơn"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                            </button>
                                                         )}
                                                     </div>
                                                 </td>
