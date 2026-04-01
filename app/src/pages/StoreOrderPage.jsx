@@ -220,7 +220,6 @@ export default function StoreOrderPage() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
     const [paymentLoading, setPaymentLoading] = useState(false)
-    const [openDropdownId, setOpenDropdownId] = useState(null)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
     const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Store #${id}`
@@ -1205,8 +1204,8 @@ export default function StoreOrderPage() {
                         </div>
 
                         {showCreateOrderForm && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 my-auto">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start justify-center p-4 pt-6 md:pt-10 overflow-y-auto">
+                                <div className="w-full max-w-3xl max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                                     <div className="flex items-center justify-between gap-3 mb-4">
                                         <p className="text-base font-semibold">Form Tạo Đơn Hàng</p>
                                         <button
@@ -1491,108 +1490,35 @@ export default function StoreOrderPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-2">
-                                                    <div className="relative">
+                                                    <div className="flex items-center justify-center gap-2">
                                                         <button
-                                                            onClick={() => setOpenDropdownId(openDropdownId === order.id ? null : order.id)}
-                                                            className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                            title="Thao tác"
+                                                            onClick={() => {
+                                                                const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
+                                                                if (selectedId > 0) {
+                                                                    setDetailOrderId(String(selectedId))
+                                                                    fetchOrderById(selectedId)
+                                                                }
+                                                            }}
+                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Xem chi tiết"
+                                                            aria-label="Xem chi tiết"
                                                         >
-                                                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                                                            <span className="material-symbols-outlined text-[18px]">visibility</span>
                                                         </button>
-
-                                                        {openDropdownId === order.id && (
-                                                            <>
-                                                                <div
-                                                                    className="fixed inset-0 z-40"
-                                                                    onClick={() => setOpenDropdownId(null)}
-                                                                ></div>
-                                                                <div className="absolute right-0 top-8 z-50 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
-                                                                            if (selectedId > 0) {
-                                                                                setDetailOrderId(String(selectedId))
-                                                                                fetchOrderById(selectedId)
-                                                                            }
-                                                                            setOpenDropdownId(null)
-                                                                        }}
-                                                                        className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                                                                    >
-                                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                                                        Xem chi tiết
-                                                                    </button>
-
-                                                                    {order.paymentStatus === 'UNPAID' && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                openPaymentModal(order)
-                                                                                setOpenDropdownId(null)
-                                                                            }}
-                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-blue-600"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-[18px]">payments</span>
-                                                                            Thanh toán
-                                                                        </button>
-                                                                    )}
-
-                                                                    {getOrderStatusActions(order.status).map((action) => (
-                                                                        <button
-                                                                            key={`${order.orderId}-${action.status}`}
-                                                                            onClick={() => {
-                                                                                updateOrderStatusById(order.orderId, action.status)
-                                                                                setOpenDropdownId(null)
-                                                                            }}
-                                                                            disabled={statusUpdating === `${order.orderId}-${action.status}`}
-                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-[18px]">update</span>
-                                                                            {action.label}
-                                                                        </button>
-                                                                    ))}
-
-                                                                    {isShippedLikeStatus(order.status) && (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    confirmReceivedById(order.orderId)
-                                                                                    setOpenDropdownId(null)
-                                                                                }}
-                                                                                disabled={receiveLoading || returnLoading}
-                                                                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-emerald-600 disabled:opacity-50"
-                                                                            >
-                                                                                <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                                                                                Đã nhận hàng
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    returnOrderById(order.orderId)
-                                                                                    setOpenDropdownId(null)
-                                                                                }}
-                                                                                disabled={receiveLoading || returnLoading}
-                                                                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-rose-600 disabled:opacity-50"
-                                                                            >
-                                                                                <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
-                                                                                Trả hàng
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-
-                                                                    {order.status !== 'Đã hủy' && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                cancelOrderById(order.orderId)
-                                                                                setOpenDropdownId(null)
-                                                                            }}
-                                                                            disabled={cancelLoading || receiveLoading || returnLoading}
-                                                                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-red-600 disabled:opacity-50 border-t border-slate-200 dark:border-slate-700"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                                            Hủy đơn
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </>
-                                                        )}
+                                                        <button
+                                                            onClick={() => {
+                                                                const selectedId = Number(order.orderId || order.id)
+                                                                if (selectedId > 0) {
+                                                                    cancelOrderById(selectedId)
+                                                                }
+                                                            }}
+                                                            disabled={order.status === 'Đã hủy' || cancelLoading || receiveLoading || returnLoading}
+                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title={order.status === 'Đã hủy' ? 'Đơn đã hủy' : 'Hủy đơn'}
+                                                            aria-label="Hủy đơn"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1623,8 +1549,8 @@ export default function StoreOrderPage() {
                             </div>
                         )}
                         {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-start md:items-center justify-center p-4 overflow-y-auto">
+                                <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[calc(100dvh-3rem)] flex flex-col">
                                     {/* Header */}
                                     <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -1648,7 +1574,7 @@ export default function StoreOrderPage() {
                                     </div>
 
                                     {/* Content */}
-                                    <div className="p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
+                                    <div className="p-6 overflow-y-auto min-h-0">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
                                             <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
@@ -1989,7 +1915,7 @@ export default function StoreOrderPage() {
             {/* Payment Modal */}
             {showPaymentModal && selectedPaymentOrder && (
                 <div
-                    className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4"
+                    className="fixed inset-0 z-[70] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
                     onClick={() => !paymentLoading && setShowPaymentModal(false)}
                 >
                     <div

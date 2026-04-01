@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
 function getToken() {
@@ -25,6 +25,40 @@ function toShortDate(dateString) {
   })
 }
 
+function toDateTime(dateString) {
+  if (!dateString) return 'Chưa thanh toán'
+  const d = new Date(dateString)
+  if (Number.isNaN(d.getTime())) return String(dateString)
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatCurrency(value) {
+  return `${Number(value || 0).toLocaleString('vi-VN')} đ`
+}
+
+function toAmount(value, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+
+  const raw = String(value ?? '').trim()
+  if (!raw) return fallback
+
+  let normalized = raw.replace(/[\s₫đ]/gi, '')
+
+  if (/^\d{1,3}([.,]\d{3})+([.,]\d+)?$/.test(normalized)) {
+    normalized = normalized.replace(/[.,](?=\d{3}(\D|$))/g, '')
+  }
+
+  normalized = normalized.replace(',', '.')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 const paymentStatusStyle = {
   UNPAID: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   PAID: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -45,6 +79,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
   const [message, setMessage] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('ALL')
 
   // Refund modal states
   const [showRefundModal, setShowRefundModal] = useState(false)
@@ -77,16 +112,51 @@ export default function PaymentsPage() {
       }
 
       const data = await response.json()
-      const normalized = (Array.isArray(data) ? data : []).map((item) => ({
-        orderId: item.orderId || item.internalOrderId || item.id,
-        orderCode: item.orderCode || `#${item.orderId}`,
-        storeName: item.store?.storeName || item.store?.name || `Store #${item.storeId}`,
-        createdAt: item.createdAt,
-        paymentStatus: item.paymentStatus || 'UNPAID',
-        totalAmount: item.totalAmount || 0,
-        paidAmount: item.paidAmount || 0,
-        refundedAmount: item.refundedAmount || 0,
-      }))
+      const normalized = (Array.isArray(data) ? data : []).map((item) => {
+        const orderId = Number(item.orderId || item.internalOrderId || item.id || 0)
+        const details = Array.isArray(item?.internalOrderDetails)
+          ? item.internalOrderDetails
+          : Array.isArray(item?.orderDetails)
+            ? item.orderDetails
+            : []
+
+        const quantityFromDetails = details.reduce((sum, row) => {
+          return sum + Number(row?.quantityOrdered ?? row?.quantityConfirmed ?? row?.quantity ?? 0)
+        }, 0)
+        const quantityTotal = quantityFromDetails || Number(item?.totalQuantity ?? item?.quantityOrdered ?? item?.quantity ?? 0)
+
+        const detailsSubtotal = details.reduce((sum, row) => {
+          const qty = Number(row?.quantityOrdered ?? row?.quantityConfirmed ?? row?.quantity ?? 0)
+          const unitPrice = Number(row?.unitPrice ?? row?.price ?? row?.sellingPrice ?? 0)
+          return sum + (qty * unitPrice)
+        }, 0)
+
+        const totalAmount = toAmount(item.totalAmount, detailsSubtotal)
+        const paymentStatus = String(item.paymentStatus || 'UNPAID').toUpperCase()
+        const paidAmountFromApi = toAmount(item.paidAmount, Number.NaN)
+        const paidAmount = Number.isFinite(paidAmountFromApi)
+          ? paidAmountFromApi
+          : (paymentStatus === 'UNPAID' ? 0 : totalAmount)
+        const refundedAmount = toAmount(item.refundedAmount, 0)
+        const avgUnitPrice = quantityTotal > 0
+          ? totalAmount / quantityTotal
+          : Number(details?.[0]?.unitPrice ?? details?.[0]?.price ?? 0)
+
+        return {
+          orderId,
+          orderCode: item.orderCode || item.code || (orderId ? `ORD${orderId}` : 'N/A'),
+          storeName: item.store?.storeName || item.store?.name || `Store #${item.storeId || 'N/A'}`,
+          createdAt: item.createdAt,
+          paymentDate: item.paidAt || item.paymentDate || item.lastPaidAt || (paymentStatus === 'UNPAID' ? null : item.updatedAt),
+          paymentStatus,
+          quantityTotal,
+          avgUnitPrice,
+          totalAmount,
+          paidAmount,
+          refundedAmount,
+          dueAmount: Math.max(0, totalAmount - paidAmount),
+        }
+      })
 
       setOrders(normalized)
     } catch (error) {
@@ -276,12 +346,35 @@ export default function PaymentsPage() {
     return () => window.clearTimeout(timer)
   }, [message])
 
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === 'ALL') return orders
+    return orders.filter((order) => order.paymentStatus === statusFilter)
+  }, [orders, statusFilter])
+
+  const stats = useMemo(() => {
+    const totalOrders = orders.length
+    const unpaidOrders = orders.filter((o) => o.paymentStatus === 'UNPAID').length
+    const paidOrders = orders.filter((o) => o.paymentStatus === 'PAID').length
+    const totalValue = orders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0)
+    const totalCollected = orders.reduce((sum, o) => sum + Number(o.paidAmount || 0), 0)
+    const totalDue = orders.reduce((sum, o) => sum + Number(o.dueAmount || 0), 0)
+
+    return {
+      totalOrders,
+      unpaidOrders,
+      paidOrders,
+      totalValue,
+      totalCollected,
+      totalDue,
+    }
+  }, [orders])
+
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <span className="material-symbols-outlined text-primary text-[24px]">payments</span>
-          <h2 className="text-lg font-bold leading-tight">Thanh toán & Hoàn tiền</h2>
+          <h2 className="text-lg font-bold leading-tight">Quản lý thanh toán</h2>
         </div>
         <button
           onClick={fetchOrders}
@@ -294,11 +387,54 @@ export default function PaymentsPage() {
       </header>
 
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-bold">Quản lý thanh toán</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            Tạo link PayOS QR, xác nhận thanh toán thủ công, và hoàn tiền theo chính sách
-          </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Lịch sử thanh toán</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+              Theo dõi đơn cần thanh toán, đã thanh toán, ngày thanh toán, số lượng, đơn giá và số tiền còn phải chi.
+            </p>
+          </div>
+          <label className="flex flex-col gap-1 min-w-[220px]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Lọc trạng thái thanh toán</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm"
+            >
+              <option value="ALL">Tất cả</option>
+              <option value="UNPAID">Chưa thanh toán</option>
+              <option value="PAID">Đã thanh toán</option>
+              <option value="PARTIAL_REFUND">Hoàn một phần</option>
+              <option value="REFUNDED">Đã hoàn tiền</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+            <p className="text-[11px] text-slate-500">Tổng đơn</p>
+            <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-900/10 p-3 shadow-sm">
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">Cần thanh toán</p>
+            <p className="mt-2 text-xl font-bold text-amber-700 dark:text-amber-300">{stats.unpaidOrders}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đã thanh toán</p>
+            <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+            <p className="text-[11px] text-slate-500">Tổng giá trị</p>
+            <p className="mt-2 text-sm font-bold">{formatCurrency(stats.totalValue)}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
+            <p className="text-[11px] text-blue-700 dark:text-blue-400">Đã chi</p>
+            <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.totalCollected)}</p>
+          </div>
+          <div className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-900/10 p-3 shadow-sm">
+            <p className="text-[11px] text-rose-700 dark:text-rose-400">Còn phải chi</p>
+            <p className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalDue)}</p>
+          </div>
         </div>
 
         {message && (
@@ -317,10 +453,10 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
           {loading ? (
             <div className="px-4 py-3 text-sm text-slate-500">Đang tải...</div>
-          ) : orders.length === 0 ? (
+          ) : filteredOrders.length === 0 ? (
             <div className="px-4 py-3 text-sm text-slate-500">Không có đơn hàng</div>
           ) : (
             <table className="w-full text-left border-collapse">
@@ -329,19 +465,33 @@ export default function PaymentsPage() {
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cửa hàng</th>
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng tiền</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày thanh toán</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Số lượng</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Đơn giá TB</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Tổng tiền</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Đã thanh toán</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Cần thanh toán</th>
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {orders.map((order) => (
+                {filteredOrders.map((order) => (
                   <tr key={order.orderId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium">{order.orderCode}</td>
                     <td className="px-4 py-3 text-sm">{order.storeName}</td>
                     <td className="px-4 py-3 text-xs">{toShortDate(order.createdAt)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">
-                      {order.totalAmount?.toLocaleString('vi-VN')} đ
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{toDateTime(order.paymentDate)}</td>
+                    <td className="px-4 py-3 text-sm text-center font-semibold">{order.quantityTotal || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-right whitespace-nowrap">{formatCurrency(order.avgUnitPrice)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-right whitespace-nowrap">
+                      {formatCurrency(order.totalAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right whitespace-nowrap text-emerald-700 dark:text-emerald-400 font-semibold">
+                      {formatCurrency(order.paidAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right whitespace-nowrap text-rose-700 dark:text-rose-400 font-semibold">
+                      {formatCurrency(order.dueAmount)}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span

@@ -1,12 +1,35 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { getNavigationByRole } from '../data/appSchema'
-import { getCurrentUserRole } from '../utils/auth'
+import { clearAuthStorage, decodeJwtPayload, getCurrentUserRole, getStoredToken } from '../utils/auth'
 
 export default function Sidebar() {
+  const navigate = useNavigate()
   const role = getCurrentUserRole()
   const navigationGroups = getNavigationByRole(role)
   const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const resolveDisplayName = () => {
+    const payload = decodeJwtPayload(getStoredToken()) || {}
+    const raw = payload?.fullName
+      || payload?.full_name
+      || payload?.name
+      || payload?.unique_name
+      || payload?.preferred_username
+      || payload?.username
+      || payload?.email
+
+    if (String(raw || '').trim()) return String(raw).trim()
+    if (role === 'ADMIN') return 'Admin'
+    return 'Người dùng'
+  }
+
+  const displayName = resolveDisplayName()
+
+  const handleLogout = () => {
+    clearAuthStorage()
+    navigate('/', { replace: true })
+  }
 
   return (
     <>
@@ -20,7 +43,7 @@ export default function Sidebar() {
               {!isCollapsed && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#887654]">Hệ thống</p>
-                  <h2 className="mt-1 font-display text-lg font-bold text-[#223223]">Shop2026</h2>
+                  <h2 className="mt-1 font-display text-lg font-bold text-[#223223]">AUTUMN</h2>
                 </div>
               )}
             </div>
@@ -78,9 +101,33 @@ export default function Sidebar() {
             )}
           </nav>
 
+          {!isCollapsed ? (
+            <div className="mt-4 rounded-[1.1rem] border border-[#e0d5c5] bg-[#fff9ef] p-3">
+              <p className="text-sm font-semibold text-[#344234] truncate" title={displayName}>{displayName}</p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8e7a58]">{role || 'USER'}</p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#d9c9b4] bg-white text-sm font-semibold text-[#4e5d43] transition hover:bg-[#fff5e7]"
+              >
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+                Đăng xuất
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="mt-4 flex h-10 items-center justify-center rounded-xl border border-[#e0d5c5] bg-[#fff9ef] text-[#55624f] transition-colors hover:bg-[#fff8ee]"
+              title="Đăng xuất"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="mt-4 flex items-center justify-center gap-2 rounded-[1.1rem] border border-[#e0d5c5] bg-[#fff9ef] px-3 py-2.5 text-[#55624f] hover:bg-[#fff8ee] transition-colors"
+            className="mt-3 flex items-center justify-center gap-2 rounded-[1.1rem] border border-[#e0d5c5] bg-[#fff9ef] px-3 py-2.5 text-[#55624f] hover:bg-[#fff8ee] transition-colors"
             title={isCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
           >
             <span className="material-symbols-outlined text-[20px]">
