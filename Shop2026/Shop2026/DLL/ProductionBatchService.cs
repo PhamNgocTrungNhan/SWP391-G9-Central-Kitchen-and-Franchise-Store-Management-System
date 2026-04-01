@@ -106,8 +106,6 @@ namespace Shop2026.DLL
                         .Distinct()
                         .Count();
 
-                    Console.WriteLine($"[DEBUG] Order #{request.OrderId.Value}: Products in order = {distinctProductCountInOrder}, Products with batch = {distinctProductsWithBatch}");
-
                     if (distinctProductsWithBatch == distinctProductCountInOrder)
                     {
                         order.OrderStatus = "PROCESSING";
@@ -123,7 +121,6 @@ namespace Shop2026.DLL
         public void UpdateStatus(int batchId, BatchStatusUpdateRequest request)
         {
             var batch = _repo.GetById(batchId) ?? throw new Exception("Không tìm thấy mẻ sản xuất");
-
             var normalizedStatus = request.Status?.ToUpper();
 
             if (normalizedStatus == "IN_PROGRESS")
@@ -140,13 +137,16 @@ namespace Shop2026.DLL
                     throw new Exception("Mẻ phải ở trạng thái Đang sản xuất (IN_PROGRESS) mới có thể Hoàn thành!");
                 if (request.QuantityActual == null || request.QuantityActual <= 0)
                     throw new Exception("Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!");
+
                 using var transaction = _repo.GetContext().Database.BeginTransaction();
                 try
                 {
                     batch.QuantityActual = request.QuantityActual;
                     batch.Status = "COMPLETED";
                     _repo.GetContext().ProductionBatches.Update(batch);
+
                     _inventoryService.DeductMaterialForBatch(batch, 1, true);
+
                     if (request.AdditionalMaterials != null && request.AdditionalMaterials.Any())
                     {
                         foreach (var extra in request.AdditionalMaterials)

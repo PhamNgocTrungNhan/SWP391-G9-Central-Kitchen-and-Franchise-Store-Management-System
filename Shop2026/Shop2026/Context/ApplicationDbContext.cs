@@ -126,7 +126,6 @@ public partial class ApplicationDbContext : DbContext
                 .HasDefaultValue("PENDING")
                 .HasColumnName("order_status");
 
-            // ✅ ĐÃ CHÈN MAP CỘT PAYMENT_STATUS VÀO ĐÚNG CHỖ
             entity.Property(e => e.PaymentStatus)
                 .HasMaxLength(50)
                 .HasDefaultValue("UNPAID")
@@ -253,7 +252,6 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("sku");
 
-            // ✅ ĐÃ CHÈN MAP 2 CỘT GIÁ TIỀN VÀO ĐÚNG CHỖ
             entity.Property(e => e.PurchasePrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("purchase_price")
@@ -262,6 +260,12 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.InternalPrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("internal_price")
+                .HasDefaultValue(0m);
+
+            // ✅ THÊM CỘT HAO HỤT MẶC ĐỊNH
+            entity.Property(e => e.DefaultWastePercent)
+                .HasColumnType("decimal(5, 2)")
+                .HasColumnName("default_waste_percent")
                 .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
@@ -335,10 +339,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.QuantityRequired)
                 .HasColumnType("decimal(12, 4)")
                 .HasColumnName("quantity_required");
-            entity.Property(e => e.WasteAllowancePercent)
-                .HasDefaultValue(0m)
-                .HasColumnType("decimal(5, 2)")
-                .HasColumnName("waste_allowance_percent");
+
+            // ❌ ĐÃ XÓA CỘT WasteAllowancePercent TẠI ĐÂY
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
                 .HasForeignKey(d => d.MaterialId)
@@ -466,7 +468,6 @@ public partial class ApplicationDbContext : DbContext
                 .HasColumnName("is_active");
         });
 
-        // ✅ MAP CẤU HÌNH BẢNG TRANSACTIONS (LƯU GIAO DỊCH TIỀN)
         modelBuilder.Entity<Transaction>(entity =>
         {
             entity.HasKey(e => e.TransactionId).HasName("PK_Transactions");

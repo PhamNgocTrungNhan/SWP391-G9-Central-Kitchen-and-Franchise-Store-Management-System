@@ -26,7 +26,6 @@ namespace Shop2026.Controllers
                     message = "Không tìm thấy mẻ sản xuất"
                 });
             }
-
             return Ok(batch);
         }
 
@@ -36,9 +35,6 @@ namespace Shop2026.Controllers
             return Ok(_service.GetAll());
         }
 
-        // ==========================================
-        // THÊM MỚI: API cho FE kéo danh sách mẻ theo Đơn Hàng
-        // ==========================================
         [HttpGet("order/{orderId}")]
         public IActionResult GetBatchesByOrder(int orderId)
         {
@@ -47,13 +43,7 @@ namespace Shop2026.Controllers
                 var batches = _service.GetBatchesByOrderId(orderId);
                 return Ok(batches);
             }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
-            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
         [HttpPost]

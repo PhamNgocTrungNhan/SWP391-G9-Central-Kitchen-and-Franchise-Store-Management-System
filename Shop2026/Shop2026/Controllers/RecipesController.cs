@@ -7,39 +7,46 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] // Yêu cầu đăng nhập & quyền
+    [Authorize(Roles = "ADMIN, MANAGER")]
     public class RecipesController : ControllerBase
     {
         private readonly RecipeService _service;
         public RecipesController(RecipeService service) => _service = service;
 
-        // Lấy công thức của 1 sản phẩm cụ thể
         [HttpGet("parent/{parentProductId}")]
-        public IActionResult GetByParent(int parentProductId) => Ok(_service.GetByParentProductId(parentProductId));
-
-        [HttpPost]
-        public IActionResult Create([FromBody] RecipeRequest request)
+        public IActionResult GetByParent(int parentProductId)
         {
             try
             {
-                _service.Create(request);
+                return Ok(_service.GetByParentProductId(parentProductId));
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        // ✅ ĐỔI HÀM NÀY ĐỂ NHẬN ARRAY
+        [HttpPost]
+        public IActionResult CreateBulk([FromBody] CreateRecipeBulkRequest request)
+        {
+            try
+            {
+                _service.CreateBulk(request);
                 return Ok(new
                 {
-                    message = "Thêm định mức thành công"
+                    message = "Lưu công thức thành công!"
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, [FromBody] RecipeRequest request)
+        public IActionResult Update(int id, [FromBody] UpdateRecipeRequest request)
         {
             try
             {
                 _service.Update(id, request);
                 return Ok(new
                 {
-                    message = "Cập nhật thành công"
+                    message = "Cập nhật định mức thành công"
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
@@ -53,7 +60,7 @@ namespace Shop2026.Controllers
                 _service.Delete(id);
                 return Ok(new
                 {
-                    message = "Xóa thành công"
+                    message = "Xóa dòng nguyên liệu thành công"
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
