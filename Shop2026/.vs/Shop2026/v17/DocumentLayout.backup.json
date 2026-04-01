@@ -37,6 +37,10 @@
           "SelectedChildIndex": 4,
           "Children": [
             {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            },
+            {
               "$type": "Document",
               "DocumentIndex": 3,
               "Title": "InternalOrderRepository.cs",
@@ -46,8 +50,7 @@
               "RelativeToolTip": "Shop2026\\DAL\\InternalOrderRepository.cs",
               "ViewState": "AgIAALEAAAAAAAAAAAAuwMYAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:40:08.532Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-30T08:40:08.532Z"
             },
             {
               "$type": "Document",
@@ -59,8 +62,7 @@
               "RelativeToolTip": "Shop2026\\Controllers\\InternalOrderController.cs",
               "ViewState": "AgIAAOwBAAAAAAAAAAAAwPIBAAATAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:35:33.673Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-30T08:35:33.673Z"
             },
             {
               "$type": "Document",
@@ -72,8 +74,24 @@
               "RelativeToolTip": "Shop2026\\Controllers\\InventoryController.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:35:32.268Z",
+              "WhenOpened": "2026-03-30T08:35:32.268Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Program.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
+              "RelativeToolTip": "Shop2026\\Program.cs",
+              "ViewState": "AgIAACcAAAAAAAAAAAAAABUAAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-30T08:16:46.53Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{56df62a4-05a3-4e5b-aa1a-99371ccfb997}"
             },
             {
               "$type": "Document",
@@ -85,21 +103,7 @@
               "RelativeToolTip": "Shop2026\\DLL\\InternalOrderService.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAASAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:35:19.723Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "Program.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Program.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs*",
-              "RelativeToolTip": "Shop2026\\Program.cs*",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAEcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:16:46.53Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-30T08:35:19.723Z"
             },
             {
               "$type": "Document",
@@ -111,16 +115,7 @@
               "RelativeToolTip": "Shop2026\\appsettings.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAswBAAAAAKAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-03-30T08:17:36.37Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{56df62a4-05a3-4e5b-aa1a-99371ccfb997}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+              "WhenOpened": "2026-03-30T08:17:36.37Z"
             }
           ]
         }
