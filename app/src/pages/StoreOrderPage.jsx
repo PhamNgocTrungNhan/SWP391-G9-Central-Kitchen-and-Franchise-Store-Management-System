@@ -30,11 +30,15 @@ const orderStatusStyle = {
 const paymentStatusStyle = {
     UNPAID: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     PAID: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    REFUNDED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    PARTIAL_REFUND: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
 }
 
 const paymentStatusLabel = {
     UNPAID: 'Chưa thanh toán',
     PAID: 'Đã thanh toán',
+    REFUNDED: 'Đã hoàn tiền',
+    PARTIAL_REFUND: 'Hoàn một phần',
 }
 
 const apiStatusToUi = {
@@ -257,15 +261,13 @@ export default function StoreOrderPage() {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             }
 
-            const [storeRes, productRes, supplierRes] = await Promise.all([
+            const [storeRes, productRes] = await Promise.all([
                 fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers }),
                 fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers }),
-                fetch(`${apiBase}/Suppliers`, { method: 'GET', headers }),
             ])
 
             const storesJson = await storeRes.json().catch(() => [])
             const productsJson = await productRes.json().catch(() => [])
-            const suppliersJson = await supplierRes.json().catch(() => [])
 
             let stores = storeRes.ok ? toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem) : []
             if (!stores.length) {
@@ -302,11 +304,9 @@ export default function StoreOrderPage() {
                 }
             }
 
-            const suppliers = supplierRes.ok ? normalizeSupplierList(suppliersJson) : []
-
             setStoreOptions(stores.length ? stores : fallbackStoreOptions)
             setProductOptions(products.length ? products : fallbackProductOptions)
-            setSupplierOptions(suppliers)
+            setSupplierOptions([])
         } catch {
             setStoreOptions(fallbackStoreOptions)
             setProductOptions(fallbackProductOptions)
@@ -441,6 +441,28 @@ export default function StoreOrderPage() {
         return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
     }
 
+    const normalizePaymentStatus = (rawPaymentStatus) => {
+        const raw = String(rawPaymentStatus || '').trim().toUpperCase()
+        if (!raw) return 'UNPAID'
+
+        const aliases = {
+            UNPAID: 'UNPAID',
+            NOT_PAID: 'UNPAID',
+            PENDING: 'UNPAID',
+            WAITING_PAYMENT: 'UNPAID',
+            PAID: 'PAID',
+            SUCCESS: 'PAID',
+            COMPLETED: 'PAID',
+            REFUNDED: 'REFUNDED',
+            REFUND: 'REFUNDED',
+            PARTIAL_REFUND: 'PARTIAL_REFUND',
+            PARTIALLY_REFUNDED: 'PARTIAL_REFUND',
+            PARTIALREFUND: 'PARTIAL_REFUND',
+        }
+
+        return aliases[raw] || raw
+    }
+
     const isShippedLikeStatus = (rawStatus) => {
         const status = String(rawStatus || '').toUpperCase()
         // Check both raw status and normalized status
@@ -535,7 +557,7 @@ export default function StoreOrderPage() {
                 hasMultipleProducts: productNames.length > 1,
                 status,
                 statusStyle: orderStatusStyle[status] || orderStatusStyle['Chờ duyệt'],
-                paymentStatus: item?.paymentStatus || 'UNPAID',
+                paymentStatus: normalizePaymentStatus(item?.paymentStatus),
                 totalAmount: item?.totalAmount || 0,
             }
         }).filter(Boolean)
@@ -641,7 +663,10 @@ export default function StoreOrderPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải chi tiết đơn hàng.')
             }
 
-            setDetailOrder(data)
+            setDetailOrder({
+                ...data,
+                paymentStatus: normalizePaymentStatus(data?.paymentStatus),
+            })
         } catch (error) {
             setDetailError(error.message || 'Tải chi tiết đơn thất bại.')
         } finally {
@@ -796,7 +821,9 @@ export default function StoreOrderPage() {
 
             const updatedOrder = data?.order
             if (updatedOrder && Number(updatedOrder?.orderId || updatedOrder?.id) === Number(orderId)) {
-                setDetailOrder((prev) => (prev ? { ...prev, ...updatedOrder } : prev))
+                setDetailOrder((prev) => (prev
+                    ? { ...prev, ...updatedOrder, paymentStatus: normalizePaymentStatus(updatedOrder?.paymentStatus ?? prev?.paymentStatus) }
+                    : prev))
             } else {
                 const updatedStatus = normalizeStatus(nextStatus)
                 setDetailOrder((prev) => (prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev))
@@ -1456,7 +1483,10 @@ export default function StoreOrderPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {pagedOrders.map((order) => (
+                                        {pagedOrders.map((order) => {
+                                            const normalizedPaymentStatus = normalizePaymentStatus(order.paymentStatus)
+
+                                            return (
                                             <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
                                                 <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
@@ -1485,8 +1515,8 @@ export default function StoreOrderPage() {
                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[order.paymentStatus] || paymentStatusStyle.UNPAID}`}>
-                                                        {paymentStatusLabel[order.paymentStatus] || order.paymentStatus}
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
+                                                        {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-2">
@@ -1522,7 +1552,7 @@ export default function StoreOrderPage() {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                        )})}
                                     </tbody>
                                 </table>
                                 <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
@@ -1580,8 +1610,8 @@ export default function StoreOrderPage() {
                                             <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
                                                 {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
                                             </span>
-                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${paymentStatusStyle[detailOrder.paymentStatus] || paymentStatusStyle.UNPAID}`}>
-                                                {paymentStatusLabel[detailOrder.paymentStatus] || detailOrder.paymentStatus}
+                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
+                                                {paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}
                                             </span>
                                         </div>
 
@@ -1690,7 +1720,7 @@ export default function StoreOrderPage() {
                                         {/* Action Buttons */}
                                         {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Đã hủy' && (
                                             <div className="flex items-center gap-3 flex-wrap">
-                                                {detailOrder.paymentStatus === 'UNPAID' && (
+                                                {normalizePaymentStatus(detailOrder.paymentStatus) === 'UNPAID' && (
                                                     <button
                                                         onClick={() => {
                                                             setShowPaymentModal(true)

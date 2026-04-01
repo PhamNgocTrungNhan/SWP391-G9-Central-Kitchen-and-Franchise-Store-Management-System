@@ -59,6 +59,34 @@ function toAmount(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function formatRefundPolicyLabel(policy) {
+  const name = String(policy?.displayName || policy?.name || policy?.policyCode || '').trim()
+  const pct = Number(policy?.refundPercentage)
+
+  if (!name) return ''
+  if (!Number.isFinite(pct)) return name
+
+  const compact = name.replace(/\s+/g, '').toLowerCase()
+  if (compact.includes(`${pct}%`) || compact.includes(`${pct.toFixed(0)}%`)) {
+    return name
+  }
+
+  return `${name} (${pct}%)`
+}
+
+function extractApiErrorMessage(data, fallback = 'Có lỗi xảy ra') {
+  if (!data || typeof data !== 'object') return fallback
+
+  if (typeof data.message === 'string' && data.message.trim()) return data.message
+  if (typeof data.title === 'string' && data.title.trim()) return data.title
+  if (typeof data.detail === 'string' && data.detail.trim()) return data.detail
+
+  const firstError = Object.values(data.errors || {}).find((value) => Array.isArray(value) && value.length)
+  if (firstError && firstError[0]) return String(firstError[0])
+
+  return fallback
+}
+
 const paymentStatusStyle = {
   UNPAID: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   PAID: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -83,6 +111,7 @@ export default function PaymentsPage() {
 
   // Refund modal states
   const [showRefundModal, setShowRefundModal] = useState(false)
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [refundPolicies, setRefundPolicies] = useState([])
   const [refundForm, setRefundForm] = useState({
@@ -280,6 +309,7 @@ export default function PaymentsPage() {
 
     setSelectedOrder(order)
     setRefundForm({ policyCode: '', additionalNote: '' })
+    setShowRefundConfirm(false)
     setShowRefundModal(true)
 
     if (refundPolicies.length === 0) {
@@ -287,11 +317,25 @@ export default function PaymentsPage() {
     }
   }
 
-  const submitRefund = async (e) => {
-    e.preventDefault()
+  const submitRefund = async () => {
+    if (!selectedOrder) return
+    if (actionLoading === selectedOrder.orderId) return
 
     if (!refundForm.policyCode) {
       setMessage({ type: 'error', text: 'Vui lòng chọn chính sách hoàn tiền' })
+      return
+    }
+
+    if (refundPreviewAmount <= 0) {
+      setMessage({ type: 'error', text: 'Số tiền hoàn dự kiến không hợp lệ.' })
+      return
+    }
+
+    if (refundPreviewAmount > refundableRemaining) {
+      setMessage({
+        type: 'error',
+        text: `Số tiền hoàn vượt mức còn lại (${formatCurrency(refundableRemaining)}). Vui lòng chọn chính sách khác.`,
+      })
       return
     }
 
@@ -315,13 +359,17 @@ export default function PaymentsPage() {
         }),
       })
 
+      const data = await response.json().catch(() => ({}))
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data?.message || 'Không thể hoàn tiền')
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Bạn không có quyền thao tác')
+        }
+        throw new Error(extractApiErrorMessage(data, 'Không thể hoàn tiền'))
       }
 
-      const data = await response.json()
       setMessage({ type: 'success', text: data?.message || 'Đã hoàn tiền thành công' })
+      setShowRefundConfirm(false)
       setShowRefundModal(false)
       setSelectedOrder(null)
       fetchOrders()
@@ -350,6 +398,24 @@ export default function PaymentsPage() {
     if (statusFilter === 'ALL') return orders
     return orders.filter((order) => order.paymentStatus === statusFilter)
   }, [orders, statusFilter])
+
+  const selectedRefundPolicy = useMemo(
+    () => refundPolicies.find((policy) => String(policy.policyCode) === String(refundForm.policyCode)) || null,
+    [refundPolicies, refundForm.policyCode],
+  )
+
+  const refundPreviewAmount = useMemo(() => {
+    if (!selectedOrder || !selectedRefundPolicy) return 0
+    const percent = Number(selectedRefundPolicy.refundPercentage || 0)
+    return Math.round(Number(selectedOrder.totalAmount || 0) * (percent / 100))
+  }, [selectedOrder, selectedRefundPolicy])
+
+  const refundableRemaining = useMemo(() => {
+    if (!selectedOrder) return 0
+    const paid = toAmount(selectedOrder.paidAmount, 0)
+    const refunded = toAmount(selectedOrder.refundedAmount, 0)
+    return Math.max(0, paid - refunded)
+  }, [selectedOrder])
 
   const stats = useMemo(() => {
     const totalOrders = orders.length
@@ -453,7 +519,7 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-auto max-h-[calc(100dvh-20rem)]">
           {loading ? (
             <div className="px-4 py-3 text-sm text-slate-500">Đang tải...</div>
           ) : filteredOrders.length === 0 ? (
@@ -546,11 +612,11 @@ export default function PaymentsPage() {
       {/* PayOS QR Modal */}
       {showQRModal && qrUrl && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4"
+          className="fixed inset-0 z-[60] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
           onClick={() => setShowQRModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 mb-4">
@@ -615,18 +681,25 @@ export default function PaymentsPage() {
       {/* Refund Modal */}
       {showRefundModal && selectedOrder && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4"
-          onClick={() => setShowRefundModal(false)}
+          className="fixed inset-0 z-[60] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
+          onClick={() => {
+            if (actionLoading === selectedOrder.orderId) return
+            setShowRefundConfirm(false)
+            setShowRefundModal(false)
+          }}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-semibold">Hoàn tiền đơn {selectedOrder.orderCode}</h3>
               <button
                 type="button"
-                onClick={() => setShowRefundModal(false)}
+                onClick={() => {
+                  setShowRefundConfirm(false)
+                  setShowRefundModal(false)
+                }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 ×
@@ -646,7 +719,24 @@ export default function PaymentsPage() {
               )}
             </div>
 
-            <form onSubmit={submitRefund} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!refundForm.policyCode) {
+                  setMessage({ type: 'error', text: 'Vui lòng chọn chính sách hoàn tiền' })
+                  return
+                }
+                if (refundPreviewAmount > refundableRemaining) {
+                  setMessage({
+                    type: 'error',
+                    text: `Số tiền hoàn vượt mức còn lại (${formatCurrency(refundableRemaining)}). Vui lòng chọn chính sách khác.`,
+                  })
+                  return
+                }
+                setShowRefundConfirm(true)
+              }}
+              className="space-y-4"
+            >
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Chính sách hoàn tiền <span className="text-red-500">*</span>
@@ -660,7 +750,7 @@ export default function PaymentsPage() {
                   <option value="">Chọn chính sách</option>
                   {refundPolicies.map((policy) => (
                     <option key={policy.policyCode} value={policy.policyCode}>
-                      {policy.displayName} ({policy.refundPercentage}%)
+                      {formatRefundPolicyLabel(policy)}
                     </option>
                   ))}
                 </select>
@@ -678,23 +768,83 @@ export default function PaymentsPage() {
                 />
               </div>
 
+              {selectedRefundPolicy ? (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/15 p-3">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Chính sách: <span className="font-semibold">{formatRefundPolicyLabel(selectedRefundPolicy)}</span>
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-200">
+                    Tiền hoàn dự kiến: {formatCurrency(refundPreviewAmount)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                    Mức hoàn tối đa còn lại: {formatCurrency(refundableRemaining)}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowRefundModal(false)}
+                  onClick={() => {
+                    setShowRefundConfirm(false)
+                    setShowRefundModal(false)
+                  }}
                   className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading === selectedOrder.orderId}
+                  disabled={actionLoading === selectedOrder.orderId || !refundForm.policyCode || refundPreviewAmount > refundableRemaining}
                   className="h-10 px-4 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60"
                 >
-                  {actionLoading === selectedOrder.orderId ? 'Đang xử lý...' : 'Xác nhận hoàn tiền'}
+                  Tiếp tục
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showRefundConfirm && selectedOrder && selectedRefundPolicy && (
+        <div
+          className="fixed inset-0 z-[70] flex items-start md:items-center justify-center bg-slate-950/60 p-4 overflow-y-auto"
+          onClick={() => actionLoading !== selectedOrder.orderId && setShowRefundConfirm(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Xác nhận hoàn tiền</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              <p>
+                Chính sách: <span className="font-semibold">{formatRefundPolicyLabel(selectedRefundPolicy)}</span>
+              </p>
+              <p>
+                Số tiền hoàn: <span className="font-bold text-amber-700 dark:text-amber-300">{formatCurrency(refundPreviewAmount)}</span>
+              </p>
+              <p className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/15 p-2 text-red-700 dark:text-red-300">
+                Thao tác hoàn tiền không thể hoàn tác.
+              </p>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRefundConfirm(false)}
+                disabled={actionLoading === selectedOrder.orderId}
+                className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
+              >
+                Quay lại
+              </button>
+              <button
+                type="button"
+                onClick={submitRefund}
+                disabled={actionLoading === selectedOrder.orderId}
+                className="h-10 px-4 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60"
+              >
+                {actionLoading === selectedOrder.orderId ? 'Đang xử lý...' : 'Xác nhận hoàn tiền'}
+              </button>
+            </div>
           </div>
         </div>
       )}
