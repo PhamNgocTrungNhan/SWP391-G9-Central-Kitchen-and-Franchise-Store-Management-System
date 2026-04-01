@@ -1,0 +1,788 @@
+{
+    "API_DOCUMENTATION": "Kitchen2026 - API Response Samples for Frontend",
+    "BASE_URL": "https://localhost:7xxx/api",
+    "AUTHENTICATION": {
+        "POST /api/auth/login": {
+            "request": {
+                "username": "admin_user",
+                "password": "admin"
+            },
+            "response": {
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
+        }
+    },
+    "CATEGORIES": {
+        "GET /api/category": {
+            "response": [
+                {
+                    "categoryId": 1,
+                    "name": "Nguyên liệu"
+                },
+                {
+                    "categoryId": 2,
+                    "name": "Thành phẩm Bánh"
+                }
+            ]
+        },
+        "POST /api/category": {
+            "request": {
+                "name": "Danh mục mới"
+            },
+            "response": {
+                "message": "Tạo danh mục thành công"
+            }
+        },
+        "PUT /api/category/{id}": {
+            "request": {
+                "name": "Danh mục đã cập nhật"
+            },
+            "response": {
+                "message": "Cập nhật thành công"
+            }
+        }
+    },
+    "PRODUCTS": {
+        "GET /api/products": {
+            "response": [
+                {
+                    "productId": 1,
+                    "sku": "RAW-GAO",
+                    "productName": "Gạo nếp nương",
+                    "categoryId": 1,
+                    "categoryName": "Nguyên liệu",
+                    "baseUnit": "Kg",
+                    "productType": "RAW",
+                    "purchasePrice": 35000,
+                    "internalPrice": 0
+                },
+                {
+                    "productId": 2,
+                    "sku": "FIN-BC",
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "categoryId": 2,
+                    "categoryName": "Thành phẩm Bánh",
+                    "baseUnit": "Cái",
+                    "productType": "FINISHED",
+                    "purchasePrice": 0,
+                    "internalPrice": 180000
+                }
+            ]
+        },
+        "GET /api/products/raw": {
+            "response": [
+                {
+                    "productId": 1,
+                    "sku": "RAW-GAO",
+                    "productName": "Gạo nếp nương",
+                    "categoryId": 1,
+                    "categoryName": "Nguyên liệu",
+                    "baseUnit": "Kg",
+                    "productType": "RAW",
+                    "purchasePrice": 35000,
+                    "internalPrice": 0
+                }
+            ]
+        },
+        "GET /api/products/manufactured": {
+            "response": [
+                {
+                    "productId": 2,
+                    "sku": "FIN-BC",
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "categoryId": 2,
+                    "categoryName": "Thành phẩm Bánh",
+                    "baseUnit": "Cái",
+                    "productType": "FINISHED",
+                    "purchasePrice": 0,
+                    "internalPrice": 180000
+                }
+            ]
+        },
+        "POST /api/products": {
+            "request": {
+                "sku": "RAW-DUONG",
+                "productName": "Đường trắng",
+                "categoryId": 1,
+                "baseUnit": "Kg",
+                "productType": "RAW",
+                "purchasePrice": 25000,
+                "internalPrice": 0
+            },
+            "response": {
+                "message": "Tạo sản phẩm thành công"
+            }
+        },
+        "PUT /api/products/{id}": {
+            "request": {
+                "sku": "RAW-DUONG",
+                "productName": "Đường trắng tinh luyện",
+                "categoryId": 1,
+                "baseUnit": "Kg",
+                "productType": "RAW",
+                "purchasePrice": 28000,
+                "internalPrice": 0
+            },
+            "response": {
+                "message": "Cập nhật thành công"
+            }
+        }
+    },
+    "SUPPLIERS": {
+        "GET /api/suppliers": {
+            "response": [
+                {
+                    "supplierId": 1,
+                    "supplierName": "Tổng kho Gạo Sạch",
+                    "contactInfo": "0901234567",
+                    "address": "Quận 1, TP.HCM",
+                    "isActive": true
+                },
+                {
+                    "supplierId": 2,
+                    "supplierName": "Thế giới Thực phẩm",
+                    "contactInfo": "0907654321",
+                    "address": "Quận 3, TP.HCM",
+                    "isActive": true
+                }
+            ]
+        },
+        "POST /api/suppliers": {
+            "request": {
+                "supplierName": "Nhà cung cấp mới",
+                "contactInfo": "0909123456",
+                "address": "Quận 5, TP.HCM",
+                "isActive": true
+            },
+            "response": {
+                "message": "Thêm nhà cung cấp thành công"
+            }
+        },
+        "PUT /api/suppliers/{id}": {
+            "request": {
+                "supplierName": "Nhà cung cấp đã cập nhật",
+                "contactInfo": "0909999999",
+                "address": "Quận 7, TP.HCM",
+                "isActive": true
+            },
+            "response": {
+                "message": "Cập nhật nhà cung cấp thành công"
+            }
+        }
+    },
+    "STORES": {
+        "GET /api/organization/stores": {
+            "response": [
+                {
+                    "storeId": 1,
+                    "storeName": "Cửa hàng Chi nhánh 01",
+                    "address": "Quận 3, TP.HCM",
+                    "phone": "0901234567",
+                    "isActive": true
+                }
+            ]
+        },
+        "POST /api/organization/stores": {
+            "request": {
+                "storeName": "Cửa hàng Chi nhánh 02",
+                "address": "Quận 5, TP.HCM",
+                "phone": "0907654321",
+                "isActive": true
+            },
+            "response": {
+                "message": "Tạo cửa hàng thành công."
+            }
+        },
+        "PUT /api/organization/stores/{id}": {
+            "request": {
+                "storeName": "Cửa hàng Chi nhánh 01 - Updated",
+                "address": "Quận 3, TP.HCM - Địa chỉ mới",
+                "phone": "0901111111",
+                "isActive": true
+            },
+            "response": {
+                "message": "Cập nhật thông tin cửa hàng thành công."
+            }
+        }
+    },
+    "KITCHENS": {
+        "GET /api/organization/kitchens": {
+            "response": [
+                {
+                    "kitchenId": 1,
+                    "kitchenName": "Bếp Trung Tâm Kitchen2026",
+                    "address": "Quận 1, TP.HCM"
+                }
+            ]
+        },
+        "PUT /api/organization/kitchens/{id}": {
+            "request": {
+                "kitchenName": "Bếp Trung Tâm Kitchen2026 - Updated",
+                "address": "Quận 1, TP.HCM - Địa chỉ mới"
+            },
+            "response": {
+                "message": "Cập nhật thông tin bếp trung tâm thành công."
+            }
+        }
+    },
+    "USERS": {
+        "GET /api/user": {
+            "response": [
+                {
+                    "userId": 1,
+                    "username": "admin_user",
+                    "fullName": "Lý Hải Đường",
+                    "roleId": 1,
+                    "roleName": "ADMIN",
+                    "storeId": null,
+                    "storeName": null,
+                    "kitchenId": null,
+                    "kitchenName": null
+                },
+                {
+                    "userId": 2,
+                    "username": "kitchen_staff",
+                    "fullName": "Thợ Bánh Chuyên Nghiệp",
+                    "roleId": 4,
+                    "roleName": "KITCHEN_STAFF",
+                    "storeId": null,
+                    "storeName": null,
+                    "kitchenId": 1,
+                    "kitchenName": "Bếp Trung Tâm Kitchen2026"
+                }
+            ]
+        },
+        "POST /api/user": {
+            "request": {
+                "username": "new_user",
+                "password": "password123",
+                "fullName": "Nhân viên mới",
+                "roleId": 5,
+                "storeId": 1,
+                "kitchenId": null
+            },
+            "response": {
+                "message": "Tạo User thành công"
+            }
+        },
+        "PUT /api/user/{id}": {
+            "request": {
+                "username": "updated_user",
+                "password": "newpassword123",
+                "fullName": "Nhân viên đã cập nhật",
+                "roleId": 5,
+                "storeId": 1,
+                "kitchenId": null
+            },
+            "response": {
+                "message": "Cập nhật User thành công"
+            }
+        }
+    },
+    "RECIPES": {
+        "GET /api/recipes/parent/{parentProductId}": {
+            "response": [
+                {
+                    "recipeId": 1,
+                    "parentProductId": 2,
+                    "parentProductName": "Bánh Chưng Đặc Biệt",
+                    "materialId": 1,
+                    "materialName": "Gạo nếp nương",
+                    "materialUnit": "Kg",
+                    "quantityRequired": 2.5,
+                    "wasteAllowancePercent": 5.0
+                }
+            ]
+        },
+        "POST /api/recipes": {
+            "request": {
+                "parentProductId": 2,
+                "materialId": 1,
+                "quantityRequired": 2.5,
+                "wasteAllowancePercent": 5.0
+            },
+            "response": {
+                "message": "Thêm định mức thành công"
+            }
+        },
+        "PUT /api/recipes/{id}": {
+            "request": {
+                "parentProductId": 2,
+                "materialId": 1,
+                "quantityRequired": 3.0,
+                "wasteAllowancePercent": 7.0
+            },
+            "response": {
+                "message": "Cập nhật thành công"
+            }
+        }
+    },
+    "INTERNAL_ORDERS": {
+        "GET /api/internal-orders?status=PENDING": {
+            "response": [
+                {
+                    "orderId": 1,
+                    "orderCode": "ORD1",
+                    "storeId": 1,
+                    "storeName": "Cửa hàng Chi nhánh 01",
+                    "kitchenId": 1,
+                    "kitchenName": "Bếp Trung Tâm Kitchen2026",
+                    "orderStatus": "PENDING",
+                    "expectedDeliveryDate": "2026-04-15T00:00:00",
+                    "approvedBy": null,
+                    "approvedByName": null,
+                    "approvedAt": null,
+                    "totalAmount": 540000,
+                    "paymentStatus": "UNPAID",
+                    "rejectionReason": null,
+                    "returnReason": null,
+                    "rating": null,
+                    "feedbackComment": null,
+                    "createdAt": "2026-03-31T10:30:00",
+                    "updatedAt": "2026-03-31T10:30:00",
+                    "orderDetails": null
+                }
+            ]
+        },
+        "GET /api/internal-orders/{orderId}": {
+            "response": {
+                "orderId": 1,
+                "orderCode": "ORD1",
+                "storeId": 1,
+                "storeName": "Cửa hàng Chi nhánh 01",
+                "kitchenId": 1,
+                "kitchenName": "Bếp Trung Tâm Kitchen2026",
+                "orderStatus": "APPROVED",
+                "expectedDeliveryDate": "2026-04-15T00:00:00",
+                "approvedBy": 1,
+                "approvedByName": "Lý Hải Đường",
+                "approvedAt": "2026-03-31T11:00:00",
+                "totalAmount": 540000,
+                "paymentStatus": "UNPAID",
+                "rejectionReason": null,
+                "returnReason": null,
+                "rating": null,
+                "feedbackComment": null,
+                "createdAt": "2026-03-31T10:30:00",
+                "updatedAt": "2026-03-31T11:00:00",
+                "orderDetails": [
+                    {
+                        "detailId": 1,
+                        "orderId": 1,
+                        "productId": 2,
+                        "productName": "Bánh Chưng Đặc Biệt",
+                        "productSku": "FIN-BC",
+                        "quantityOrdered": 3,
+                        "quantityConfirmed": 3,
+                        "quantityShipped": 0,
+                        "unitPrice": 180000
+                    }
+                ]
+            }
+        },
+        "POST /api/internal-orders": {
+            "request": {
+                "storeId": 1,
+                "kitchenId": 1,
+                "expectedDeliveryDate": "2026-04-20T00:00:00",
+                "orderDetails": [
+                    {
+                        "productId": 2,
+                        "quantityOrdered": 5,
+                        "quantityConfirmed": null,
+                        "quantityShipped": null
+                    },
+                    {
+                        "productId": 3,
+                        "quantityOrdered": 10,
+                        "quantityConfirmed": null,
+                        "quantityShipped": null
+                    }
+                ]
+            },
+            "response": {
+                "message": "Order created successfully",
+                "orderId": 2
+            }
+        },
+        "PUT /api/internal-orders/{orderId}/approve": {
+            "response": {
+                "orderId": 1,
+                "orderCode": "ORD1",
+                "orderStatus": "APPROVED",
+                "approvedBy": 1,
+                "approvedAt": "2026-03-31T11:00:00"
+            }
+        },
+        "PUT /api/internal-orders/{orderId}/reject": {
+            "request": {
+                "reason": "Không đủ nguyên liệu"
+            },
+            "response": {
+                "message": "Order rejected successfully",
+                "order": {
+                    "orderId": 1,
+                    "orderStatus": "REJECTED",
+                    "rejectionReason": "Không đủ nguyên liệu"
+                }
+            }
+        },
+        "PUT /api/internal-orders/{orderId}/status": {
+            "request": {
+                "status": "PROCESSING"
+            },
+            "response": {
+                "message": "Order status updated successfully",
+                "order": {
+                    "orderId": 1,
+                    "orderStatus": "PROCESSING"
+                }
+            }
+        },
+        "POST /api/internal-orders/{orderId}/pay": {
+            "response": {
+                "message": "Thanh toán chuyển khoản thành công!",
+                "transactionId": 1,
+                "amountPaid": 540000
+            }
+        },
+        "GET /api/internal-orders/refund-policies": {
+            "response": [
+                {
+                    "policyCode": "HUY_VUI_VE",
+                    "displayName": "Hủy vui vẻ (trong 24h)",
+                    "refundPercentage": 100
+                },
+                {
+                    "policyCode": "HANG_HONG",
+                    "displayName": "Hàng hỏng/lỗi",
+                    "refundPercentage": 100
+                },
+                {
+                    "policyCode": "TRE_HEN",
+                    "displayName": "Giao trễ hẹn",
+                    "refundPercentage": 50
+                }
+            ]
+        },
+        "POST /api/internal-orders/{orderId}/refund": {
+            "request": {
+                "policyCode": "HANG_HONG",
+                "additionalNote": "Bánh bị mốc góc trái"
+            },
+            "response": {
+                "message": "Đã xử lý hoàn tiền thành công!",
+                "transactionId": 2,
+                "refundAmount": -540000
+            }
+        },
+        "POST /api/internal-orders/feedback": {
+            "request": {
+                "orderId": 1,
+                "rating": 5,
+                "comment": "Bánh rất ngon, giao hàng đúng hẹn!"
+            },
+            "response": {
+                "message": "Đã gửi Feedback thành công!"
+            }
+        }
+    },
+    "PRODUCTION_BATCHES": {
+        "GET /api/productionbatches": {
+            "response": [
+                {
+                    "batchId": 1,
+                    "productId": 2,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "batchCode": "BATCH-2026-001",
+                    "quantityPlanned": 100,
+                    "quantityActual": 98,
+                    "mfgDate": "2026-03-30T00:00:00",
+                    "expDate": "2026-04-30T00:00:00",
+                    "status": "COMPLETED"
+                }
+            ]
+        },
+        "GET /api/productionbatches/{id}": {
+            "response": {
+                "batchId": 1,
+                "productId": 2,
+                "productName": "Bánh Chưng Đặc Biệt",
+                "batchCode": "BATCH-2026-001",
+                "quantityPlanned": 100,
+                "quantityActual": 98,
+                "mfgDate": "2026-03-30T00:00:00",
+                "expDate": "2026-04-30T00:00:00",
+                "status": "COMPLETED"
+            }
+        },
+        "GET /api/productionbatches/order/{orderId}": {
+            "response": [
+                {
+                    "batchId": 1,
+                    "productId": 2,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "batchCode": "BATCH-2026-001",
+                    "quantityPlanned": 100,
+                    "quantityActual": 98,
+                    "mfgDate": "2026-03-30T00:00:00",
+                    "expDate": "2026-04-30T00:00:00",
+                    "status": "COMPLETED"
+                }
+            ]
+        },
+        "POST /api/productionbatches": {
+            "request": {
+                "productId": 2,
+                "quantityPlanned": 50,
+                "mfgDate": "2026-04-01T00:00:00",
+                "expDate": "2026-05-01T00:00:00",
+                "orderId": 1
+            },
+            "response": {
+                "message": "Tạo mẻ sản xuất thành công",
+                "batchId": 2
+            }
+        },
+        "PUT /api/productionbatches/{id}/status": {
+            "request": {
+                "status": "COMPLETED",
+                "quantityActual": 48,
+                "additionalMaterials": [
+                    {
+                        "productId": 1,
+                        "quantityUsed": 5.5
+                    }
+                ]
+            },
+            "response": {
+                "message": "Cập nhật trạng thái thành công"
+            }
+        },
+        "POST /api/productionbatches/{id}/allocate": {
+            "request": [
+                {
+                    "orderId": 1,
+                    "allocatedQuantity": 30
+                },
+                {
+                    "orderId": 2,
+                    "allocatedQuantity": 18
+                }
+            ],
+            "response": {
+                "message": "Gán mẻ thành công"
+            }
+        }
+    },
+    "INVENTORY": {
+        "GET /api/inventory/stock": {
+            "response": [
+                {
+                    "inventoryId": 1,
+                    "productId": 1,
+                    "productName": "Gạo nếp nương",
+                    "productSku": "RAW-GAO",
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "locationName": "Bếp Trung Tâm Kitchen2026",
+                    "currentQuantity": 150.5,
+                    "baseUnit": "Kg",
+                    "lastUpdated": "2026-03-31T14:30:00"
+                },
+                {
+                    "inventoryId": 2,
+                    "productId": 2,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "productSku": "FIN-BC",
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "locationName": "Bếp Trung Tâm Kitchen2026",
+                    "currentQuantity": 45,
+                    "baseUnit": "Cái",
+                    "lastUpdated": "2026-03-31T15:00:00"
+                }
+            ]
+        },
+        "GET /api/inventory/store/{storeId}": {
+            "response": [
+                {
+                    "inventoryId": 3,
+                    "productId": 2,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "productSku": "FIN-BC",
+                    "locationType": "STORE",
+                    "locationId": 1,
+                    "locationName": "Cửa hàng Chi nhánh 01",
+                    "currentQuantity": 10,
+                    "baseUnit": "Cái",
+                    "lastUpdated": "2026-03-31T16:00:00"
+                }
+            ]
+        },
+        "GET /api/inventory/logs": {
+            "response": [
+                {
+                    "logId": 1,
+                    "productId": 1,
+                    "productName": "Gạo nếp nương",
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "changeQuantity": 100,
+                    "reason": "IMPORT",
+                    "referenceId": 1,
+                    "referenceType": "PURCHASE",
+                    "supplierId": 1,
+                    "supplierName": "Tổng kho Gạo Sạch",
+                    "createdAt": "2026-03-30T10:00:00"
+                },
+                {
+                    "logId": 2,
+                    "productId": 2,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "changeQuantity": 98,
+                    "reason": "PRODUCTION_IN",
+                    "referenceId": 1,
+                    "referenceType": "BATCH",
+                    "supplierId": null,
+                    "supplierName": null,
+                    "createdAt": "2026-03-31T12:00:00"
+                }
+            ]
+        },
+        "POST /api/inventory/import": {
+            "request": {
+                "productId": 1,
+                "quantity": 50,
+                "supplierId": 1
+            },
+            "response": {
+                "message": "Đã nhập kho nguyên liệu thành công!"
+            }
+        },
+        "POST /api/inventory/transfer/{orderId}": {
+            "response": {
+                "message": "Đã xuất kho thành công cho đơn hàng #1. Trạng thái cập nhật thành SHIPPING."
+            }
+        }
+    },
+    "TRANSACTIONS": {
+        "GET /api/transactions?type=REVENUE&fromDate=2026-03-01&toDate=2026-03-31": {
+            "response": [
+                {
+                    "transactionId": 1,
+                    "internalOrderId": 1,
+                    "internalOrderCode": "ORD1",
+                    "purchaseOrderId": null,
+                    "transactionType": "REVENUE",
+                    "amount": 540000,
+                    "paymentMethod": "Bank Transfer",
+                    "transactionDate": "2026-03-31T11:30:00",
+                    "note": "Thanh toán đơn hàng ORD1"
+                }
+            ]
+        },
+        "GET /api/transactions/summary?fromDate=2026-03-01&toDate=2026-03-31": {
+            "response": {
+                "totalRevenue": 2500000,
+                "totalExpense": 1200000,
+                "netProfit": 1300000,
+                "transactionCount": 15
+            }
+        }
+    },
+    "DASHBOARD": {
+        "GET /api/dashboard/production?days=30": {
+            "response": [
+                {
+                    "date": "2026-03-30",
+                    "totalPlanned": 100,
+                    "totalActual": 98
+                },
+                {
+                    "date": "2026-03-31",
+                    "totalPlanned": 50,
+                    "totalActual": 48
+                }
+            ]
+        },
+        "GET /api/dashboard/orders": {
+            "response": [
+                {
+                    "status": "PENDING",
+                    "totalOrders": 5
+                },
+                {
+                    "status": "APPROVED",
+                    "totalOrders": 8
+                },
+                {
+                    "status": "COMPLETED",
+                    "totalOrders": 12
+                }
+            ]
+        },
+        "GET /api/dashboard/inventory?locationType=KITCHEN": {
+            "response": [
+                {
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "productName": "Gạo nếp nương",
+                    "totalQuantity": 150.5
+                },
+                {
+                    "locationType": "KITCHEN",
+                    "locationId": 1,
+                    "productName": "Bánh Chưng Đặc Biệt",
+                    "totalQuantity": 45
+                }
+            ]
+        }
+    },
+    "NOTES": {
+        "ORDER_STATUS_FLOW": [
+            "PENDING",
+            "APPROVED",
+            "REJECTED",
+            "PROCESSING",
+            "PRODUCED",
+            "SHIPPING",
+            "COMPLETED",
+            "RETURNED",
+            "CANCELLED"
+        ],
+        "PAYMENT_STATUS": [
+            "UNPAID",
+            "PAID"
+        ],
+        "PRODUCT_TYPES": [
+            "RAW",
+            "SEMI_FINISHED",
+            "FINISHED"
+        ],
+        "BATCH_STATUS": [
+            "SCHEDULED",
+            "IN_PROGRESS",
+            "COMPLETED",
+            "CANCELLED",
+            "FAILED"
+        ],
+        "LOCATION_TYPES": [
+            "KITCHEN",
+            "STORE"
+        ],
+        "TRANSACTION_TYPES": [
+            "REVENUE",
+            "EXPENSE"
+        ],
+        "ROLES": [
+            "ADMIN",
+            "MANAGER",
+            "SUPPLY_COORDINATOR",
+            "KITCHEN_STAFF",
+            "STORE_STAFF"
+        ]
+    }
+}

@@ -1,0 +1,33 @@
+﻿@page
+@model KitchenCentralApp.Pages.RegisterModel
+@{
+    ViewData["Title"] = "Đăng ký Khách hàng";
+}
+
+<div class="container mt-5" style="max-width: 400px;">
+    <h3 class="mb-4 text-center">Tạo tài khoản mua hàng</h3>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+
+    <form method="post" class="card p-4 shadow-sm">
+        <div class="mb-3">
+            <label class="form-label">Họ và tên</label>
+            <input type="text" asp-for="FullName" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Tên đăng nhập</label>
+            <input type="text" asp-for="Username" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mật khẩu</label>
+            <input type="password" asp-for="Password" class="form-control" required />
+        </div>
+        <button type="submit" class="btn btn-success w-100 mb-3">Hoàn tất đăng ký</button>
+        <div class="text-center text-muted">
+            Đã có tài khoản? <a href="/Login" class="text-decoration-none">Đăng nhập</a>
+        </div>
+    </form>
+</div>
