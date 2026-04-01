@@ -17,7 +17,7 @@ export const navigationGroups = [
   {
     title: 'Tổng quan',
     items: [
-      { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: operationalRoles },
+      { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
     ],
   },
   {

@@ -155,6 +155,16 @@ export default function OrderManagementPage() {
                 const itemCount = details.length
                 const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
 
+                // Calculate totalAmount from details if not provided by backend
+                let totalAmount = item?.totalAmount || 0
+                if (!totalAmount && details.length > 0) {
+                    totalAmount = details.reduce((sum, row) => {
+                        const unitPrice = row?.unitPrice || row?.price || 0
+                        const quantity = Number(row?.quantityOrdered || 0)
+                        return sum + (unitPrice * quantity)
+                    }, 0)
+                }
+
                 return {
                     orderId,
                     orderCode: item?.orderCode || `#${orderId}`,
@@ -165,6 +175,8 @@ export default function OrderManagementPage() {
                     details,
                     itemCount,
                     totalQty,
+                    totalAmount,
+                    paymentStatus: item?.paymentStatus || 'UNPAID',
                 }
             })
             .filter(Boolean)
@@ -249,7 +261,18 @@ export default function OrderManagementPage() {
                             : []
 
                     const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
-                    return [order.orderId, { details, itemCount: details.length, totalQty }]
+
+                    // Calculate totalAmount from details if not provided
+                    let totalAmount = data?.totalAmount || 0
+                    if (!totalAmount && details.length > 0) {
+                        totalAmount = details.reduce((sum, row) => {
+                            const unitPrice = row?.unitPrice || row?.price || 0
+                            const quantity = Number(row?.quantityOrdered || 0)
+                            return sum + (unitPrice * quantity)
+                        }, 0)
+                    }
+
+                    return [order.orderId, { details, itemCount: details.length, totalQty, totalAmount }]
                 } catch {
                     return [order.orderId, null]
                 }
@@ -264,6 +287,7 @@ export default function OrderManagementPage() {
                     details: hydrated.details,
                     itemCount: hydrated.itemCount,
                     totalQty: hydrated.totalQty,
+                    totalAmount: hydrated.totalAmount || order.totalAmount,
                 }
             })
         }
@@ -553,11 +577,23 @@ export default function OrderManagementPage() {
                 if (order.orderId !== orderId) return order
 
                 const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+
+                // Calculate totalAmount from details if not provided
+                let totalAmount = data?.totalAmount || order.totalAmount || 0
+                if (!totalAmount && details.length > 0) {
+                    totalAmount = details.reduce((sum, row) => {
+                        const unitPrice = row?.unitPrice || row?.price || 0
+                        const quantity = Number(row?.quantityOrdered || 0)
+                        return sum + (unitPrice * quantity)
+                    }, 0)
+                }
+
                 return {
                     ...order,
                     details,
                     itemCount: details.length,
                     totalQty,
+                    totalAmount,
                 }
             }))
         } catch (error) {
@@ -675,13 +711,14 @@ export default function OrderManagementPage() {
                         <table className="w-full table-fixed text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    <th className="w-[16%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
-                                    <th className="w-[18%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cửa hàng</th>
-                                    <th className="w-[16%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
-                                    <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mặt hàng</th>
-                                    <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL</th>
+                                    <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
+                                    <th className="w-[16%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cửa hàng</th>
+                                    <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
+                                    <th className="w-[7%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mặt hàng</th>
+                                    <th className="w-[7%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL</th>
+                                    <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng tiền</th>
                                     <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                                    <th className="w-[22%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                                    <th className="w-[18%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -696,6 +733,9 @@ export default function OrderManagementPage() {
                                             <td className="px-4 py-3 text-sm whitespace-normal break-words">{order.createdAt}</td>
                                             <td className="px-4 py-3 text-sm">{order.itemCount}</td>
                                             <td className="px-4 py-3 text-sm">{order.totalQty}</td>
+                                            <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words">
+                                                {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
+                                            </td>
                                             <td className="px-4 py-3 text-sm whitespace-normal break-words">
                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>
                                                     {statusLabel[order.status] || order.status}
@@ -712,7 +752,7 @@ export default function OrderManagementPage() {
                                         </tr>
                                         {expandedId === order.orderId ? (
                                             <tr className="bg-slate-50/60 dark:bg-slate-800/20">
-                                                <td colSpan={7} className="px-4 py-3">
+                                                <td colSpan={8} className="px-4 py-3">
                                                     {detailLoadingId === order.orderId ? <p className="mb-2 text-xs text-slate-500">Đang tải chi tiết đơn...</p> : null}
                                                     <div className="mb-3 flex items-center gap-2 flex-wrap">
                                                         {canApproveOrder(order.status) && (
@@ -757,16 +797,30 @@ export default function OrderManagementPage() {
                                                             <thead>
                                                                 <tr className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                                                                     <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Số lượng đặt</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Đơn giá</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Số lượng đặt</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thành tiền</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {(order.details || []).map((item) => (
-                                                                    <tr key={item?.detailId || `${order.orderId}-${item?.productId}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                                                                        <td className="px-3 py-2 text-sm">{getProductDisplayName(item)}</td>
-                                                                        <td className="px-3 py-2 text-sm font-medium">{Number(item?.quantityOrdered || 0)}</td>
-                                                                    </tr>
-                                                                ))}
+                                                                {(order.details || []).map((item) => {
+                                                                    const unitPrice = item.unitPrice || item.price || 0
+                                                                    const quantity = Number(item?.quantityOrdered || 0)
+                                                                    const subtotal = unitPrice * quantity
+
+                                                                    return (
+                                                                        <tr key={item?.detailId || `${order.orderId}-${item?.productId}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                                                            <td className="px-3 py-2 text-sm">{getProductDisplayName(item)}</td>
+                                                                            <td className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-300">
+                                                                                {unitPrice.toLocaleString('vi-VN')} đ
+                                                                            </td>
+                                                                            <td className="px-3 py-2 text-sm font-medium text-center">{quantity}</td>
+                                                                            <td className="px-3 py-2 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
+                                                                                {subtotal.toLocaleString('vi-VN')} đ
+                                                                            </td>
+                                                                        </tr>
+                                                                    )
+                                                                })}
                                                             </tbody>
                                                         </table>
                                                     ) : (

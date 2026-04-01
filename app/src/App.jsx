@@ -61,7 +61,7 @@ function LoginOrHome() {
 }
 
 const routeConfig = [
-  { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
 
   { path: '/inventory', element: <InventoryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
@@ -77,6 +77,7 @@ const routeConfig = [
   { path: '/store-orders', element: <StoreOrderPage />, roles: [roles.MANAGER, roles.STORE_STAFF] },
   { path: '/order-management', element: <OrderManagementPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/payments', element: <PaymentsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
+  { path: '/payment-result', element: <PaymentResultPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/success', element: <PaymentResultPage variant="success" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/cancel', element: <PaymentResultPage variant="cancel" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
