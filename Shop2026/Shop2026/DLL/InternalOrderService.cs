@@ -14,6 +14,11 @@ namespace Shop2026.DLL
         private readonly InventoryService _inventoryService;
         private readonly IConfiguration _configuration;
 
+        private static readonly HashSet<string> PayableStatuses = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "APPROVED", "PROCESSING", "PRODUCED", "SHIPPING"
+        };
+
         public static readonly Dictionary<string, (string DisplayName, decimal Percentage)> RefundPolicies = new()
         {
             { "HUY_VUI_VE", ("Khách đổi ý / Hủy không lý do (Hoàn cọc 20%)", 20m) },
@@ -77,6 +82,8 @@ namespace Shop2026.DLL
                 throw new Exception("Không tìm thấy đơn hàng");
             if (order.StoreId != storeId)
                 throw new Exception("Bạn không có quyền thanh toán đơn này");
+            if (string.IsNullOrWhiteSpace(order.OrderStatus) || !PayableStatuses.Contains(order.OrderStatus))
+                throw new Exception("Chỉ đơn đã duyệt mới được thanh toán.");
             if (order.PaymentStatus == "PAID")
                 throw new Exception("Đơn hàng này đã được thanh toán rồi!");
 
@@ -108,6 +115,8 @@ namespace Shop2026.DLL
                 throw new Exception("Không tìm thấy đơn hàng");
             if (order.StoreId != storeId)
                 throw new Exception("Bạn không có quyền thanh toán đơn này");
+            if (string.IsNullOrWhiteSpace(order.OrderStatus) || !PayableStatuses.Contains(order.OrderStatus))
+                throw new Exception("Chỉ đơn đã duyệt mới được thanh toán.");
             if (order.PaymentStatus == "PAID")
                 throw new Exception("Đơn này đã thanh toán rồi!");
 
@@ -188,9 +197,18 @@ namespace Shop2026.DLL
 
         public Transaction? RefundOrderByPolicy(int orderId, int storeId, string policyCode, string? additionalNote)
         {
-            if (!RefundPolicies.ContainsKey(policyCode))
-                throw new Exception("Mã chính sách hoàn tiền không hợp lệ.");
-            var policy = RefundPolicies[policyCode];
+            if (string.IsNullOrWhiteSpace(policyCode))
+                throw new Exception("Vui lòng chọn chính sách hoàn tiền.");
+
+            var normalizedPolicy = policyCode.Trim();
+            var policyMatch = RefundPolicies.FirstOrDefault(p =>
+                string.Equals(p.Key, normalizedPolicy, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(p.Value.DisplayName, normalizedPolicy, StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(policyMatch.Key))
+                throw new Exception("Mã chính sách hoàn tiền không hợp lệ. Vui lòng chọn lại từ danh sách chính sách.");
+
+            var policy = policyMatch.Value;
             string fullReason = policy.DisplayName;
             if (!string.IsNullOrWhiteSpace(additionalNote))
                 fullReason += $" - Ghi chú: {additionalNote}";
@@ -200,10 +218,18 @@ namespace Shop2026.DLL
                 throw new Exception("Không tìm thấy đơn hàng.");
             if (order.StoreId != storeId)
                 throw new Exception("Bạn không có quyền thao tác đơn này.");
-            if (order.PaymentStatus != "PAID")
+
+            decimal totalPaidByTransactions = _orderRepository.GetTotalRevenueAmount(orderId);
+            bool isPaidByStatus = string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase);
+            bool isPaidByTransactions = totalPaidByTransactions > 0;
+
+            if (!isPaidByStatus && !isPaidByTransactions)
                 throw new Exception("Đơn hàng chưa được thanh toán.");
 
-            decimal totalPaid = order.TotalAmount ?? 0;
+            decimal totalPaid = totalPaidByTransactions > 0 ? totalPaidByTransactions : (order.TotalAmount ?? 0);
+            if (totalPaid <= 0)
+                throw new Exception("Không xác định được số tiền đã thanh toán để hoàn tiền.");
+
             decimal refundAmount = totalPaid * (policy.Percentage / 100m);
             decimal alreadyRefunded = _orderRepository.GetTotalRefundedAmount(orderId);
 
@@ -221,6 +247,11 @@ namespace Shop2026.DLL
             };
 
             _orderRepository.AddTransaction(transaction);
+
+            order.OrderStatus = "REFUNDED";
+            order.UpdatedAt = DateTime.Now;
+            _orderRepository.UpdateOrder(order);
+
             return transaction;
         }
 
@@ -250,6 +281,8 @@ namespace Shop2026.DLL
                 return null;
             if (order.StoreId != storeId)
                 throw new Exception("Không có quyền");
+            if (!string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.");
             if (order.OrderStatus.ToUpper() != "SHIPPING")
                 throw new Exception("Only SHIPPING orders can be confirmed");
             order.OrderStatus = "COMPLETED";
@@ -282,6 +315,12 @@ namespace Shop2026.DLL
 
             if (!validTransitions.ContainsKey(currentStatus) || !validTransitions[currentStatus].Contains(newStatus.ToUpper()))
                 throw new Exception($"Invalid status transition: {currentStatus} → {newStatus}");
+
+            if (string.Equals(newStatus, "COMPLETED", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception("Đơn chưa thanh toán, không thể chuyển sang COMPLETED.");
+            }
 
             if (newStatus.ToUpper() == "SHIPPING")
             {

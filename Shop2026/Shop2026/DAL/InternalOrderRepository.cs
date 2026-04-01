@@ -195,5 +195,12 @@ namespace Shop2026.DAL
                 .Where(t => t.InternalOrderId == orderId && t.TransactionType == "EXPENSE")
                 .Sum(t => t.Amount);
         }
+
+        public decimal GetTotalRevenueAmount(int orderId)
+        {
+            return _context.Transactions
+                .Where(t => t.InternalOrderId == orderId && t.TransactionType == "REVENUE")
+                .Sum(t => t.Amount);
+        }
     }
 }

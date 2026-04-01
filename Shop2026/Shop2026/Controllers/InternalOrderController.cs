@@ -512,11 +512,13 @@ namespace Shop2026.Controllers
             try
             {
                 var transaction = _orderService.RefundOrderByPolicy(orderId, storeIdToPass, request.PolicyCode, request.AdditionalNote);
+                var updatedOrder = _orderService.GetOrderDetail(orderId);
                 return Ok(new
                 {
                     message = "Đã xử lý hoàn tiền thành công!",
                     transactionId = transaction?.TransactionId,
-                    refundAmount = transaction?.Amount
+                    refundAmount = transaction?.Amount,
+                    orderStatus = updatedOrder?.OrderStatus
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
