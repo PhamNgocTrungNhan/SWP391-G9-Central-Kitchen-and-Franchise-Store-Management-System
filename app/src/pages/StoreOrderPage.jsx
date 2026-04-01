@@ -1487,72 +1487,73 @@ export default function StoreOrderPage() {
                                             const normalizedPaymentStatus = normalizePaymentStatus(order.paymentStatus)
 
                                             return (
-                                            <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
-                                                <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
-                                                <td className="px-3 py-2 text-xs max-w-[180px]">
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="truncate">{order.productLabel}</span>
-                                                        {order.hasMultipleProducts && (
-                                                            <div className="relative group flex-shrink-0">
-                                                                <span className="material-symbols-outlined text-[14px] text-slate-400 hover:text-primary cursor-help">
-                                                                    info
-                                                                </span>
-                                                                <div className="absolute left-0 top-6 hidden group-hover:block z-50 w-max max-w-xs bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg p-3 border border-slate-700">
-                                                                    <p className="font-semibold mb-1">Tất cả sản phẩm:</p>
-                                                                    <div className="whitespace-pre-line">{order.allProductNames}</div>
-                                                                    <div className="absolute -top-1 left-2 w-2 h-2 bg-slate-900 dark:bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
+                                                <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                    <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
+                                                    <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
+                                                    <td className="px-3 py-2 text-xs max-w-[180px]">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="truncate">{order.productLabel}</span>
+                                                            {order.hasMultipleProducts && (
+                                                                <div className="relative group flex-shrink-0">
+                                                                    <span className="material-symbols-outlined text-[14px] text-slate-400 hover:text-primary cursor-help">
+                                                                        info
+                                                                    </span>
+                                                                    <div className="absolute left-0 top-6 hidden group-hover:block z-50 w-max max-w-xs bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg p-3 border border-slate-700">
+                                                                        <p className="font-semibold mb-1">Tất cả sản phẩm:</p>
+                                                                        <div className="whitespace-pre-line">{order.allProductNames}</div>
+                                                                        <div className="absolute -top-1 left-2 w-2 h-2 bg-slate-900 dark:bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-2 text-xs text-center">{order.totalQuantity}</td>
-                                                <td className="px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 text-right whitespace-nowrap">
-                                                    {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
-                                                </td>
-                                                <td className="px-3 py-2 text-center">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
-                                                </td>
-                                                <td className="px-3 py-2 text-center">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
-                                                        {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-2">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
-                                                                if (selectedId > 0) {
-                                                                    setDetailOrderId(String(selectedId))
-                                                                    fetchOrderById(selectedId)
-                                                                }
-                                                            }}
-                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                            title="Xem chi tiết"
-                                                            aria-label="Xem chi tiết"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                const selectedId = Number(order.orderId || order.id)
-                                                                if (selectedId > 0) {
-                                                                    cancelOrderById(selectedId)
-                                                                }
-                                                            }}
-                                                            disabled={order.status === 'Đã hủy' || cancelLoading || receiveLoading || returnLoading}
-                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            title={order.status === 'Đã hủy' ? 'Đơn đã hủy' : 'Hủy đơn'}
-                                                            aria-label="Hủy đơn"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )})}
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-center">{order.totalQuantity}</td>
+                                                    <td className="px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 text-right whitespace-nowrap">
+                                                        {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
+                                                            {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
+                                                                    if (selectedId > 0) {
+                                                                        setDetailOrderId(String(selectedId))
+                                                                        fetchOrderById(selectedId)
+                                                                    }
+                                                                }}
+                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                                                title="Xem chi tiết"
+                                                                aria-label="Xem chi tiết"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const selectedId = Number(order.orderId || order.id)
+                                                                    if (selectedId > 0) {
+                                                                        cancelOrderById(selectedId)
+                                                                    }
+                                                                }}
+                                                                disabled={order.status === 'Đã hủy' || cancelLoading || receiveLoading || returnLoading}
+                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                title={order.status === 'Đã hủy' ? 'Đơn đã hủy' : 'Hủy đơn'}
+                                                                aria-label="Hủy đơn"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
                                     </tbody>
                                 </table>
                                 <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
