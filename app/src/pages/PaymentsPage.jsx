@@ -74,7 +74,20 @@ function formatRefundPolicyLabel(policy) {
   return `${name} (${pct}%)`
 }
 
+function findRefundPolicyByValue(policies, value) {
+  const target = String(value || '').trim().toLowerCase()
+  if (!target) return null
+
+  return (policies || []).find((policy) => {
+    const byCode = String(policy?.policyCode || '').trim().toLowerCase()
+    const byDisplay = String(policy?.displayName || policy?.name || '').trim().toLowerCase()
+    const byLabel = formatRefundPolicyLabel(policy).trim().toLowerCase()
+    return target === byCode || target === byDisplay || target === byLabel
+  }) || null
+}
+
 function extractApiErrorMessage(data, fallback = 'Có lỗi xảy ra') {
+  if (typeof data === 'string' && data.trim()) return data.trim()
   if (!data || typeof data !== 'object') return fallback
 
   if (typeof data.message === 'string' && data.message.trim()) return data.message
@@ -101,8 +114,88 @@ const paymentStatusLabel = {
   PARTIAL_REFUND: 'Hoàn một phần',
 }
 
+const orderStatusStyle = {
+  PENDING: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  APPROVED: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  PROCESSING: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+  PRODUCED: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  SHIPPING: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  COMPLETED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  CANCELLED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  REJECTED: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  REFUNDED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+}
+
+const orderStatusLabel = {
+  PENDING: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  PROCESSING: 'Đang xử lý',
+  PRODUCED: 'Đã sản xuất',
+  SHIPPING: 'Đang giao',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
+  REJECTED: 'Đã từ chối',
+  REFUNDED: 'Đã hoàn tiền',
+}
+
+function normalizeOrderStatus(rawStatus, fallback = 'PENDING') {
+  const raw = String(rawStatus || '').trim().toUpperCase()
+  if (!raw) return fallback
+
+  const aliases = {
+    SHIPPED: 'SHIPPING',
+    DELIVERED: 'COMPLETED',
+    CHO_DUYET: 'PENDING',
+    DUYET: 'APPROVED',
+    DA_DUYET: 'APPROVED',
+    DANG_XU_LY: 'PROCESSING',
+    DA_SAN_XUAT: 'PRODUCED',
+    DANG_GIAO: 'SHIPPING',
+    DA_HUY: 'CANCELLED',
+    DA_TU_CHOI: 'REJECTED',
+    DA_HOAN_TIEN: 'REFUNDED',
+  }
+
+  return aliases[raw] || raw
+}
+
+function isOrderRefunded(order) {
+  return normalizeOrderStatus(order?.orderStatus) === 'REFUNDED' || String(order?.paymentStatus || '').toUpperCase() === 'REFUNDED'
+}
+
+function getRefundableRemainingByOrder(order) {
+  const paid = toAmount(order?.paidAmount, 0)
+  const refunded = toAmount(order?.refundedAmount, 0)
+  return Math.max(0, paid - refunded)
+}
+
+function canRefundOrder(order) {
+  const paymentStatus = String(order?.paymentStatus || '').toUpperCase()
+  const refundableRemaining = getRefundableRemainingByOrder(order)
+
+  if (isOrderRefunded(order)) return false
+  if (paymentStatus !== 'PAID' && paymentStatus !== 'PARTIAL_REFUND') return false
+  if (refundableRemaining <= 0) return false
+
+  return true
+}
+
+function refundDebug(step, details) {
+  if (!import.meta.env.DEV) return
+
+  const stamp = new Date().toISOString()
+  const payload = { stamp, step, ...details }
+
+  console.log(`[RefundDebug] ${step}`, payload)
+
+  if (typeof window !== 'undefined') {
+    window.__lastRefundDebug = payload
+  }
+}
+
 export default function PaymentsPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const enableRefundAction = false
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
@@ -122,6 +215,10 @@ export default function PaymentsPage() {
   // PayOS QR modal states
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false)
+  const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
+  const [selectedListOrder, setSelectedListOrder] = useState(null)
 
   const fetchOrders = async () => {
     const tk = getToken()
@@ -162,6 +259,10 @@ export default function PaymentsPage() {
 
         const totalAmount = toAmount(item.totalAmount, detailsSubtotal)
         const paymentStatus = String(item.paymentStatus || 'UNPAID').toUpperCase()
+        const orderStatus = normalizeOrderStatus(
+          item.orderStatus || item.status,
+          paymentStatus === 'REFUNDED' ? 'REFUNDED' : 'PENDING',
+        )
         const paidAmountFromApi = toAmount(item.paidAmount, Number.NaN)
         const paidAmount = Number.isFinite(paidAmountFromApi)
           ? paidAmountFromApi
@@ -177,6 +278,7 @@ export default function PaymentsPage() {
           storeName: item.store?.storeName || item.store?.name || `Store #${item.storeId || 'N/A'}`,
           createdAt: item.createdAt,
           paymentDate: item.paidAt || item.paymentDate || item.lastPaidAt || (paymentStatus === 'UNPAID' ? null : item.updatedAt),
+          orderStatus,
           paymentStatus,
           quantityTotal,
           avgUnitPrice,
@@ -268,14 +370,15 @@ export default function PaymentsPage() {
     }
   }
 
-  const payManually = async (orderId) => {
+  const payManually = async (orderId, options = {}) => {
+    const skipConfirm = Boolean(options?.skipConfirm)
     const tk = getToken()
     if (!tk) {
       setMessage({ type: 'error', text: 'Vui lòng đăng nhập' })
       return
     }
 
-    if (!window.confirm('Xác nhận đã nhận tiền mặt/chuyển khoản?')) return
+    if (!skipConfirm && !window.confirm('Xác nhận đã nhận tiền mặt/chuyển khoản?')) return
 
     setActionLoading(orderId)
     try {
@@ -301,8 +404,79 @@ export default function PaymentsPage() {
     }
   }
 
+  const openPaymentMethodModal = (order) => {
+    setSelectedPaymentOrder(order)
+    setShowPaymentMethodModal(true)
+  }
+
+  const openOrderDetailModal = (order) => {
+    setSelectedListOrder(order)
+    setShowOrderDetailModal(true)
+  }
+
+  const closeOrderDetailModal = () => {
+    setShowOrderDetailModal(false)
+    setSelectedListOrder(null)
+  }
+
+  const closePaymentMethodModal = () => {
+    if (selectedPaymentOrder && actionLoading === selectedPaymentOrder.orderId) return
+    setShowPaymentMethodModal(false)
+    setSelectedPaymentOrder(null)
+  }
+
+  const payOrderByPayOS = () => {
+    const orderId = Number(selectedPaymentOrder?.orderId)
+    if (!orderId) return
+
+    setShowPaymentMethodModal(false)
+    setSelectedPaymentOrder(null)
+    createPayOSLink(orderId)
+  }
+
+  const payOrderManually = () => {
+    const orderId = Number(selectedPaymentOrder?.orderId)
+    if (!orderId) return
+
+    setShowPaymentMethodModal(false)
+    setSelectedPaymentOrder(null)
+    payManually(orderId, { skipConfirm: true })
+  }
+
   const openRefundModal = (order) => {
+    refundDebug('open_refund_modal_attempt', {
+      orderId: order?.orderId,
+      orderStatus: order?.orderStatus,
+      paymentStatus: order?.paymentStatus,
+      paidAmount: order?.paidAmount,
+      refundedAmount: order?.refundedAmount,
+      refundableRemaining: getRefundableRemainingByOrder(order),
+    })
+
+    if (getRefundableRemainingByOrder(order) <= 0) {
+      refundDebug('open_refund_modal_blocked', {
+        orderId: order?.orderId,
+        reason: 'NO_REFUNDABLE_REMAINING',
+      })
+      setMessage({ type: 'error', text: 'Đơn đã hoàn hết tiền, không thể hoàn thêm.' })
+      return
+    }
+
+    if (isOrderRefunded(order)) {
+      refundDebug('open_refund_modal_blocked', {
+        orderId: order?.orderId,
+        reason: 'ORDER_ALREADY_REFUNDED',
+      })
+      setMessage({ type: 'error', text: 'Đơn đã hoàn tiền, không thể hoàn tiền lại.' })
+      return
+    }
+
     if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'PARTIAL_REFUND') {
+      refundDebug('open_refund_modal_blocked', {
+        orderId: order?.orderId,
+        reason: 'INVALID_PAYMENT_STATUS',
+        paymentStatus: order?.paymentStatus,
+      })
       setMessage({ type: 'error', text: 'Chỉ đơn đã thanh toán mới có thể hoàn tiền' })
       return
     }
@@ -321,61 +495,212 @@ export default function PaymentsPage() {
     if (!selectedOrder) return
     if (actionLoading === selectedOrder.orderId) return
 
-    if (!refundForm.policyCode) {
+    const debugRequestId = `${selectedOrder.orderId}-${Date.now()}`
+    refundDebug('submit_refund_start', {
+      requestId: debugRequestId,
+      orderId: selectedOrder.orderId,
+      selectedOrder,
+      refundForm,
+      refundPreviewAmount,
+      actionLoading,
+    })
+
+    const latestOrder = orders.find((order) => order.orderId === selectedOrder.orderId) || selectedOrder
+    const latestRefundableRemaining = getRefundableRemainingByOrder(latestOrder)
+
+    if (!canRefundOrder(latestOrder)) {
+      const latestOrderStatus = normalizeOrderStatus(latestOrder.orderStatus)
+      refundDebug('submit_refund_blocked', {
+        requestId: debugRequestId,
+        orderId: latestOrder?.orderId,
+        latestOrderStatus,
+        latestPaymentStatus: latestOrder?.paymentStatus,
+        latestRefundableRemaining,
+      })
+
+      if (latestOrderStatus === 'REFUNDED') {
+        setMessage({ type: 'error', text: 'Đơn đã hoàn tiền, không thể hoàn tiền lại.' })
+      } else if (latestRefundableRemaining <= 0) {
+        setMessage({ type: 'error', text: 'Đơn đã hoàn hết tiền, không thể hoàn thêm.' })
+      } else {
+        setMessage({ type: 'error', text: 'Đơn hiện không hợp lệ để hoàn tiền.' })
+      }
+      return
+    }
+
+    const resolvedPolicyCode = String(selectedRefundPolicy?.policyCode || refundForm.policyCode || '').trim()
+    const resolvedAdditionalNote = String(refundForm.additionalNote || '').trim()
+
+    if (!resolvedPolicyCode) {
+      refundDebug('submit_refund_blocked', {
+        requestId: debugRequestId,
+        orderId: latestOrder?.orderId,
+        reason: 'EMPTY_POLICY_CODE',
+      })
       setMessage({ type: 'error', text: 'Vui lòng chọn chính sách hoàn tiền' })
       return
     }
 
     if (refundPreviewAmount <= 0) {
+      refundDebug('submit_refund_blocked', {
+        requestId: debugRequestId,
+        orderId: latestOrder?.orderId,
+        reason: 'INVALID_PREVIEW_AMOUNT',
+        refundPreviewAmount,
+      })
       setMessage({ type: 'error', text: 'Số tiền hoàn dự kiến không hợp lệ.' })
       return
     }
 
-    if (refundPreviewAmount > refundableRemaining) {
+    if (refundPreviewAmount > latestRefundableRemaining) {
+      refundDebug('submit_refund_blocked', {
+        requestId: debugRequestId,
+        orderId: latestOrder?.orderId,
+        reason: 'PREVIEW_GT_REMAINING',
+        refundPreviewAmount,
+        latestRefundableRemaining,
+      })
       setMessage({
         type: 'error',
-        text: `Số tiền hoàn vượt mức còn lại (${formatCurrency(refundableRemaining)}). Vui lòng chọn chính sách khác.`,
+        text: `Số tiền hoàn vượt mức còn lại (${formatCurrency(latestRefundableRemaining)}). Vui lòng chọn chính sách khác.`,
       })
       return
     }
 
     const tk = getToken()
     if (!tk) {
+      refundDebug('submit_refund_blocked', {
+        requestId: debugRequestId,
+        orderId: latestOrder?.orderId,
+        reason: 'MISSING_TOKEN',
+      })
       setMessage({ type: 'error', text: 'Vui lòng đăng nhập' })
       return
     }
 
     setActionLoading(selectedOrder.orderId)
     try {
-      const response = await fetch(`${apiBase}/internal-orders/${selectedOrder.orderId}/refund`, {
+      const payload = {
+        policyCode: resolvedPolicyCode,
+      }
+      if (resolvedAdditionalNote) {
+        payload.additionalNote = resolvedAdditionalNote
+      }
+
+      const refundUrl = `${apiBase}/internal-orders/${selectedOrder.orderId}/refund`
+      refundDebug('submit_refund_request', {
+        requestId: debugRequestId,
+        url: refundUrl,
+        orderId: selectedOrder.orderId,
+        payload,
+        hasToken: Boolean(tk),
+      })
+
+      const response = await fetch(refundUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tk}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          policyCode: refundForm.policyCode,
-          additionalNote: refundForm.additionalNote || '',
-        }),
+        body: JSON.stringify(payload),
       })
 
-      const data = await response.json().catch(() => ({}))
+      const responseText = await response.text().catch(() => '')
+      let data = {}
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText)
+        } catch {
+          data = { message: responseText }
+        }
+      }
+
+      refundDebug('submit_refund_response', {
+        requestId: debugRequestId,
+        orderId: selectedOrder.orderId,
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get('content-type') || '',
+        responseText,
+        parsedData: data,
+      })
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           throw new Error('Bạn không có quyền thao tác')
         }
-        throw new Error(extractApiErrorMessage(data, 'Không thể hoàn tiền'))
+
+        const apiError = extractApiErrorMessage(data, `Không thể hoàn tiền (HTTP ${response.status})`)
+        const normalizedError = String(apiError || '').toLowerCase()
+
+        if (
+          response.status === 400 &&
+          (normalizedError.includes('already refunded') ||
+            normalizedError.includes('đã hoàn tiền') ||
+            normalizedError.includes('refunded'))
+        ) {
+          setOrders((prev) => prev.map((order) => (
+            order.orderId === selectedOrder.orderId
+              ? { ...order, orderStatus: 'REFUNDED', paymentStatus: 'REFUNDED' }
+              : order
+          )))
+          setShowRefundConfirm(false)
+          setShowRefundModal(false)
+          setSelectedOrder(null)
+        }
+
+        throw new Error(apiError)
       }
+
+      const responseOrderStatus = normalizeOrderStatus(data?.orderStatus || data?.updatedOrder?.orderStatus || data?.updatedOrder?.status, '')
+      const responsePaymentStatus = String(data?.paymentStatus || '').trim().toUpperCase()
+      const nextOrderStatus = responseOrderStatus || 'REFUNDED'
+      const nextPaymentStatus = responsePaymentStatus || 'REFUNDED'
+      const nextRefundedAmountRaw = toAmount(data?.refundedAmount ?? data?.refundAmount, Number.NaN)
+
+      setOrders((prev) => prev.map((order) => {
+        if (order.orderId !== selectedOrder.orderId) return order
+
+        const fallbackRefunded = toAmount(order.refundedAmount, 0) + toAmount(refundPreviewAmount, 0)
+        const nextRefundedAmount = Number.isFinite(nextRefundedAmountRaw)
+          ? Math.max(nextRefundedAmountRaw, fallbackRefunded)
+          : fallbackRefunded
+        const nextDueAmount = Math.max(0, toAmount(order.totalAmount, 0) - toAmount(order.paidAmount, 0))
+
+        return {
+          ...order,
+          orderStatus: nextOrderStatus,
+          paymentStatus: nextPaymentStatus,
+          refundedAmount: nextRefundedAmount,
+          dueAmount: nextDueAmount,
+        }
+      }))
 
       setMessage({ type: 'success', text: data?.message || 'Đã hoàn tiền thành công' })
       setShowRefundConfirm(false)
       setShowRefundModal(false)
       setSelectedOrder(null)
-      fetchOrders()
+
+      refundDebug('submit_refund_state_applied', {
+        requestId: debugRequestId,
+        orderId: selectedOrder.orderId,
+        nextOrderStatus,
+        nextPaymentStatus,
+        backendRefundAmount: data?.refundAmount,
+        backendRefundedAmount: data?.refundedAmount,
+      })
     } catch (error) {
+      refundDebug('submit_refund_exception', {
+        requestId: debugRequestId,
+        orderId: selectedOrder?.orderId,
+        errorMessage: error?.message || String(error),
+      })
       setMessage({ type: 'error', text: error.message })
     } finally {
+      refundDebug('submit_refund_finish', {
+        requestId: debugRequestId,
+        orderId: selectedOrder?.orderId,
+      })
       setActionLoading(null)
     }
   }
@@ -400,7 +725,7 @@ export default function PaymentsPage() {
   }, [orders, statusFilter])
 
   const selectedRefundPolicy = useMemo(
-    () => refundPolicies.find((policy) => String(policy.policyCode) === String(refundForm.policyCode)) || null,
+    () => findRefundPolicyByValue(refundPolicies, refundForm.policyCode),
     [refundPolicies, refundForm.policyCode],
   )
 
@@ -435,6 +760,16 @@ export default function PaymentsPage() {
     }
   }, [orders])
 
+  const visibleColumns = useMemo(() => {
+    const rows = filteredOrders || []
+    return {
+      quantity: rows.some((order) => Number(order?.quantityTotal || 0) > 0),
+      avgUnitPrice: rows.some((order) => Number(order?.avgUnitPrice || 0) > 0),
+      dueAmount: rows.some((order) => Number(order?.dueAmount || 0) > 0),
+      orderStatus: rows.some((order) => String(order?.orderStatus || '').trim()),
+    }
+  }, [filteredOrders])
+
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
@@ -457,7 +792,7 @@ export default function PaymentsPage() {
           <div>
             <h1 className="text-2xl font-bold">Lịch sử thanh toán</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Theo dõi đơn cần thanh toán, đã thanh toán, ngày thanh toán, số lượng, đơn giá và số tiền còn phải chi.
+              Theo dõi đơn cần thanh toán, đã thanh toán, số lượng, đơn giá và số tiền còn phải chi.
             </p>
           </div>
           <label className="flex flex-col gap-1 min-w-[220px]">
@@ -519,7 +854,7 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-auto max-h-[calc(100dvh-20rem)]">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
           {loading ? (
             <div className="px-4 py-3 text-sm text-slate-500">Đang tải...</div>
           ) : filteredOrders.length === 0 ? (
@@ -528,68 +863,85 @@ export default function PaymentsPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cửa hàng</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày thanh toán</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Số lượng</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Đơn giá TB</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Đơn hàng</th>
+                  {visibleColumns.quantity && (
+                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center whitespace-nowrap">Số lượng</th>
+                  )}
+                  {visibleColumns.avgUnitPrice && (
+                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right whitespace-nowrap">Đơn giá TB</th>
+                  )}
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Tổng tiền</th>
                   <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Đã thanh toán</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Cần thanh toán</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
+                  {visibleColumns.dueAmount && (
+                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Cần thanh toán</th>
+                  )}
+                  {visibleColumns.orderStatus && (
+                    <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái đơn</th>
+                  )}
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái</th>
+                  <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredOrders.map((order) => (
                   <tr key={order.orderId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium">{order.orderCode}</td>
-                    <td className="px-4 py-3 text-sm">{order.storeName}</td>
-                    <td className="px-4 py-3 text-xs">{toShortDate(order.createdAt)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{toDateTime(order.paymentDate)}</td>
-                    <td className="px-4 py-3 text-sm text-center font-semibold">{order.quantityTotal || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-right whitespace-nowrap">{formatCurrency(order.avgUnitPrice)}</td>
+                    <td className="px-4 py-3 text-sm font-medium whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => openOrderDetailModal(order)}
+                        className="text-primary hover:underline"
+                        title="Xem chi tiết đơn"
+                      >
+                        {order.orderCode}
+                      </button>
+                    </td>
+                    {visibleColumns.quantity && (
+                      <td className="px-4 py-3 text-sm text-center font-semibold whitespace-nowrap">{order.quantityTotal || '-'}</td>
+                    )}
+                    {visibleColumns.avgUnitPrice && (
+                      <td className="px-4 py-3 text-sm text-right whitespace-nowrap">{formatCurrency(order.avgUnitPrice)}</td>
+                    )}
                     <td className="px-4 py-3 text-sm font-semibold text-right whitespace-nowrap">
                       {formatCurrency(order.totalAmount)}
                     </td>
                     <td className="px-4 py-3 text-sm text-right whitespace-nowrap text-emerald-700 dark:text-emerald-400 font-semibold">
                       {formatCurrency(order.paidAmount)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right whitespace-nowrap text-rose-700 dark:text-rose-400 font-semibold">
-                      {formatCurrency(order.dueAmount)}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
+                    {visibleColumns.dueAmount && (
+                      <td className="px-4 py-3 text-sm text-right whitespace-nowrap text-rose-700 dark:text-rose-400 font-semibold">
+                        {formatCurrency(order.dueAmount)}
+                      </td>
+                    )}
+                    {visibleColumns.orderStatus && (
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${orderStatusStyle[normalizeOrderStatus(order.orderStatus)] || orderStatusStyle.PENDING}`}
+                        >
+                          {orderStatusLabel[normalizeOrderStatus(order.orderStatus)] || normalizeOrderStatus(order.orderStatus)}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${paymentStatusStyle[order.paymentStatus] || paymentStatusStyle.UNPAID
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${paymentStatusStyle[order.paymentStatus] || paymentStatusStyle.UNPAID
                           }`}
                       >
                         {paymentStatusLabel[order.paymentStatus] || order.paymentStatus}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right min-w-[140px]">
                       <div className="flex items-center justify-end gap-2">
                         {order.paymentStatus === 'UNPAID' && (
-                          <>
-                            <button
-                              onClick={() => createPayOSLink(order.orderId)}
-                              disabled={actionLoading === order.orderId}
-                              className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
-                              title="Tạo link PayOS QR"
-                            >
-                              QR
-                            </button>
-                            <button
-                              onClick={() => payManually(order.orderId)}
-                              disabled={actionLoading === order.orderId}
-                              className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
-                              title="Xác nhận thanh toán thủ công"
-                            >
-                              Xác nhận
-                            </button>
-                          </>
+                          <button
+                            onClick={() => openPaymentMethodModal(order)}
+                            disabled={actionLoading === order.orderId}
+                            className="h-8 min-w-[96px] px-3 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 whitespace-nowrap"
+                            title="Thanh toán"
+                          >
+                            Thanh toán
+                          </button>
                         )}
-                        {(order.paymentStatus === 'PAID' || order.paymentStatus === 'PARTIAL_REFUND') && (
+                        {enableRefundAction && canRefundOrder(order) && (
                           <button
                             onClick={() => openRefundModal(order)}
                             disabled={actionLoading === order.orderId}
@@ -608,6 +960,85 @@ export default function PaymentsPage() {
           )}
         </div>
       </div>
+
+      {showOrderDetailModal && selectedListOrder && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
+          onClick={closeOrderDetailModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold">Chi tiết đơn {selectedListOrder.orderCode}</h3>
+              <button
+                type="button"
+                onClick={closeOrderDetailModal}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <p><span className="font-semibold">Cửa hàng:</span> {selectedListOrder.storeName}</p>
+              <p><span className="font-semibold">Ngày tạo:</span> {toDateTime(selectedListOrder.createdAt)}</p>
+              <p><span className="font-semibold">Ngày thanh toán:</span> {toDateTime(selectedListOrder.paymentDate)}</p>
+              <p><span className="font-semibold">Tổng tiền:</span> {formatCurrency(selectedListOrder.totalAmount)}</p>
+              <p><span className="font-semibold">Đã thanh toán:</span> {formatCurrency(selectedListOrder.paidAmount)}</p>
+              <p><span className="font-semibold">Cần thanh toán:</span> {formatCurrency(selectedListOrder.dueAmount)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentMethodModal && selectedPaymentOrder && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
+          onClick={closePaymentMethodModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold">Chọn phương thức thanh toán</h3>
+              <button
+                type="button"
+                onClick={closePaymentMethodModal}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm">
+              <p><span className="font-semibold">Đơn:</span> {selectedPaymentOrder.orderCode || `#${selectedPaymentOrder.orderId}`}</p>
+              <p className="mt-1"><span className="font-semibold">Số tiền:</span> {formatCurrency(selectedPaymentOrder.totalAmount)}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                onClick={payOrderByPayOS}
+                disabled={actionLoading === selectedPaymentOrder.orderId}
+                className="h-11 px-4 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+              >
+                Thanh toán QR (PayOS)
+              </button>
+              <button
+                type="button"
+                onClick={payOrderManually}
+                disabled={actionLoading === selectedPaymentOrder.orderId}
+                className="h-11 px-4 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
+              >
+                Xác nhận thanh toán thủ công
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PayOS QR Modal */}
       {showQRModal && qrUrl && (

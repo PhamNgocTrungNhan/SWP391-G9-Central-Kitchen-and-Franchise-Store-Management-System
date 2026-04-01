@@ -541,7 +541,6 @@ export default function CreateProductionBatchPage() {
             if (!response.ok) return
 
             const allBatchesData = parseArrayData(data)
-            console.log('📊 All batches fetched:', allBatchesData.length, 'batches')
 
             // Enrich batches với orderId từ orderIds array
             const enrichedBatches = []
@@ -562,7 +561,6 @@ export default function CreateProductionBatchPage() {
                 }
             })
 
-            console.log('📊 Enriched batches:', enrichedBatches.filter(b => b.orderId).length, 'batches with orderId')
             setAllBatches(enrichedBatches)
 
             // Tính progress cho từng order
@@ -586,7 +584,6 @@ export default function CreateProductionBatchPage() {
                     total: totalProducts
                 }
 
-                console.log(`📊 Order #${order.orderId}: ${productsWithBatch.size}/${totalProducts} products with batch`, Array.from(productsWithBatch))
             })
 
             setOrderBatchProgress(progressMap)

@@ -87,7 +87,6 @@ export default function UsersPage() {
         const data = await response.json()
         const storesArray = Array.isArray(data) ? data : []
         setStores(storesArray)
-        console.log('Stores loaded:', storesArray)
       } else {
         console.error('Failed to fetch stores:', response.status)
       }
@@ -109,7 +108,6 @@ export default function UsersPage() {
         const data = await response.json()
         const kitchensArray = Array.isArray(data) ? data : []
         setKitchens(kitchensArray)
-        console.log('Kitchens loaded:', kitchensArray)
       } else {
         console.error('Failed to fetch kitchens:', response.status)
       }

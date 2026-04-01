@@ -18,6 +18,7 @@ const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg
 const orderStatusStyle = {
     'Hoàn thành': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Đang giao': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'Đã hoàn tiền': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     'Đã sản xuất': 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
     'Đã duyệt': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     'Đã xác nhận': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
@@ -49,6 +50,7 @@ const apiStatusToUi = {
     PRODUCED: 'Đã sản xuất',
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
+    REFUNDED: 'Đã hoàn tiền',
     DELIVERED: 'Hoàn thành',
     COMPLETED: 'Hoàn thành',
     CANCELLED: 'Đã hủy',
@@ -214,6 +216,7 @@ export default function StoreOrderPage() {
     const [inventoryLoading, setInventoryLoading] = useState(false)
     const [inventoryError, setInventoryError] = useState('')
     const [inventoryInfo, setInventoryInfo] = useState('')
+    const [uiWarning, setUiWarning] = useState('')
     const [inventoryRows, setInventoryRows] = useState([])
     const [inventoryLogs, setInventoryLogs] = useState([])
     const [formExpectedDeliveryDate, setFormExpectedDeliveryDate] = useState(() => {
@@ -472,6 +475,57 @@ export default function StoreOrderPage() {
             status.includes('GIAO')
     }
 
+    const normalizeApiOrderStatus = (rawStatus) => {
+        const raw = String(rawStatus || '').trim().toUpperCase()
+        if (!raw) return ''
+
+        const statusAliases = {
+            'CHỜ DUYỆT': 'PENDING',
+            'ĐÃ DUYỆT': 'APPROVED',
+            'ĐANG XỬ LÝ': 'PROCESSING',
+            'ĐÃ SẢN XUẤT': 'PRODUCED',
+            'ĐANG GIAO': 'SHIPPING',
+            SHIPPED: 'SHIPPING',
+            'ĐÃ XÁC NHẬN': 'CONFIRMED',
+            'HOÀN THÀNH': 'COMPLETED',
+            'ĐÃ HỦY': 'CANCELLED',
+            'ĐÃ TỪ CHỐI': 'REJECTED',
+            'ĐÃ TRẢ HÀNG': 'RETURNED',
+        }
+
+        return statusAliases[raw] || raw
+    }
+
+    const canPayOrder = (rawStatus, rawPaymentStatus) => {
+        const normalizedStatus = normalizeApiOrderStatus(rawStatus)
+        const normalizedPayment = normalizePaymentStatus(rawPaymentStatus)
+        const payableStatuses = ['APPROVED', 'PROCESSING', 'PRODUCED', 'SHIPPING']
+        return normalizedPayment === 'UNPAID' && payableStatuses.includes(normalizedStatus)
+    }
+
+    const isPendingOrder = (rawStatus) => {
+        return normalizeApiOrderStatus(rawStatus) === 'PENDING'
+    }
+
+    const canReceiveOrder = (rawStatus, rawPaymentStatus) => {
+        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'PAID'
+    }
+
+    const isShippingUnpaidOrder = (rawStatus, rawPaymentStatus) => {
+        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'UNPAID'
+    }
+
+    const extractErrorMessage = (data, fallback) => {
+        if (typeof data?.message === 'string' && data.message.trim()) return data.message
+        if (typeof data?.title === 'string' && data.title.trim()) return data.title
+        if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail
+
+        const firstError = Object.values(data?.errors || {}).find((value) => Array.isArray(value) && value.length)
+        if (firstError && firstError[0]) return String(firstError[0])
+
+        return fallback
+    }
+
     const getOrderStatusActions = (rawStatus) => {
         // Store staff KHÔNG được phép xuất kho
         // Chỉ có SUPPLY_COORDINATOR mới xuất kho từ Order Management page
@@ -638,6 +692,7 @@ export default function StoreOrderPage() {
 
     const fetchOrderById = async (idArg) => {
         setDetailError('')
+        setUiWarning('')
         setDetailOrder(null)
 
         const orderId = Number(idArg ?? detailOrderId)
@@ -660,7 +715,11 @@ export default function StoreOrderPage() {
 
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || 'Không thể tải chi tiết đơn hàng.')
+                if (response.status === 404) {
+                    setOrdersError('Order không tồn tại. Đã quay lại danh sách đơn.')
+                    return
+                }
+                throw new Error(extractErrorMessage(data, 'Không thể tải chi tiết đơn hàng.'))
             }
 
             setDetailOrder({
@@ -720,6 +779,14 @@ export default function StoreOrderPage() {
 
     const confirmReceivedById = async (orderId) => {
         setDetailError('')
+        setUiWarning('')
+
+        const currentPaymentStatus = normalizePaymentStatus(detailOrder?.paymentStatus)
+        if (currentPaymentStatus !== 'PAID') {
+            setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+            return
+        }
+
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             if (!token) {
@@ -737,7 +804,23 @@ export default function StoreOrderPage() {
 
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || 'Không thể xác nhận đã nhận hàng.')
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Không có quyền thao tác đơn này.')
+                }
+                if (response.status === 404) {
+                    setDetailOrder(null)
+                    setOrdersError('Order không tồn tại. Đã quay lại danh sách đơn.')
+                    fetchMyOrders()
+                    return
+                }
+
+                const backendMessage = extractErrorMessage(data, 'Không thể xác nhận đã nhận hàng.')
+                if (/chưa\s*thanh\s*toán|not\s*paid/i.test(backendMessage)) {
+                    setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+                    return
+                }
+
+                throw new Error(backendMessage)
             }
 
             const updatedStatus = normalizeStatus('DELIVERED')
@@ -839,12 +922,31 @@ export default function StoreOrderPage() {
     }
 
     const openPaymentModal = (order) => {
+        if (!canPayOrder(order?.orderStatus || order?.status, order?.paymentStatus)) {
+            if (isPendingOrder(order?.orderStatus || order?.status)) {
+                setUiWarning('Đơn chưa duyệt, chưa thể thanh toán.')
+            } else {
+                setUiWarning('Đơn hiện không ở trạng thái cho phép thanh toán.')
+            }
+            return
+        }
+
         setSelectedPaymentOrder(order)
         setShowPaymentModal(true)
     }
 
     const handlePaymentMethod = async (method) => {
         if (!selectedPaymentOrder) return
+
+        if (!canPayOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status, selectedPaymentOrder?.paymentStatus || detailOrder?.paymentStatus)) {
+            if (isPendingOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status)) {
+                setDetailError('Đơn chưa duyệt, chưa thể thanh toán.')
+            } else {
+                setDetailError('Đơn hiện không ở trạng thái cho phép thanh toán.')
+            }
+            setShowPaymentModal(false)
+            return
+        }
 
         const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
         if (!token) {
@@ -1044,12 +1146,13 @@ export default function StoreOrderPage() {
         || detailError
         || ordersError
         || inventoryError
+        || uiWarning
         || submitSuccess
         || inventoryInfo
 
     const toastType = (submitError || detailError || ordersError || inventoryError)
         ? 'error'
-        : (inventoryInfo)
+        : (uiWarning || inventoryInfo)
             ? 'warning'
             : toastMessage
                 ? 'success'
@@ -1059,11 +1162,20 @@ export default function StoreOrderPage() {
     const currentOrderPage = Math.min(Math.max(ordersPage, 1), totalOrderPages)
     const pagedOrders = orders.slice((currentOrderPage - 1) * ordersPerPage, currentOrderPage * ordersPerPage)
 
+    const openOrderDetailFromRow = (order) => {
+        const selectedId = Number(order?.orderId || order?.id)
+        if (selectedId > 0) {
+            setDetailOrderId(String(selectedId))
+            fetchOrderById(selectedId)
+        }
+    }
+
     const clearToast = () => {
         setSubmitError('')
         setDetailError('')
         setOrdersError('')
         setInventoryError('')
+        setUiWarning('')
         setSubmitSuccess('')
         setInventoryInfo('')
     }
@@ -1468,8 +1580,11 @@ export default function StoreOrderPage() {
                             </div>
                         )}
                         {!ordersLoading && !ordersError && orders.length > 0 && (
-                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                                    Nhấn vào từng dòng để xem chi tiết và thao tác.
+                                </div>
+                                <table className="w-full text-left border-collapse table-fixed">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
@@ -1479,7 +1594,6 @@ export default function StoreOrderPage() {
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">Tổng tiền</th>
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trạng thái</th>
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Thanh toán</th>
-                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1487,7 +1601,12 @@ export default function StoreOrderPage() {
                                             const normalizedPaymentStatus = normalizePaymentStatus(order.paymentStatus)
 
                                             return (
-                                                <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                <tr
+                                                    key={order.id}
+                                                    className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
+                                                    onClick={() => openOrderDetailFromRow(order)}
+                                                    title={`Xem chi tiết đơn #${order.id}`}
+                                                >
                                                     <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
                                                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
                                                     <td className="px-3 py-2 text-xs max-w-[180px]">
@@ -1518,38 +1637,6 @@ export default function StoreOrderPage() {
                                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
                                                             {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-3 py-2">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const selectedId = Number(order.orderId || String(order.id || '').replace('#', ''))
-                                                                    if (selectedId > 0) {
-                                                                        setDetailOrderId(String(selectedId))
-                                                                        fetchOrderById(selectedId)
-                                                                    }
-                                                                }}
-                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                                                title="Xem chi tiết"
-                                                                aria-label="Xem chi tiết"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    const selectedId = Number(order.orderId || order.id)
-                                                                    if (selectedId > 0) {
-                                                                        cancelOrderById(selectedId)
-                                                                    }
-                                                                }}
-                                                                disabled={order.status === 'Đã hủy' || cancelLoading || receiveLoading || returnLoading}
-                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                title={order.status === 'Đã hủy' ? 'Đơn đã hủy' : 'Hủy đơn'}
-                                                                aria-label="Hủy đơn"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                            </button>
-                                                        </div>
                                                     </td>
                                                 </tr>
                                             )
@@ -1721,31 +1808,45 @@ export default function StoreOrderPage() {
                                         {/* Action Buttons */}
                                         {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Đã hủy' && (
                                             <div className="flex items-center gap-3 flex-wrap">
-                                                {normalizePaymentStatus(detailOrder.paymentStatus) === 'UNPAID' && (
+                                                {canPayOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
                                                     <button
-                                                        onClick={() => {
-                                                            setShowPaymentModal(true)
-                                                            setSelectedPaymentOrder({
-                                                                orderId: detailOrder.orderId || detailOrder.id,
-                                                                totalAmount: detailOrder.totalAmount || 0,
-                                                            })
-                                                        }}
+                                                        onClick={() => openPaymentModal({
+                                                            orderId: detailOrder.orderId || detailOrder.id,
+                                                            totalAmount: detailOrder.totalAmount || 0,
+                                                            orderStatus: detailOrder.orderStatus || detailOrder.status,
+                                                            paymentStatus: detailOrder.paymentStatus,
+                                                        })}
                                                         className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
                                                     >
                                                         <span className="material-symbols-outlined text-[18px]">payments</span>
                                                         Thanh toán
                                                     </button>
                                                 )}
+
+                                                {isPendingOrder(detailOrder.orderStatus || detailOrder.status) && (
+                                                    <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                                                        Đơn chưa duyệt, chưa thể thanh toán.
+                                                    </div>
+                                                )}
+
+                                                {isShippingUnpaidOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                    <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                                                        Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.
+                                                    </div>
+                                                )}
+
                                                 {isShippedLikeStatus(detailOrder.orderStatus || detailOrder.status) && (
                                                     <>
-                                                        <button
-                                                            onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
-                                                            disabled={receiveLoading || returnLoading}
-                                                            className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                                                            {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
-                                                        </button>
+                                                        {canReceiveOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                            <button
+                                                                onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
+                                                                disabled={receiveLoading || returnLoading}
+                                                                className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                                                                {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
                                                             disabled={receiveLoading || returnLoading}
