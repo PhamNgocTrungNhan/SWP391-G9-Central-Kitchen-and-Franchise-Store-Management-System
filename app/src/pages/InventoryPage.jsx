@@ -73,6 +73,19 @@ export default function InventoryPage() {
     supplierId: '',
   })
 
+  const isAnyModalOpen = showExpiredModal || showDetailModal || showExpiryDetailModal || showImportModal
+
+  useEffect(() => {
+    if (!isAnyModalOpen) return undefined
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isAnyModalOpen])
+
 
   const fetchStock = async () => {
     const tk = getToken()
@@ -231,13 +244,10 @@ export default function InventoryPage() {
       })
       const batchesData = batchesRes.ok ? await batchesRes.json() : []
 
-      console.log('All batches from API:', batchesData)
-
       const completedBatches = (Array.isArray(batchesData) ? batchesData : [])
         .filter((b) => {
           const isCompleted = String(b.status || '').toUpperCase() === 'COMPLETED'
           const hasExpDate = !!b.expDate
-          console.log(`Batch #${b.batchId} (${b.batchCode}): status=${b.status}, expDate=${b.expDate}, quantityActual=${b.quantityActual}, isCompleted=${isCompleted}, hasExpDate=${hasExpDate}`)
           return isCompleted && hasExpDate
         })
         .map((b) => ({
@@ -246,15 +256,14 @@ export default function InventoryPage() {
           productId: b.productId,
           quantityPlanned: Number(b.quantityPlanned || 0),
           quantityActual: Number(b.quantityActual || 0),
-          mfgDate: b.mfgDate,
+          createdAt: b.createdAt || b.creationTime || b.createdDate || null,
+          mfgDate: b.mfgDate || b.createdAt || b.creationTime || b.createdDate || null,
           expDate: b.expDate,
           status: b.status
         }))
 
-      console.log('Filtered completed batches:', completedBatches)
-
-      // Sắp xếp theo FIFO (mfgDate cũ → mới)
-      completedBatches.sort((a, b) => new Date(a.mfgDate) - new Date(b.mfgDate))
+      // Ưu tiên mẻ mới tạo lên đầu
+      completedBatches.sort((a, b) => new Date(b.createdAt || b.mfgDate || 0) - new Date(a.createdAt || a.mfgDate || 0))
 
       // Hiển thị TẤT CẢ mẻ COMPLETED có expDate, không cần phân bổ tồn kho
       const result = completedBatches.map((batch) => {
@@ -288,14 +297,13 @@ export default function InventoryPage() {
           quantity: batch.quantityActual, // Hiển thị số lượng thực tế của mẻ
           quantityPlanned: batch.quantityPlanned,
           quantityActual: batch.quantityActual,
+          createdAt: batch.createdAt,
           mfgDate: batch.mfgDate,
           expDate: batch.expDate,
           expiryStatus,
           daysRemaining
         }
       })
-
-      console.log('Final expiry tracking result:', result)
       setExpiryTracking(result)
     } catch (error) {
       console.error('Error fetching expiry tracking:', error)
@@ -352,8 +360,8 @@ export default function InventoryPage() {
         (b) => b.status === 'COMPLETED' && b.expDate
       )
 
-      // FIFO: Sort by mfgDate ascending (oldest first)
-      completedBatches.sort((a, b) => new Date(a.mfgDate) - new Date(b.mfgDate))
+      // Ưu tiên mẻ mới tạo lên đầu
+      completedBatches.sort((a, b) => new Date(b.createdAt || b.mfgDate || 0) - new Date(a.createdAt || a.mfgDate || 0))
 
       const now = new Date()
       const expired = []
@@ -368,6 +376,7 @@ export default function InventoryPage() {
             productId: batch.productId,
             productName,
             expiredQuantity: batch.actualQuantity || batch.plannedQuantity || 0,
+            createdAt: batch.createdAt || batch.creationTime || batch.createdDate || null,
             mfgDate: batch.mfgDate,
             expDate: batch.expDate,
           })
@@ -472,7 +481,12 @@ export default function InventoryPage() {
 
       if (batchRes.ok) {
         const batchData = await batchRes.json()
-        setSelectedExpiryItem({ ...item, ...batchData })
+        setSelectedExpiryItem({
+          ...item,
+          ...batchData,
+          createdAt: batchData?.createdAt || batchData?.creationTime || batchData?.createdDate || item?.createdAt || null,
+          mfgDate: batchData?.mfgDate || item?.mfgDate || batchData?.createdAt || null,
+        })
       }
     } catch (error) {
       console.error('Error fetching batch details:', error)
@@ -852,7 +866,7 @@ export default function InventoryPage() {
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Mã mẻ</th>
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">SL</th>
-                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">NSX</th>
+                      <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tạo mẻ</th>
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">HSD</th>
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
                       <th className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
@@ -866,7 +880,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-sm">
                           <span className="text-emerald-600 font-semibold">{item.quantityActual}</span>
                         </td>
-                        <td className="px-4 py-3 text-xs">{toShortDate(item.mfgDate)}</td>
+                        <td className="px-4 py-3 text-xs">{toShortDate(item.createdAt || item.mfgDate)}</td>
                         <td className="px-4 py-3 text-xs font-medium">{toShortDate(item.expDate)}</td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
@@ -1021,8 +1035,12 @@ export default function InventoryPage() {
                   <h4 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Thông tin ngày tháng</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Thời gian tạo mẻ</label>
+                      <p className="text-sm font-medium mt-1">{toShortDate(selectedExpiryItem.createdAt || selectedExpiryItem.mfgDate)}</p>
+                    </div>
+                    <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
-                      <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiryItem.mfgDate)}</p>
+                      <p className="text-sm font-medium mt-1">{toShortDate(selectedExpiryItem.mfgDate || selectedExpiryItem.createdAt)}</p>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
@@ -1031,7 +1049,7 @@ export default function InventoryPage() {
                           selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'text-amber-600' :
                             'text-emerald-600'
                         }`}>
-                        {toReadableDate(selectedExpiryItem.expDate)}
+                        {toShortDate(selectedExpiryItem.expDate)}
                       </p>
                     </div>
                     <div>
@@ -1189,11 +1207,11 @@ export default function InventoryPage() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Ngày sản xuất</label>
-                      <p className="text-sm font-medium mt-1">{toReadableDate(selectedExpiredItem.mfgDate)}</p>
+                      <p className="text-sm font-medium mt-1">{toShortDate(selectedExpiredItem.mfgDate)}</p>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Hạn sử dụng</label>
-                      <p className="text-sm font-medium mt-1 text-red-600">{toReadableDate(selectedExpiredItem.expDate)}</p>
+                      <p className="text-sm font-medium mt-1 text-red-600">{toShortDate(selectedExpiredItem.expDate)}</p>
                     </div>
                   </div>
 

@@ -170,7 +170,7 @@ export const pageCatalog = {
     controller: 'InternalOrderController',
     title: 'Thanh toán và hoàn tiền',
     description: 'Workspace thanh toán tích hợp PayOS QR code và xử lý hoàn tiền theo chính sách. Hỗ trợ tạo link thanh toán, webhook tự động và hoàn tiền theo policy.',
-    authorize: 'ADMIN, MANAGER, STORE_STAFF',
+    authorize: 'ADMIN (view-only), MANAGER, STORE_STAFF',
     endpoints: [
       { method: 'POST', path: '/api/internal-orders/{orderId}/payos-link', params: 'returnUrl, cancelUrl' },
       { method: 'POST', path: '/api/internal-orders/payos-webhook', note: 'PayOS tự động gọi' },

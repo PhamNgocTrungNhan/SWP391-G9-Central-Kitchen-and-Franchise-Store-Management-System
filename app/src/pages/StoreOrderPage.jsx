@@ -466,6 +466,11 @@ export default function StoreOrderPage() {
         return aliases[raw] || raw
     }
 
+    const canCancelOrderInList = (rawStatus) => {
+        const normalized = normalizeApiOrderStatus(rawStatus)
+        return normalized !== 'CANCELLED' && normalized !== 'COMPLETED' && normalized !== 'RETURNED' && normalized !== 'REFUNDED'
+    }
+
     const isShippedLikeStatus = (rawStatus) => {
         const status = String(rawStatus || '').toUpperCase()
         // Check both raw status and normalized status
@@ -1594,6 +1599,7 @@ export default function StoreOrderPage() {
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">Tổng tiền</th>
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trạng thái</th>
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Thanh toán</th>
+                                            <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1603,7 +1609,7 @@ export default function StoreOrderPage() {
                                             return (
                                                 <tr
                                                     key={order.id}
-                                                    className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
+                                                    className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
                                                     onClick={() => openOrderDetailFromRow(order)}
                                                     title={`Xem chi tiết đơn #${order.id}`}
                                                 >
@@ -1637,6 +1643,39 @@ export default function StoreOrderPage() {
                                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
                                                             {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    openOrderDetailFromRow(order)
+                                                                }}
+                                                                className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                                title="Xem chi tiết"
+                                                                aria-label="Xem chi tiết"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                                            </button>
+
+                                                            {canCancelOrderInList(order.status) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={async (e) => {
+                                                                        e.stopPropagation()
+                                                                        if (!window.confirm(`Xác nhận hủy đơn #${order.orderId}?`)) return
+                                                                        await cancelOrderById(order.orderId)
+                                                                    }}
+                                                                    disabled={cancelLoading || receiveLoading || returnLoading}
+                                                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                                                                    title="Hủy đơn"
+                                                                    aria-label="Hủy đơn"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             )

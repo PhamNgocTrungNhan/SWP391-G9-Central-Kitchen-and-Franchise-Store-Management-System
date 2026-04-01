@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { roles } from '../data/appSchema'
+import { getCurrentUserRole } from '../utils/auth'
 
 function getToken() {
   const candidates = [
@@ -12,6 +14,20 @@ function getToken() {
   ]
   const first = candidates.find((item) => String(item || '').trim())
   return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
+}
+
+function resolveDefaultStoreId() {
+  const candidates = [
+    localStorage.getItem('store_id'),
+    localStorage.getItem('storeId'),
+    localStorage.getItem('current_store_id'),
+  ]
+
+  const first = candidates.find((item) => String(item || '').trim())
+  const parsed = Number(first)
+  if (Number.isFinite(parsed) && parsed > 0) return String(parsed)
+
+  return '1'
 }
 
 function toShortDate(dateString) {
@@ -196,11 +212,16 @@ function refundDebug(step, details) {
 export default function PaymentsPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
   const enableRefundAction = false
+  const ordersPerPage = 10
+  const currentRole = getCurrentUserRole()
+  const isAdminView = currentRole === roles.ADMIN
   const [orders, setOrders] = useState([])
+  const [ordersPage, setOrdersPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
   const [message, setMessage] = useState(null)
-  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState(isAdminView ? 'PAID_FLOW' : 'ALL')
+  const [adminStoreId, setAdminStoreId] = useState(() => resolveDefaultStoreId())
 
   // Refund modal states
   const [showRefundModal, setShowRefundModal] = useState(false)
@@ -222,23 +243,48 @@ export default function PaymentsPage() {
 
   const fetchOrders = async () => {
     const tk = getToken()
-    if (!tk) {
+    if (!tk && !isAdminView) {
       setMessage({ type: 'error', text: 'Vui lòng đăng nhập' })
       return
     }
 
+    const parsedStoreId = Number(adminStoreId)
+    const useAdminStoreScope = isAdminView && Number.isFinite(parsedStoreId) && parsedStoreId > 0
+
     setLoading(true)
     try {
-      const response = await fetch(`${apiBase}/internal-orders`, {
-        headers: { Authorization: `Bearer ${tk}` },
+      const ordersUrl = useAdminStoreScope
+        ? `${apiBase}/internal-orders?storeId=${parsedStoreId}`
+        : `${apiBase}/internal-orders`
+      let response = await fetch(ordersUrl, {
+        headers: {
+          accept: '*/*',
+          ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+        },
       })
 
-      if (!response.ok) {
-        throw new Error('Không thể tải danh sách đơn hàng')
+      let data = await response.json().catch(() => ([]))
+
+      if (!response.ok && isAdminView && (response.status === 401 || response.status === 403)) {
+        response = await fetch(ordersUrl, {
+          headers: { accept: '*/*' },
+        })
+        data = await response.json().catch(() => ([]))
       }
 
-      const data = await response.json()
-      const normalized = (Array.isArray(data) ? data : []).map((item) => {
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(data, 'Không thể tải danh sách đơn hàng'))
+      }
+
+      const records = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : []
+
+      const normalized = records.map((item) => {
         const orderId = Number(item.orderId || item.internalOrderId || item.id || 0)
         const details = Array.isArray(item?.internalOrderDetails)
           ? item.internalOrderDetails
@@ -405,6 +451,7 @@ export default function PaymentsPage() {
   }
 
   const openPaymentMethodModal = (order) => {
+    if (isAdminView) return
     setSelectedPaymentOrder(order)
     setShowPaymentMethodModal(true)
   }
@@ -719,10 +766,52 @@ export default function PaymentsPage() {
     return () => window.clearTimeout(timer)
   }, [message])
 
+  const isAnyModalOpen =
+    showOrderDetailModal
+    || showPaymentMethodModal
+    || showQRModal
+    || showRefundModal
+    || showRefundConfirm
+
+  useEffect(() => {
+    if (!isAnyModalOpen) return undefined
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isAnyModalOpen])
+
   const filteredOrders = useMemo(() => {
+    if (isAdminView) {
+      const paidFlowOrders = orders.filter((order) => {
+        const paidAmount = toAmount(order?.paidAmount, 0)
+        return paidAmount > 0 || order.paymentStatus === 'PAID' || order.paymentStatus === 'PARTIAL_REFUND' || order.paymentStatus === 'REFUNDED'
+      })
+
+      if (statusFilter === 'PAID_FLOW') return paidFlowOrders
+      return paidFlowOrders.filter((order) => order.paymentStatus === statusFilter)
+    }
+
     if (statusFilter === 'ALL') return orders
     return orders.filter((order) => order.paymentStatus === statusFilter)
-  }, [orders, statusFilter])
+  }, [isAdminView, orders, statusFilter])
+
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ordersPerPage))
+  const currentOrderPage = Math.min(Math.max(ordersPage, 1), totalOrderPages)
+  const pagedOrders = filteredOrders.slice((currentOrderPage - 1) * ordersPerPage, currentOrderPage * ordersPerPage)
+
+  useEffect(() => {
+    setOrdersPage(1)
+  }, [statusFilter])
+
+  useEffect(() => {
+    if (ordersPage > totalOrderPages) {
+      setOrdersPage(totalOrderPages)
+    }
+  }, [ordersPage, totalOrderPages])
 
   const selectedRefundPolicy = useMemo(
     () => findRefundPolicyByValue(refundPolicies, refundForm.policyCode),
@@ -748,7 +837,28 @@ export default function PaymentsPage() {
     const paidOrders = orders.filter((o) => o.paymentStatus === 'PAID').length
     const totalValue = orders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0)
     const totalCollected = orders.reduce((sum, o) => sum + Number(o.paidAmount || 0), 0)
+    const totalRefunded = orders.reduce((sum, o) => sum + Number(o.refundedAmount || 0), 0)
     const totalDue = orders.reduce((sum, o) => sum + Number(o.dueAmount || 0), 0)
+
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+
+    const startOf7Days = new Date(startOfToday)
+    startOf7Days.setDate(startOf7Days.getDate() - 6)
+
+    const todayInflow = orders.reduce((sum, order) => {
+      if (!order?.paymentDate) return sum
+      const paymentDate = new Date(order.paymentDate)
+      if (Number.isNaN(paymentDate.getTime()) || paymentDate < startOfToday) return sum
+      return sum + Number(order.paidAmount || 0)
+    }, 0)
+
+    const sevenDaysInflow = orders.reduce((sum, order) => {
+      if (!order?.paymentDate) return sum
+      const paymentDate = new Date(order.paymentDate)
+      if (Number.isNaN(paymentDate.getTime()) || paymentDate < startOf7Days) return sum
+      return sum + Number(order.paidAmount || 0)
+    }, 0)
 
     return {
       totalOrders,
@@ -756,6 +866,10 @@ export default function PaymentsPage() {
       paidOrders,
       totalValue,
       totalCollected,
+      totalRefunded,
+      netInflow: totalCollected - totalRefunded,
+      todayInflow,
+      sevenDaysInflow,
       totalDue,
     }
   }, [orders])
@@ -792,51 +906,103 @@ export default function PaymentsPage() {
           <div>
             <h1 className="text-2xl font-bold">Lịch sử thanh toán</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Theo dõi đơn cần thanh toán, đã thanh toán, số lượng, đơn giá và số tiền còn phải chi.
+              {isAdminView
+                ? 'ADMIN chỉ xem các đơn đã phát sinh dòng tiền và thống kê thu vào theo thời gian.'
+                : 'Theo dõi đơn cần thanh toán, đã thanh toán, số lượng, đơn giá và số tiền còn phải chi.'}
             </p>
           </div>
-          <label className="flex flex-col gap-1 min-w-[220px]">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Lọc trạng thái thanh toán</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="UNPAID">Chưa thanh toán</option>
-              <option value="PAID">Đã thanh toán</option>
-              <option value="PARTIAL_REFUND">Hoàn một phần</option>
-              <option value="REFUNDED">Đã hoàn tiền</option>
-            </select>
-          </label>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            {isAdminView && (
+              <label className="flex flex-col gap-1 min-w-[150px]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Store ID</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={adminStoreId}
+                  onChange={(e) => setAdminStoreId(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm"
+                />
+              </label>
+            )}
+
+            <label className="flex flex-col gap-1 min-w-[220px]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Lọc trạng thái thanh toán</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm"
+              >
+                {isAdminView ? (
+                  <option value="PAID_FLOW">Đơn có dòng tiền</option>
+                ) : (
+                  <>
+                    <option value="ALL">Tất cả</option>
+                    <option value="UNPAID">Chưa thanh toán</option>
+                  </>
+                )}
+                <option value="PAID">Đã thanh toán</option>
+                <option value="PARTIAL_REFUND">Hoàn một phần</option>
+                <option value="REFUNDED">Đã hoàn tiền</option>
+              </select>
+            </label>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-            <p className="text-[11px] text-slate-500">Tổng đơn</p>
-            <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
+        {isAdminView ? (
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+              <p className="text-[11px] text-slate-500">Tổng đơn</p>
+              <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đơn đã thanh toán</p>
+              <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-blue-700 dark:text-blue-400">Thu hôm nay</p>
+              <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.todayInflow)}</p>
+            </div>
+            <div className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-indigo-700 dark:text-indigo-400">Thu 7 ngày</p>
+              <p className="mt-2 text-sm font-bold text-indigo-700 dark:text-indigo-300">{formatCurrency(stats.sevenDaysInflow)}</p>
+            </div>
+            <div className="rounded-xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50/60 dark:bg-cyan-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-cyan-700 dark:text-cyan-400">Tổng thu vào</p>
+              <p className="mt-2 text-sm font-bold text-cyan-700 dark:text-cyan-300">{formatCurrency(stats.totalCollected)}</p>
+            </div>
+            <div className="rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-violet-700 dark:text-violet-400">Luồng thu thuần</p>
+              <p className="mt-2 text-sm font-bold text-violet-700 dark:text-violet-300">{formatCurrency(stats.netInflow)}</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-900/10 p-3 shadow-sm">
-            <p className="text-[11px] text-amber-700 dark:text-amber-400">Cần thanh toán</p>
-            <p className="mt-2 text-xl font-bold text-amber-700 dark:text-amber-300">{stats.unpaidOrders}</p>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+              <p className="text-[11px] text-slate-500">Tổng đơn</p>
+              <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">Cần thanh toán</p>
+              <p className="mt-2 text-xl font-bold text-amber-700 dark:text-amber-300">{stats.unpaidOrders}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đã thanh toán</p>
+              <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
+              <p className="text-[11px] text-slate-500">Tổng giá trị</p>
+              <p className="mt-2 text-sm font-bold">{formatCurrency(stats.totalValue)}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-blue-700 dark:text-blue-400">Đã chi</p>
+              <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.totalCollected)}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-900/10 p-3 shadow-sm">
+              <p className="text-[11px] text-rose-700 dark:text-rose-400">Còn phải chi</p>
+              <p className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalDue)}</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đã thanh toán</p>
-            <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-            <p className="text-[11px] text-slate-500">Tổng giá trị</p>
-            <p className="mt-2 text-sm font-bold">{formatCurrency(stats.totalValue)}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
-            <p className="text-[11px] text-blue-700 dark:text-blue-400">Đã chi</p>
-            <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.totalCollected)}</p>
-          </div>
-          <div className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-900/10 p-3 shadow-sm">
-            <p className="text-[11px] text-rose-700 dark:text-rose-400">Còn phải chi</p>
-            <p className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalDue)}</p>
-          </div>
-        </div>
+        )}
 
         {message && (
           <div
@@ -858,7 +1024,11 @@ export default function PaymentsPage() {
           {loading ? (
             <div className="px-4 py-3 text-sm text-slate-500">Đang tải...</div>
           ) : filteredOrders.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-500">Không có đơn hàng</div>
+            <div className="px-4 py-3 text-sm text-slate-500">
+              {isAdminView && orders.length > 0
+                ? 'Không có đơn đã phát sinh dòng tiền theo bộ lọc hiện tại.'
+                : 'Không có đơn hàng'}
+            </div>
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
@@ -883,7 +1053,7 @@ export default function PaymentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredOrders.map((order) => (
+                {pagedOrders.map((order) => (
                   <tr key={order.orderId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium whitespace-nowrap">
                       <button
@@ -929,9 +1099,18 @@ export default function PaymentsPage() {
                         {paymentStatusLabel[order.paymentStatus] || order.paymentStatus}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right min-w-[140px]">
+                    <td className="px-4 py-3 text-right min-w-[180px]">
                       <div className="flex items-center justify-end gap-2">
-                        {order.paymentStatus === 'UNPAID' && (
+                        <button
+                          type="button"
+                          onClick={() => openOrderDetailModal(order)}
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          title="Xem chi tiết"
+                          aria-label="Xem chi tiết"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                        </button>
+                        {!isAdminView && order.paymentStatus === 'UNPAID' && (
                           <button
                             onClick={() => openPaymentMethodModal(order)}
                             disabled={actionLoading === order.orderId}
@@ -941,7 +1120,7 @@ export default function PaymentsPage() {
                             Thanh toán
                           </button>
                         )}
-                        {enableRefundAction && canRefundOrder(order) && (
+                        {!isAdminView && enableRefundAction && canRefundOrder(order) && (
                           <button
                             onClick={() => openRefundModal(order)}
                             disabled={actionLoading === order.orderId}
@@ -958,6 +1137,30 @@ export default function PaymentsPage() {
               </tbody>
             </table>
           )}
+
+          {!loading && filteredOrders.length > 0 && totalOrderPages > 1 && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Trang {currentOrderPage}/{totalOrderPages} • {filteredOrders.length} đơn hàng
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setOrdersPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentOrderPage <= 1}
+                  className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Trước
+                </button>
+                <button
+                  onClick={() => setOrdersPage((prev) => Math.min(totalOrderPages, prev + 1))}
+                  disabled={currentOrderPage >= totalOrderPages}
+                  className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -967,27 +1170,90 @@ export default function PaymentsPage() {
           onClick={closeOrderDetailModal}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-lg font-semibold">Chi tiết đơn {selectedListOrder.orderCode}</h3>
+            <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white text-[22px]">receipt_long</span>
+                </div>
+                <div>
+                  <p className="text-white font-bold text-lg">Chi tiết thanh toán</p>
+                  <p className="text-white/80 text-sm">{selectedListOrder.orderCode}</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={closeOrderDetailModal}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
               >
-                ×
+                <span className="material-symbols-outlined text-white text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <p><span className="font-semibold">Cửa hàng:</span> {selectedListOrder.storeName}</p>
-              <p><span className="font-semibold">Ngày tạo:</span> {toDateTime(selectedListOrder.createdAt)}</p>
-              <p><span className="font-semibold">Ngày thanh toán:</span> {toDateTime(selectedListOrder.paymentDate)}</p>
-              <p><span className="font-semibold">Tổng tiền:</span> {formatCurrency(selectedListOrder.totalAmount)}</p>
-              <p><span className="font-semibold">Đã thanh toán:</span> {formatCurrency(selectedListOrder.paidAmount)}</p>
-              <p><span className="font-semibold">Cần thanh toán:</span> {formatCurrency(selectedListOrder.dueAmount)}</p>
+            <div className="p-6 space-y-5 overflow-y-auto">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${orderStatusStyle[normalizeOrderStatus(selectedListOrder.orderStatus)] || orderStatusStyle.PENDING}`}
+                >
+                  {orderStatusLabel[normalizeOrderStatus(selectedListOrder.orderStatus)] || normalizeOrderStatus(selectedListOrder.orderStatus)}
+                </span>
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[selectedListOrder.paymentStatus] || paymentStatusStyle.UNPAID}`}
+                >
+                  {paymentStatusLabel[selectedListOrder.paymentStatus] || selectedListOrder.paymentStatus}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Cửa hàng</p>
+                  <p className="mt-1 text-sm font-semibold">{selectedListOrder.storeName}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Mã đơn</p>
+                  <p className="mt-1 text-sm font-semibold">{selectedListOrder.orderCode}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Ngày tạo</p>
+                  <p className="mt-1 text-sm font-semibold">{toDateTime(selectedListOrder.createdAt)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Ngày thanh toán</p>
+                  <p className="mt-1 text-sm font-semibold">{toDateTime(selectedListOrder.paymentDate)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Tổng tiền</p>
+                  <p className="mt-1 text-base font-bold">{formatCurrency(selectedListOrder.totalAmount)}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/15 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Đã thanh toán</p>
+                  <p className="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(selectedListOrder.paidAmount)}</p>
+                </div>
+                <div className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-900/15 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-300">Cần thanh toán</p>
+                  <p className="mt-1 text-base font-bold text-rose-700 dark:text-rose-300">{formatCurrency(selectedListOrder.dueAmount)}</p>
+                </div>
+              </div>
+
+              {!isAdminView && selectedListOrder.paymentStatus === 'UNPAID' && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeOrderDetailModal()
+                      openPaymentMethodModal(selectedListOrder)
+                    }}
+                    className="h-10 px-4 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                  >
+                    Thanh toán ngay
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
