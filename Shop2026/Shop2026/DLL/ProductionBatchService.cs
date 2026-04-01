@@ -20,11 +20,11 @@ namespace Shop2026.DLL
         }
 
         public ProductionBatch? GetById(int batchId) => _repo.GetById(batchId);
-        
-        public IEnumerable<ProductionBatchResponseDTO> GetAll()
+
+        public IEnumerable<BatchResponse> GetAll()
         {
             var batches = _repo.GetAll();
-            return batches.Select(b => new ProductionBatchResponseDTO
+            return batches.Select(b => new BatchResponse
             {
                 BatchId = b.BatchId,
                 ProductId = b.ProductId,
@@ -32,17 +32,17 @@ namespace Shop2026.DLL
                 BatchCode = b.BatchCode,
                 QuantityPlanned = b.QuantityPlanned,
                 QuantityActual = b.QuantityActual,
-                MfgDate = b.MfgDate,
-                ExpDate = b.ExpDate,
+                MfgDate = b.MfgDate.HasValue ? b.MfgDate.Value.ToDateTime(TimeOnly.MinValue) : null,
+                ExpDate = b.ExpDate.HasValue ? b.ExpDate.Value.ToDateTime(TimeOnly.MinValue) : null,
                 Status = b.Status,
                 OrderIds = b.ProductionBatchOrders.Select(pbo => pbo.OrderId).ToList()
             }).ToList();
         }
 
-        public IEnumerable<ProductionBatchResponseDTO> GetBatchesByOrderId(int orderId)
+        public IEnumerable<BatchResponse> GetBatchesByOrderId(int orderId)
         {
             var batches = _repo.GetBatchesByOrderId(orderId);
-            return batches.Select(b => new ProductionBatchResponseDTO
+            return batches.Select(b => new BatchResponse
             {
                 BatchId = b.BatchId,
                 ProductId = b.ProductId,
@@ -50,8 +50,8 @@ namespace Shop2026.DLL
                 BatchCode = b.BatchCode,
                 QuantityPlanned = b.QuantityPlanned,
                 QuantityActual = b.QuantityActual,
-                MfgDate = b.MfgDate,
-                ExpDate = b.ExpDate,
+                MfgDate = b.MfgDate.HasValue ? b.MfgDate.Value.ToDateTime(TimeOnly.MinValue) : null,
+                ExpDate = b.ExpDate.HasValue ? b.ExpDate.Value.ToDateTime(TimeOnly.MinValue) : null,
                 Status = b.Status,
                 OrderIds = b.ProductionBatchOrders.Select(pbo => pbo.OrderId).ToList()
             }).ToList();
@@ -68,10 +68,7 @@ namespace Shop2026.DLL
                 BatchCode = "BCH" + DateTime.Now.ToString("yyyyMMddHHmmss"),
                 QuantityPlanned = request.QuantityPlanned,
                 MfgDate = DateOnly.FromDateTime(request.MfgDate),
-
-                // 🚨 ĐÃ BỔ SUNG: Hứng ngày hết hạn từ DTO truyền xuống lưu vào Database
                 ExpDate = request.ExpDate.HasValue ? DateOnly.FromDateTime(request.ExpDate.Value) : null,
-
                 Status = "SCHEDULED"
             };
 
@@ -87,20 +84,17 @@ namespace Shop2026.DLL
                 };
                 _repo.AllocateOrders(new List<ProductionBatchOrder> { allocation });
 
-                // ✅ LOGIC ĐÚNG: Chỉ chuyển status sang PROCESSING khi đã tạo batch cho TẤT CẢ product DISTINCT trong order
                 var order = _repo.GetContext().InternalOrders
                     .Include(o => o.InternalOrderDetails)
                     .FirstOrDefault(o => o.OrderId == request.OrderId.Value);
 
                 if (order != null && order.OrderStatus == "APPROVED")
                 {
-                    // Đếm số product DISTINCT trong order
                     var distinctProductCountInOrder = order.InternalOrderDetails
                         .Select(d => d.ProductId)
                         .Distinct()
                         .Count();
 
-                    // ✅ FIX: Đếm số product DISTINCT đã có batch (không cần join, chỉ cần lấy ProductId từ batch)
                     var batchesForOrder = _repo.GetContext().ProductionBatchOrders
                         .Where(pbo => pbo.OrderId == request.OrderId.Value)
                         .Select(pbo => pbo.BatchId)
@@ -112,10 +106,8 @@ namespace Shop2026.DLL
                         .Distinct()
                         .Count();
 
-                    // Debug logging (có thể xóa sau khi test)
                     Console.WriteLine($"[DEBUG] Order #{request.OrderId.Value}: Products in order = {distinctProductCountInOrder}, Products with batch = {distinctProductsWithBatch}");
 
-                    // Chỉ chuyển sang PROCESSING nếu số product đã có batch = số product trong order
                     if (distinctProductsWithBatch == distinctProductCountInOrder)
                     {
                         order.OrderStatus = "PROCESSING";

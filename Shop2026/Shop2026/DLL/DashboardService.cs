@@ -10,7 +10,6 @@ namespace Shop2026.DLL
 
         public IEnumerable<ProductionSummaryDto> GetProductionSummary(int days = 30)
         {
-            // Mặc định lấy báo cáo trong 30 ngày gần nhất
             var endDate = DateTime.Now;
             var startDate = endDate.AddDays(-days);
             return _repo.GetProductionSummary(startDate, endDate);
@@ -23,7 +22,6 @@ namespace Shop2026.DLL
 
         public IEnumerable<InventorySummaryDto> GetInventorySummary(string locationType = null)
         {
-            // Có thể truyền "KITCHEN", "STORE", hoặc để null để lấy toàn bộ
             return _repo.GetInventorySummary(locationType);
         }
     }
