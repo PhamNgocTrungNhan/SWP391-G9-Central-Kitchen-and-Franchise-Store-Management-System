@@ -32,7 +32,9 @@ namespace Shop2026.DLL
                 ProductName = request.ProductName,
                 CategoryId = request.CategoryId,
                 BaseUnit = request.BaseUnit,
-                ProductType = request.ProductType
+                ProductType = request.ProductType,
+                PurchasePrice = request.PurchasePrice,
+                InternalPrice = request.InternalPrice
             };
             _repo.Add(product);
         }
@@ -45,6 +47,8 @@ namespace Shop2026.DLL
             product.CategoryId = request.CategoryId;
             product.BaseUnit = request.BaseUnit;
             product.ProductType = request.ProductType;
+            product.PurchasePrice = request.PurchasePrice;
+            product.InternalPrice = request.InternalPrice;
             _repo.Update(product);
         }
 
