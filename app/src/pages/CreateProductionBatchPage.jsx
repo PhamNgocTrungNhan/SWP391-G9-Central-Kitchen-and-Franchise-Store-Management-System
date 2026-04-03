@@ -1187,7 +1187,7 @@ export default function CreateProductionBatchPage() {
 
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold">Đơn hàng đã phê duyệt (chưa đủ batch)</p>
+                        <p className="text-sm font-semibold">Đơn hàng đã phê duyệt</p>
                         <p className="text-xs text-slate-500">{approvedDemandRows.length} sản phẩm</p>
                     </div>
 
