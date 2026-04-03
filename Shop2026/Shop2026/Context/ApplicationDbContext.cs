@@ -16,68 +16,23 @@ public partial class ApplicationDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Category> Categories
-    {
-        get; set;
-    }
-    public virtual DbSet<InternalOrder> InternalOrders
-    {
-        get; set;
-    }
-    public virtual DbSet<InternalOrderDetail> InternalOrderDetails
-    {
-        get; set;
-    }
-    public virtual DbSet<Inventory> Inventories
-    {
-        get; set;
-    }
-    public virtual DbSet<Kitchen> Kitchens
-    {
-        get; set;
-    }
-    public virtual DbSet<Product> Products
-    {
-        get; set;
-    }
-    public virtual DbSet<ProductionBatch> ProductionBatches
-    {
-        get; set;
-    }
-    public virtual DbSet<ProductionBatchOrder> ProductionBatchOrders
-    {
-        get; set;
-    }
-    public virtual DbSet<RecipesBom> RecipesBoms
-    {
-        get; set;
-    }
-    public virtual DbSet<Role> Roles
-    {
-        get; set;
-    }
-    public virtual DbSet<StockLog> StockLogs
-    {
-        get; set;
-    }
-    public virtual DbSet<Store> Stores
-    {
-        get; set;
-    }
-    public virtual DbSet<User> Users
-    {
-        get; set;
-    }
-    public virtual DbSet<Supplier> Suppliers
-    {
-        get; set;
-    }
+    public virtual DbSet<Category> Categories { get; set; }
+    public virtual DbSet<InternalOrder> InternalOrders { get; set; }
+    public virtual DbSet<InternalOrderDetail> InternalOrderDetails { get; set; }
+    public virtual DbSet<Inventory> Inventories { get; set; }
+    public virtual DbSet<Kitchen> Kitchens { get; set; }
+    public virtual DbSet<Product> Products { get; set; }
+    public virtual DbSet<ProductionBatch> ProductionBatches { get; set; }
+    public virtual DbSet<ProductionBatchOrder> ProductionBatchOrders { get; set; }
+    public virtual DbSet<RecipesBom> RecipesBoms { get; set; }
+    public virtual DbSet<Role> Roles { get; set; }
+    public virtual DbSet<StockLog> StockLogs { get; set; }
+    public virtual DbSet<Store> Stores { get; set; }
+    public virtual DbSet<User> Users { get; set; }
+    public virtual DbSet<Supplier> Suppliers { get; set; }
 
     // ✅ THÊM DBSET TRANSACTIONS
-    public virtual DbSet<Transaction> Transactions
-    {
-        get; set;
-    }
+    public virtual DbSet<Transaction> Transactions { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -126,7 +81,6 @@ public partial class ApplicationDbContext : DbContext
                 .HasDefaultValue("PENDING")
                 .HasColumnName("order_status");
 
-            // ✅ ĐÃ CHÈN MAP CỘT PAYMENT_STATUS VÀO ĐÚNG CHỖ
             entity.Property(e => e.PaymentStatus)
                 .HasMaxLength(50)
                 .HasDefaultValue("UNPAID")
@@ -253,7 +207,6 @@ public partial class ApplicationDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("sku");
 
-            // ✅ ĐÃ CHÈN MAP 2 CỘT GIÁ TIỀN VÀO ĐÚNG CHỖ
             entity.Property(e => e.PurchasePrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("purchase_price")
@@ -262,6 +215,12 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.InternalPrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("internal_price")
+                .HasDefaultValue(0m);
+
+            // ✅ THÊM CỘT HAO HỤT MẶC ĐỊNH
+            entity.Property(e => e.DefaultWastePercent)
+                .HasColumnType("decimal(5, 2)")
+                .HasColumnName("default_waste_percent")
                 .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
@@ -335,10 +294,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.QuantityRequired)
                 .HasColumnType("decimal(12, 4)")
                 .HasColumnName("quantity_required");
-            entity.Property(e => e.WasteAllowancePercent)
-                .HasDefaultValue(0m)
-                .HasColumnType("decimal(5, 2)")
-                .HasColumnName("waste_allowance_percent");
+
+            // ❌ ĐÃ XÓA CỘT WasteAllowancePercent TẠI ĐÂY
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
                 .HasForeignKey(d => d.MaterialId)
