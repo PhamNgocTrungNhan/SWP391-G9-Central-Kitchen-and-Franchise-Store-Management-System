@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace Shop2026.Models;
 
@@ -22,6 +21,11 @@ public partial class RecipesBom
         get; set;
     }
 
+    // ✅ TRẢ LẠI CỘT HAO HỤT TỐI ĐA CHO CÔNG THỨC
+    public decimal? MaxWastePercent
+    {
+        get; set;
+    }
 
     public virtual Product? Material
     {

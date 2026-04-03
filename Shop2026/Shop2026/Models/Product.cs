@@ -36,10 +36,7 @@ public partial class Product
         get; set;
     }
 
-    public decimal? DefaultWastePercent
-    {
-        get; set;
-    }
+    // ❌ ĐÃ XÓA DefaultWastePercent 
 
     public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
     public virtual ICollection<Inventory> Inventories { get; set; } = new List<Inventory>();
@@ -47,4 +44,7 @@ public partial class Product
     public virtual ICollection<RecipesBom> RecipesBomMaterials { get; set; } = new List<RecipesBom>();
     public virtual ICollection<RecipesBom> RecipesBomParentProducts { get; set; } = new List<RecipesBom>();
     public virtual ICollection<StockLog> StockLogs { get; set; } = new List<StockLog>();
+
+    // ✅ THÊM LIÊN KẾT ĐẾN BẢNG HAO HỤT THỰC TẾ
+    public virtual ICollection<ProductionBatchMaterial> ProductionBatchMaterials { get; set; } = new List<ProductionBatchMaterial>();
 }

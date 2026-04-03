@@ -102,5 +102,30 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
+
+        // ==========================================
+        // 🚀 API MỚI: DÀNH RIÊNG CHO NÚT "HOÀN THÀNH MẺ"
+        // ==========================================
+        [HttpPost("{id}/complete")]
+        [Authorize(Roles = "ADMIN, KITCHEN_STAFF, MANAGER")]
+        public IActionResult CompleteBatch(int id, [FromBody] CompleteBatchRequest request)
+        {
+            try
+            {
+                // Gọi Service xử lý báo cáo thực tế
+                _service.CompleteBatch(id, request);
+                return Ok(new
+                {
+                    message = "Hoàn thành mẻ và ghi nhận báo cáo hao hụt thành công!"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
     }
 }
