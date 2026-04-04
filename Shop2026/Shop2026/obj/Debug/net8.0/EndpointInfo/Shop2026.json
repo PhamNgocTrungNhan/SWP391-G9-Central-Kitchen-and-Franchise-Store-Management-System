@@ -1509,6 +1509,37 @@
         }
       }
     },
+    "/api/Recipes/clone-bom": {
+      "post": {
+        "tags": [
+          "Recipes"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneBomRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneBomRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneBomRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/Recipes/{id}": {
       "put": {
         "tags": [
@@ -1949,6 +1980,24 @@
           "name": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CloneBomRequest": {
+        "required": [
+          "sourceParentProductId",
+          "targetParentProductId"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceParentProductId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "targetParentProductId": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

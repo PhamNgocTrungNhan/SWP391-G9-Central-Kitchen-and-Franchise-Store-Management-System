@@ -240,6 +240,8 @@ export default function CreateProductionBatchPage() {
     const [completeBatchForm, setCompleteBatchForm] = useState({
         actualQuantity: ''
     })
+    /** Kiểm tra BOM khi mở modal hoàn thành: null | 'loading' | { count: number } | { count: -1, http?: number } */
+    const [completeModalBomCheck, setCompleteModalBomCheck] = useState(null)
     const [showImportModal, setShowImportModal] = useState(false)
     const [importForm, setImportForm] = useState({
         productId: '',
@@ -600,12 +602,35 @@ export default function CreateProductionBatchPage() {
         })
         setShowCompleteBatchModal(true)
         setError('')
+        setCompleteModalBomCheck('loading')
+        const tk = getToken()
+        const pid = parseSafeNumber(batch?.productId, 0)
+        if (!tk || pid < 1) {
+            setCompleteModalBomCheck(null)
+            return
+        }
+        ;(async () => {
+            try {
+                const r = await fetch(`${apiBase}/recipes/parent/${pid}`, {
+                    headers: { accept: '*/*', Authorization: `Bearer ${tk}` },
+                })
+                if (!r.ok) {
+                    setCompleteModalBomCheck({ count: -1, http: r.status })
+                    return
+                }
+                const lines = await r.json().catch(() => [])
+                setCompleteModalBomCheck({ count: Array.isArray(lines) ? lines.length : 0 })
+            } catch {
+                setCompleteModalBomCheck({ count: -1 })
+            }
+        })()
     }
 
     const closeCompleteBatchModal = () => {
         if (completingBatchId) return // Đang xử lý thì không cho đóng
         setShowCompleteBatchModal(false)
         setSelectedBatchToComplete(null)
+        setCompleteModalBomCheck(null)
         setCompleteBatchForm({
             actualQuantity: ''
         })
@@ -656,24 +681,23 @@ export default function CreateProductionBatchPage() {
             const data = await response.json().catch(() => ({}))
 
             if (!response.ok) {
-                const errorMsg = data?.message || data?.title || data?.error || `Lỗi ${response.status}`
-                console.error('❌ Failed to complete batch:', errorMsg, data)
+                const rawErrorMsg = data?.message || data?.title || data?.error || `Lỗi ${response.status}`
+                console.error('❌ Failed to complete batch:', rawErrorMsg, data)
 
-                // Kiểm tra lỗi thiếu nguyên liệu
-                const lowerMsg = String(errorMsg).toLowerCase()
+                const lowerRaw = String(rawErrorMsg).toLowerCase()
                 const isInsufficientMaterial =
-                    lowerMsg.includes('insufficient') ||
-                    lowerMsg.includes('not enough') ||
-                    lowerMsg.includes('thiếu') ||
-                    lowerMsg.includes('không đủ') ||
-                    lowerMsg.includes('nguyên liệu') ||
-                    lowerMsg.includes('material') ||
-                    lowerMsg.includes('inventory') ||
-                    lowerMsg.includes('stock')
+                    lowerRaw.includes('insufficient') ||
+                    lowerRaw.includes('not enough') ||
+                    lowerRaw.includes('thiếu') ||
+                    lowerRaw.includes('không đủ') ||
+                    lowerRaw.includes('nguyên liệu') ||
+                    lowerRaw.includes('material') ||
+                    lowerRaw.includes('inventory') ||
+                    lowerRaw.includes('stock')
 
                 if (isInsufficientMaterial) {
                     throw new Error(
-                        `THIẾU NGUYÊN LIỆU:\n\n${errorMsg}\n\n` +
+                        `THIẾU NGUYÊN LIỆU:\n\n${rawErrorMsg}\n\n` +
                         `Lưu ý: Hệ thống tính nguyên liệu cần thiết dựa trên Recipe/BOM của sản phẩm.\n` +
                         `Ví dụ: Nếu Recipe quy định 1 bánh cần 20,000g bột, thì làm ${batch.quantityPlanned} bánh cần ${batch.quantityPlanned * 20000}g.\n\n` +
                         `Giải pháp:\n` +
@@ -681,6 +705,23 @@ export default function CreateProductionBatchPage() {
                         `2. Hoặc giảm số lượng thực tế xuống thấp hơn\n` +
                         `3. Hoặc kiểm tra Recipe/BOM có đúng không`
                     )
+                }
+
+                let errorMsg = rawErrorMsg
+                const msgStr = String(rawErrorMsg)
+                if (msgStr.includes('chưa cấu hình công thức') || msgStr.toLowerCase().includes('bom')) {
+                    const pid = parseSafeNumber(batch?.productId, 0)
+                    errorMsg =
+                        `${msgStr}\n\n` +
+                        `── BOM là gì? ──\n` +
+                        `BOM (Bill of Materials) = bảng định mức / công thức: liệt kê từng nguyên liệu thô và số lượng cần để sản xuất 1 đơn vị thành phẩm. ` +
+                        `Khi bấm Hoàn thành mẻ, hệ thống đọc BOM của đúng mã sản phẩm trong mẻ để trừ kho.\n\n` +
+                        `── Vì sao lỗi? ──\n` +
+                        `Mã sản phẩm trong mẻ này (#${pid || '?'}) chưa có dòng nào trong bảng công thức (trang Công thức / Recipes_BOM).\n\n` +
+                        `── Cách xử lý ──\n` +
+                        `1) Quản lý thành phẩm → tìm sản phẩm #${pid || '?'} → nút vàng “Sao chép BOM” → chọn thành phẩm nguồn đã có đủ định mức.\n` +
+                        `2) Hoặc trên trang Công thức, thêm định mức cho đúng mã sản phẩm đó.\n` +
+                        `3) Đảm bảo API backend đã được cập nhật (endpoint clone-bom) rồi khởi động lại.`
                 }
 
                 throw new Error(errorMsg)
@@ -693,6 +734,7 @@ export default function CreateProductionBatchPage() {
             // Đóng modal và reset form
             setShowCompleteBatchModal(false)
             setSelectedBatchToComplete(null)
+            setCompleteModalBomCheck(null)
             setCompleteBatchForm({
                 actualQuantity: ''
             })
@@ -1089,7 +1131,7 @@ export default function CreateProductionBatchPage() {
                             </span>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold">{toastType === 'success' ? 'Thao tác thành công' : 'Có lỗi xảy ra'}</p>
-                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{toastMessage}</p>
+                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words whitespace-pre-line max-h-48 overflow-y-auto">{toastMessage}</p>
                             </div>
                             <button
                                 className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -1286,8 +1328,34 @@ export default function CreateProductionBatchPage() {
 
                         <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                             <p className="text-sm"><span className="font-semibold">Sản phẩm:</span> {selectedBatchToComplete.productName}</p>
+                            <p className="text-sm mt-1"><span className="font-semibold">Mã SP:</span> #{selectedBatchToComplete.productId || '—'}</p>
                             <p className="text-sm mt-1"><span className="font-semibold">Kế hoạch:</span> {selectedBatchToComplete.quantityPlanned}</p>
                         </div>
+
+                        {completeModalBomCheck === 'loading' ? (
+                            <p className="mb-3 text-xs text-slate-500">Đang kiểm tra công thức (BOM) trên server…</p>
+                        ) : null}
+                        {completeModalBomCheck && typeof completeModalBomCheck === 'object' && completeModalBomCheck.count === 0 ? (
+                            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                                <p className="font-semibold">Chưa có BOM cho mã sản phẩm này</p>
+                                <p className="mt-1">
+                                    BOM là định mức nguyên liệu trên trang <strong>Công thức</strong>. Không có BOM thì không thể hoàn thành mẻ (không biết trừ kho bao nhiêu).
+                                </p>
+                                <p className="mt-1">
+                                    Hãy vào <strong>Quản lý thành phẩm</strong> → nút vàng <strong>Sao chép BOM</strong> trên dòng sản phẩm tương ứng, hoặc cấu hình công thức thủ công.
+                                </p>
+                            </div>
+                        ) : null}
+                        {completeModalBomCheck && typeof completeModalBomCheck === 'object' && completeModalBomCheck.count > 0 ? (
+                            <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                                Đã có <strong>{completeModalBomCheck.count}</strong> nguyên liệu trong BOM — có thể hoàn thành nếu đủ tồn kho.
+                            </div>
+                        ) : null}
+                        {completeModalBomCheck && typeof completeModalBomCheck === 'object' && completeModalBomCheck.count < 0 ? (
+                            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                Không kiểm tra được BOM (thiếu quyền hoặc lỗi mạng{completeModalBomCheck.http ? `, HTTP ${completeModalBomCheck.http}` : ''}). Nếu hoàn thành vẫn lỗi, hãy kiểm tra trang Công thức.
+                            </div>
+                        ) : null}
 
                         <form onSubmit={handleCompleteBatchSubmit} className="space-y-4">
                             <div>
@@ -1310,7 +1378,7 @@ export default function CreateProductionBatchPage() {
                             </div>
 
                             {error && showCompleteBatchModal ? (
-                                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 whitespace-pre-line">
                                     {error}
                                 </div>
                             ) : null}

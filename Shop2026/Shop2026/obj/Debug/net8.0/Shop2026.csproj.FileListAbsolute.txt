@@ -877,3 +877,4 @@ C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-St
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\_bc_clone\runtimes\win\lib\net6.0\System.Runtime.Caching.dll
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\_bc_clone\runtimes\win\lib\net6.0\System.Security.Cryptography.ProtectedData.dll
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\_bc_clone\runtimes\win\lib\net6.0\System.Windows.Extensions.dll
+C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

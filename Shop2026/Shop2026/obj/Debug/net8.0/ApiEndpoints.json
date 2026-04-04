@@ -936,6 +936,22 @@
   },
   {
     "ContainingType": "Shop2026.Controllers.RecipesController",
+    "Method": "CloneBom",
+    "RelativePath": "api/Recipes/clone-bom",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "Shop2026.DTOs.CloneBomRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.RecipesController",
     "Method": "GetByParent",
     "RelativePath": "api/Recipes/parent/{parentProductId}",
     "HttpMethod": "GET",
