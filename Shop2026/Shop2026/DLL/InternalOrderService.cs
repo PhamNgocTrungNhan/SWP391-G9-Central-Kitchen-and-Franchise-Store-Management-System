@@ -288,11 +288,14 @@ namespace Shop2026.DLL
             if (order == null)
                 return null;
 
-            var currentStatus = order.OrderStatus;
+            if (string.IsNullOrWhiteSpace(newStatus))
+                throw new Exception("Thiếu trạng thái mới (status).");
+
+            var currentStatus = order.OrderStatus?.Trim().ToUpperInvariant() ?? "";
             if (string.IsNullOrWhiteSpace(currentStatus))
                 throw new Exception("Order status is invalid");
 
-            var validTransitions = new Dictionary<string, List<string>>
+            var validTransitions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
             {
                 { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
                 { "APPROVED", new List<string> { "PROCESSING", "PRODUCED" } },
@@ -301,17 +304,18 @@ namespace Shop2026.DLL
                 { "SHIPPING", new List<string> { "COMPLETED", "RETURNED" } }
             };
 
-            if (!validTransitions.ContainsKey(currentStatus) || !validTransitions[currentStatus].Contains(newStatus.ToUpper()))
-                throw new Exception($"Invalid status transition: {currentStatus} → {newStatus}");
+            var next = newStatus.Trim().ToUpperInvariant();
+            if (!validTransitions.TryGetValue(currentStatus, out var allowed) || !allowed.Contains(next))
+                throw new Exception($"Invalid status transition: {currentStatus} → {next}");
 
-            if (string.Equals(newStatus, "COMPLETED", StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(next, "COMPLETED", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase))
             {
                 throw new Exception("Đơn chưa thanh toán, không thể chuyển sang COMPLETED.");
             }
 
             // Giao toàn bộ 1 lần (Luồng cũ)
-            if (newStatus.ToUpper() == "SHIPPING")
+            if (next == "SHIPPING")
             {
                 var orderWithDetails = _orderRepository.GetOrderDetail(orderId);
                 if (orderWithDetails != null && orderWithDetails.InternalOrderDetails != null && orderWithDetails.InternalOrderDetails.Any())
@@ -321,7 +325,7 @@ namespace Shop2026.DLL
                 }
             }
 
-            return _orderRepository.UpdateOrderStatus(orderId, newStatus);
+            return _orderRepository.UpdateOrderStatus(orderId, next);
         }
 
         // ==========================================
@@ -355,7 +359,6 @@ namespace Shop2026.DLL
                         // Cập nhật số lượng đã giao
                         detail.QuantityShipped += qtyToShip;
 
-                        // Trừ kho KITCHEN ngay lập tức cho số lượng vừa giao
                         _inventoryService.UpdateStockAndLog(
                             detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -qtyToShip,
                             "Xuất giao từng phần cho cửa hàng", order.OrderId, "INTERNAL_ORDER", null

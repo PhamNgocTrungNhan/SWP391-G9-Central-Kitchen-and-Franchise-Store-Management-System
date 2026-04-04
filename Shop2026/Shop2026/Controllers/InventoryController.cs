@@ -50,6 +50,21 @@ namespace Shop2026.Controllers
             }
         }
 
+        [HttpDelete("stock/{inventoryId:int}")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
+        public IActionResult DeleteStockRow(int inventoryId)
+        {
+            try
+            {
+                _service.DeleteInventoryRecord(inventoryId);
+                return Ok(new { message = "Đã xóa dòng tồn kho." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("import")]
         [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult ImportRawMaterial([FromBody] ImportMaterialRequest request)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getApiBaseUrl } from '../utils/apiConfig'
+import { getCurrentUserRole } from '../utils/auth'
 
 function getToken() {
   const candidates = [
@@ -73,6 +74,12 @@ export default function InventoryPage() {
     quantity: '1',
     supplierId: '',
   })
+  const [deleteStockId, setDeleteStockId] = useState(null)
+
+  const canDeleteInventoryRow = () => {
+    const r = getCurrentUserRole()
+    return r === 'ADMIN' || r === 'MANAGER'
+  }
 
   const isAnyModalOpen = showExpiredModal || showDetailModal || showExpiryDetailModal || showImportModal
 
@@ -127,8 +134,10 @@ export default function InventoryPage() {
         const location = item.location || item.locationName || 'Bếp trung tâm #1'
         const quantity = Number(item.currentQuantity || item.quantity || 0)
 
+        const inventoryId = Number(item.inventoryId ?? item.inventory_id)
         return {
-          id: item.inventoryId || item.stockId || item.productId,
+          inventoryId: Number.isFinite(inventoryId) && inventoryId > 0 ? inventoryId : null,
+          id: item.inventoryId || item.stockId || `${item.productId}-${item.locationType}-${item.locationId}`,
           productId: item.productId,
           product: productName,
           location,
@@ -145,6 +154,42 @@ export default function InventoryPage() {
     }
   }
 
+  const deleteInventoryRow = async (row) => {
+    const invId = row?.inventoryId
+    if (!invId || invId < 1) {
+      setMessage({ type: 'error', text: 'Không xác định được mã dòng tồn kho (inventoryId). Tải lại trang.' })
+      return
+    }
+    const tk = getToken()
+    if (!tk) {
+      setMessage({ type: 'error', text: 'Bạn chưa đăng nhập.' })
+      return
+    }
+    if (
+      !window.confirm(
+        `Xóa dòng tồn kho?\n\n${row.product} @ ${row.location}\nTồn hiện tại: ${row.quantity}\n\nHành động này không thể hoàn tác (chỉ xóa bản ghi tồn, không xóa sản phẩm).`
+      )
+    ) {
+      return
+    }
+    setDeleteStockId(invId)
+    try {
+      const response = await fetch(`${apiBase}/Inventory/stock/${invId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${tk}`, accept: '*/*' },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.message || data?.title || 'Không thể xóa dòng tồn kho.')
+      }
+      setMessage({ type: 'success', text: data?.message || 'Đã xóa dòng tồn kho.' })
+      await fetchStock()
+    } catch (e) {
+      setMessage({ type: 'error', text: e.message || 'Xóa thất bại.' })
+    } finally {
+      setDeleteStockId(null)
+    }
+  }
 
   const fetchLogs = async () => {
     const tk = getToken()
@@ -189,6 +234,7 @@ export default function InventoryPage() {
         if (action.includes('NHẬP THÀNH PHẨM')) action = 'Nhập thành phẩm'
         if (action.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
         if (action.includes('NHẬP NGUYÊN LIỆU') || action.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
+        if (item.referenceType === 'INVENTORY_DELETE') action = 'Xóa dòng tồn kho (quản trị)'
 
         let actor = 'Hệ thống'
         if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
@@ -736,11 +782,14 @@ export default function InventoryPage() {
                 <table className="w-full table-fixed text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="w-[35%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                      <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Vị trí</th>
-                      <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tồn hiện tại</th>
+                      <th className="w-[30%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                      <th className="w-[22%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Vị trí</th>
+                      <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tồn hiện tại</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cảnh báo</th>
+                      {canDeleteInventoryRow() ? (
+                        <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -759,6 +808,24 @@ export default function InventoryPage() {
                             {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
                           </span>
                         </td>
+                        {canDeleteInventoryRow() ? (
+                          <td className="px-4 py-3 text-right">
+                            {item.inventoryId ? (
+                              <button
+                                type="button"
+                                onClick={() => deleteInventoryRow(item)}
+                                disabled={deleteStockId === item.inventoryId}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 dark:border-red-800 px-2 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                                title="Xóa dòng tồn kho tại vị trí này (không xóa sản phẩm)"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                                {deleteStockId === item.inventoryId ? '…' : 'Xóa'}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>

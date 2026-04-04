@@ -131,6 +131,7 @@ namespace Shop2026.DLL
                     if (quantityToShip <= 0)
                         continue;
 
+                    // Trừ thành phẩm ở bếp (nguyên liệu đã trừ khi hoàn thành mẻ SX — không trừ BOM lần 2).
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
@@ -203,6 +204,38 @@ namespace Shop2026.DLL
                 transaction.Rollback();
                 throw;
             }
+        }
+
+        /// <summary>Xóa một dòng tồn kho (ví dụ thành phẩm SL=0 không còn dùng). Ghi log âm SL trước khi xóa.</summary>
+        public void DeleteInventoryRecord(int inventoryId)
+        {
+            var ctx = _repo.GetContext();
+            var inv = ctx.Inventories.Find(inventoryId);
+            if (inv == null)
+                throw new Exception("Không tìm thấy bản ghi tồn kho.");
+
+            decimal qty = inv.CurrentQuantity ?? 0;
+            int productId = inv.ProductId ?? 0;
+            string locType = inv.LocationType ?? "KITCHEN";
+            int locId = inv.LocationId ?? 1;
+
+            _repo.AddStockLog(new StockLog
+            {
+                ProductId = productId,
+                LocationType = locType,
+                LocationId = locId,
+                ChangeQuantity = -qty,
+                Reason = qty == 0
+                    ? "Xóa dòng tồn kho (quản trị, SL = 0)"
+                    : "Xóa dòng tồn kho (quản trị)",
+                ReferenceId = inventoryId,
+                ReferenceType = "INVENTORY_DELETE",
+                SupplierId = null,
+                CreatedAt = DateTime.Now
+            });
+
+            ctx.Inventories.Remove(inv);
+            ctx.SaveChanges();
         }
 
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)

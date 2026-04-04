@@ -484,6 +484,22 @@
   },
   {
     "ContainingType": "Shop2026.Controllers.InventoryController",
+    "Method": "DeleteStockRow",
+    "RelativePath": "api/Inventory/stock/{inventoryId}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "inventoryId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.InventoryController",
     "Method": "GetStoreInventory",
     "RelativePath": "api/Inventory/store/{storeId}",
     "HttpMethod": "GET",
