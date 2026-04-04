@@ -42,8 +42,7 @@ namespace Shop2026.DLL
                 throw new Exception($"Không thể tạo mẻ: {ex.Message}");
             }
 
-            if (!rawMaterialsToDeduct.Any())
-                throw new Exception("Công thức không cho ra nguyên liệu RAW nào — kiểm tra lại BOM.");
+            // Cho phép sản phẩm không có BOM: không trừ nguyên liệu RAW theo công thức.
         }
 
         /// <summary>
@@ -101,9 +100,6 @@ namespace Shop2026.DLL
                 // Bắt đầu đệ quy từ bánh thành phẩm (Gửi lượng bánh Net xuống để phân rã)
                 CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct, bomLineMaxWastePercent: null);
 
-                if (!rawMaterialsToDeduct.Any())
-                    throw new Exception("Không tìm thấy nguyên liệu RAW nào trong cây công thức.");
-
                 var refType = string.IsNullOrWhiteSpace(referenceType) ? "PRODUCTION_BATCH" : referenceType.Trim();
                 var reasonText = string.IsNullOrWhiteSpace(deductReason) ? "Sản xuất mẻ" : deductReason.Trim();
 
@@ -153,10 +149,10 @@ namespace Shop2026.DLL
                 return;
             }
 
-            // Nếu là Bánh hoặc Bán thành phẩm -> Tìm công thức BOM
+            // Bánh / bán thành phẩm: có BOM thì phân rã; không có BOM thì bỏ qua (không trừ RAW theo công thức).
             var recipes = _repo.GetRecipeByProduct(productId);
             if (!recipes.Any())
-                throw new Exception($"Sản phẩm '{product.ProductName}' cần được sản xuất nhưng chưa cấu hình công thức (BOM).");
+                return;
 
             // Phân rã tiếp các nguyên liệu con để gom đủ lượng GrossQty của cha
             foreach (var recipe in recipes)

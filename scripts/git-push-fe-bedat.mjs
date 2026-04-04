@@ -22,7 +22,7 @@ if (branch !== TARGET) {
   process.exit(1)
 }
 
-run('git', ['add', '--', 'app', 'Shop2026/Shop2026', 'scripts'])
+run('git', ['add', '--', 'app', 'Shop2026/Shop2026', 'scripts', 'package.json', 'package-lock.json'])
 try {
   run('git', ['diff', '--cached', '--quiet'])
   console.log('[git-push-fe-bedat] Không có thay đổi để commit.')

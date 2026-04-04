@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "git:push-fe": "node ../scripts/git-push-fe-bedat.mjs",
-    "watch:fe-push": "node ../scripts/git-auto-watch-fe-bedat.mjs"
+    "watch:fe-push": "node ../scripts/git-auto-watch-fe-bedat.mjs",
+    "watch:fe-push-lines": "node ../scripts/git-auto-watch-lines-fe-bedat.mjs"
   },
   "dependencies": {
     "qrcode.react": "^4.2.0",

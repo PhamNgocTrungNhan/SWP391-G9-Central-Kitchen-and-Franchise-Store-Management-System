@@ -14,7 +14,9 @@ alwaysApply: true
 ## Git: commit & push lên `FE_BE_DAT`
 
 - **Chỉ thực hiện khi nhánh hiện tại là `FE_BE_DAT`** (không checkout nhánh giúp user trừ khi họ yêu cầu).
-- Sau khi **tạo từ 2 file mới trở lên** (untracked) trong `app/`, `Shop2026/Shop2026/`, hoặc `scripts/` trong một phiên:
-  - Chạy watcher nền (một terminal riêng, từ thư mục `app`): `npm run watch:fe-push`, **hoặc**
-  - Sau khi stage xong, chạy một lần: `npm run git:push-fe -- "mô tả commit"`.
-- Nếu watcher không chạy, agent **tự** chạy `git add`, `git commit`, `git push origin FE_BE_DAT` cho các file vừa tạo (và thay đổi liên quan cùng cụm), với message rõ ràng.
+- Sau khi **tạo từ 2 file mới trở lên** (untracked) trong `app/`, `Shop2026/Shop2026/`, hoặc `scripts/`:
+  - Terminal: `npm run watch:fe-push` (từ `app/`) hoặc qua workspace root như đã cấu hình.
+- Khi **chỉnh sửa mã** và tổng dòng thêm+xóa (trong `app/`, `Shop2026/Shop2026/`, `scripts/`, `package.json` gốc) **≥ 2** so với `HEAD`:
+  - Từ **root repo**: `npm run watch:fe-push-lines` (một terminal riêng).
+- Một lần: `npm run git:push-fe -- "mô tả commit"` (trong `app/` hoặc qua root).
+- Agent: nếu không chạy watcher, tự `git add` / `commit` / `push origin FE_BE_DAT` khi đạt điều kiện trên.
