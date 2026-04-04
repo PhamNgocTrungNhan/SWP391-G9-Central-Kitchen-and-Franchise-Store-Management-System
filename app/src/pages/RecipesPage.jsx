@@ -11,6 +11,23 @@ function getToken() {
   return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
 }
 
+async function readApiErrorMessage(response, fallback = 'Có lỗi xảy ra!') {
+  try {
+    const data = await response.json()
+    if (data?.message) return String(data.message)
+    if (data?.title) return String(data.title)
+    if (data?.errors && typeof data.errors === 'object') {
+      const parts = Object.entries(data.errors).flatMap(([k, v]) =>
+        Array.isArray(v) ? v.map((x) => `${k}: ${x}`) : [`${k}: ${v}`]
+      )
+      if (parts.length) return parts.join('\n')
+    }
+  } catch {
+    /* not JSON */
+  }
+  return fallback
+}
+
 export default function RecipesPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
   const [allRecipes, setAllRecipes] = useState([])
@@ -132,8 +149,8 @@ export default function RecipesPage() {
     if (searchText.trim()) {
       const search = searchText.toLowerCase()
       filtered = filtered.filter(r => {
-        const productName = getProductName(r.parentProductId).toLowerCase()
-        const materialName = getMaterialName(r.materialId).toLowerCase()
+        const productName = getParentName(r.parentProductId, r.parentProductName).toLowerCase()
+        const materialName = getMaterialName(r.materialId, r.materialName).toLowerCase()
         return productName.includes(search) || materialName.includes(search)
       })
     }
@@ -152,6 +169,9 @@ export default function RecipesPage() {
     setShowModal(true)
   }
 
+  const recipeWastePercent = (recipe) =>
+    recipe.maxWastePercent ?? recipe.MaxWastePercent ?? recipe.wasteAllowancePercent ?? 0
+
   const openEditModal = (recipe) => {
     const id = recipe.recipeId || recipe.bomId
     setEditingId(id)
@@ -159,7 +179,7 @@ export default function RecipesPage() {
       parentProductId: String(recipe.parentProductId),
       materialId: String(recipe.materialId),
       quantityRequired: String(recipe.quantityRequired),
-      wasteAllowancePercent: String(recipe.wasteAllowancePercent),
+      wasteAllowancePercent: String(recipeWastePercent(recipe)),
     })
     setShowModal(true)
   }
@@ -181,18 +201,31 @@ export default function RecipesPage() {
       const url = editingId ? `${apiBase}/recipes/${editingId}` : `${apiBase}/recipes`
       const method = editingId ? 'PUT' : 'POST'
 
+      const maxWastePercent = Number(form.wasteAllowancePercent) || 0
+      const body = editingId
+        ? {
+            materialId: Number(form.materialId),
+            quantityRequired: Number(form.quantityRequired),
+            maxWastePercent,
+          }
+        : {
+            parentProductId: Number(form.parentProductId),
+            materials: [
+              {
+                materialId: Number(form.materialId),
+                quantityRequired: Number(form.quantityRequired),
+                maxWastePercent,
+              },
+            ],
+          }
+
       const response = await fetch(url, {
         method,
         headers: {
           Authorization: `Bearer ${tk}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          parentProductId: Number(form.parentProductId),
-          materialId: Number(form.materialId),
-          quantityRequired: Number(form.quantityRequired),
-          wasteAllowancePercent: Number(form.wasteAllowancePercent),
-        }),
+        body: JSON.stringify(body),
       })
 
       if (response.ok) {
@@ -200,8 +233,7 @@ export default function RecipesPage() {
         closeModal()
         alert(editingId ? 'Cập nhật thành công!' : 'Thêm thành công!')
       } else {
-        const error = await response.json()
-        alert(error.message || 'Có lỗi xảy ra!')
+        alert(await readApiErrorMessage(response))
       }
     } catch (err) {
       console.error(err)
@@ -228,8 +260,7 @@ export default function RecipesPage() {
         await fetchAllRecipes()
         alert('Xóa thành công!')
       } else {
-        const error = await response.json()
-        alert(error.message || 'Xóa thất bại!')
+        alert(await readApiErrorMessage(response, 'Xóa thất bại!'))
       }
     } catch (err) {
       console.error(err)
@@ -244,23 +275,26 @@ export default function RecipesPage() {
     return product?.productName || product?.name || `Sản phẩm #${productId}`
   }
 
-  const getMaterialName = (materialId) => {
+  const getMaterialName = (materialId, recipeMaterialName) => {
+    if (recipeMaterialName) return recipeMaterialName
     if (!materialId) return 'N/A'
 
-    // Try to find in materials first
     const material = materials.find((m) => m.productId === Number(materialId))
     if (material) {
       return material.productName || material.name || `Nguyên liệu #${materialId}`
     }
 
-    // Try to find in products as fallback
     const product = products.find((p) => p.productId === Number(materialId))
     if (product) {
       return product.productName || product.name || `Nguyên liệu #${materialId}`
     }
 
-    // If not found anywhere, show ID with warning
-    return `Nguyên liệu #${materialId} (đã xóa?)`
+    return `Nguyên liệu #${materialId}`
+  }
+
+  const getParentName = (parentProductId, recipeParentName) => {
+    if (recipeParentName) return recipeParentName
+    return getProductName(parentProductId)
   }
 
   const stats = {
@@ -365,10 +399,10 @@ export default function RecipesPage() {
                   return (
                     <tr key={id || `recipe-${index}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-semibold">#{id || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{getProductName(recipe.parentProductId)}</td>
-                      <td className="px-4 py-3 text-sm">{getMaterialName(recipe.materialId)}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{getParentName(recipe.parentProductId, recipe.parentProductName)}</td>
+                      <td className="px-4 py-3 text-sm">{getMaterialName(recipe.materialId, recipe.materialName)}</td>
                       <td className="px-4 py-3 text-sm">{recipe.quantityRequired}</td>
-                      <td className="px-4 py-3 text-sm">{recipe.wasteAllowancePercent}%</td>
+                      <td className="px-4 py-3 text-sm">{recipeWastePercent(recipe)}%</td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           <button

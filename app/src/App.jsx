@@ -23,7 +23,6 @@ import InternalOrdersPage from './pages/InternalOrdersPage'
 import ProductionBatchesPage from './pages/ProductionBatchesPage'
 import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import UsersPage from './pages/UsersPage'
-import MockApiPage from './pages/MockApiPage'
 import StoresPage from './pages/StoresPage'
 import LandingPage from './pages/LandingPage'
 import PaymentsPage from './pages/PaymentsPage'
@@ -82,7 +81,6 @@ const routeConfig = [
   { path: '/success', element: <PaymentResultPage variant="success" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/cancel', element: <PaymentResultPage variant="cancel" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
-  { path: '/mock-api', element: <MockApiPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/suppliers', element: <SuppliersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
