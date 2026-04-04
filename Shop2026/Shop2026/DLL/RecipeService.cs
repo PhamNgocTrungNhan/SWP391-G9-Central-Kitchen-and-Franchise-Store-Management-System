@@ -1,4 +1,6 @@
-﻿using Shop2026.DAL;
+﻿using System.Collections.Generic;
+using System.Linq;
+using Shop2026.DAL;
 using Shop2026.DTOs;
 using Shop2026.Models;
 
@@ -57,6 +59,39 @@ namespace Shop2026.DLL
             }
 
             _repo.AddRange(newRecipes);
+        }
+
+        /// <summary>Sao chép toàn bộ BOM từ thành phẩm nguồn sang thành phẩm đích (đích chưa có dòng trùng nguyên liệu).</summary>
+        public void CloneBom(int sourceParentProductId, int targetParentProductId)
+        {
+            if (sourceParentProductId == targetParentProductId)
+                throw new Exception("Sản phẩm nguồn và đích phải khác nhau.");
+
+            var sourceLines = _repo.GetByParentProductId(sourceParentProductId).ToList();
+            if (!sourceLines.Any())
+                throw new Exception("Sản phẩm nguồn chưa có định mức (BOM) để sao chép.");
+
+            var materials = new List<RecipeDetailItem>();
+            foreach (var l in sourceLines)
+            {
+                if (l.MaterialId == null || l.MaterialId < 1)
+                    continue;
+                materials.Add(new RecipeDetailItem
+                {
+                    MaterialId = l.MaterialId.Value,
+                    QuantityRequired = l.QuantityRequired,
+                    MaxWastePercent = l.MaxWastePercent ?? 0
+                });
+            }
+
+            if (!materials.Any())
+                throw new Exception("Không có dòng nguyên liệu hợp lệ trên công thức nguồn.");
+
+            CreateBulk(new CreateRecipeBulkRequest
+            {
+                ParentProductId = targetParentProductId,
+                Materials = materials
+            });
         }
 
         public void Update(int id, UpdateRecipeRequest request)

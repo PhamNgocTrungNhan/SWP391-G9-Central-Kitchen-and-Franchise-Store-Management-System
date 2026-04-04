@@ -38,6 +38,19 @@ namespace Shop2026.Controllers
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
+        [HttpPost("clone-bom")]
+        public IActionResult CloneBom([FromBody] CloneBomRequest request)
+        {
+            if (request == null)
+                return BadRequest(new { message = "Thiếu dữ liệu." });
+            try
+            {
+                _service.CloneBom(request.SourceParentProductId, request.TargetParentProductId);
+                return Ok(new { message = "Đã sao chép công thức (BOM) sang sản phẩm đích." });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
         [HttpPut("{id}")]
         public IActionResult Update(int id, [FromBody] UpdateRecipeRequest request)
         {

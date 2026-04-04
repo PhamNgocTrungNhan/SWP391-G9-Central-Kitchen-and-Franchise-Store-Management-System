@@ -92,6 +92,12 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const [recipeTemplatesLoading, setRecipeTemplatesLoading] = useState(false)
     const [formRecipeTemplateId, setFormRecipeTemplateId] = useState('')
 
+    const [showCloneBomModal, setShowCloneBomModal] = useState(false)
+    const [cloneBomTarget, setCloneBomTarget] = useState(null)
+    const [cloneBomSourceId, setCloneBomSourceId] = useState('')
+    const [cloneBomLoading, setCloneBomLoading] = useState(false)
+    const [cloneBomError, setCloneBomError] = useState('')
+
     const [showEditModal, setShowEditModal] = useState(false)
     const [editLoading, setEditLoading] = useState(false)
     const [editError, setEditError] = useState('')
@@ -287,6 +293,61 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         }
     }
 
+    const openCloneBomModal = (item) => {
+        setCloneBomTarget({ id: item.id, name: item.name })
+        setCloneBomSourceId('')
+        setCloneBomError('')
+        setShowCloneBomModal(true)
+        loadRecipeTemplates()
+    }
+
+    const handleCloneBomSubmit = async () => {
+        setCloneBomError('')
+        const token = getToken()
+        if (!token) {
+            setCloneBomError('Thiếu token đăng nhập.')
+            return
+        }
+        if (!cloneBomTarget?.id) return
+        const sourceId = Number(cloneBomSourceId)
+        if (!sourceId) {
+            setCloneBomError('Chọn sản phẩm nguồn đã có công thức (BOM).')
+            return
+        }
+        if (sourceId === cloneBomTarget.id) {
+            setCloneBomError('Nguồn và đích phải khác nhau.')
+            return
+        }
+
+        setCloneBomLoading(true)
+        try {
+            const response = await fetch(`${apiBase}/recipes/clone-bom`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sourceParentProductId: sourceId,
+                    targetParentProductId: cloneBomTarget.id,
+                }),
+            })
+            const resData = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(resData?.message || resData?.title || 'Sao chép BOM thất bại.')
+            }
+            setCreateSuccess(resData?.message || 'Đã sao chép BOM. Có thể hoàn thành mẻ sản xuất.')
+            setShowCloneBomModal(false)
+            setCloneBomTarget(null)
+            fetchProducts()
+        } catch (e) {
+            setCloneBomError(e.message || 'Lỗi khi sao chép BOM.')
+        } finally {
+            setCloneBomLoading(false)
+        }
+    }
+
     const handleCreateProduct = async () => {
         setCreateError('')
         setCreateSuccess('')
@@ -342,7 +403,33 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 throw new Error(`${backendMessage}${hint}`)
             }
 
-            setCreateSuccess(data?.message || 'Đã tạo sản phẩm.')
+            let bomNote = ''
+            if (normalizedScope === 'finished' && formRecipeTemplateId) {
+                const newProductId = Number(data.productId ?? data.ProductId)
+                const sourceId = Number(formRecipeTemplateId)
+                if (newProductId && sourceId && newProductId !== sourceId) {
+                    const cloneRes = await fetch(`${apiBase}/recipes/clone-bom`, {
+                        method: 'POST',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            sourceParentProductId: sourceId,
+                            targetParentProductId: newProductId,
+                        }),
+                    })
+                    const cloneData = await cloneRes.json().catch(() => ({}))
+                    if (!cloneRes.ok) {
+                        bomNote = ` Đã tạo sản phẩm #${newProductId} nhưng chưa sao chép được BOM: ${cloneData?.message || 'Lỗi API'}. Dùng nút "Sao chép BOM" trên dòng sản phẩm để thử lại.`
+                    } else {
+                        bomNote = ' Đã sao chép định mức (BOM) từ công thức mẫu — có thể hoàn thành mẻ sản xuất.'
+                    }
+                }
+            }
+
+            setCreateSuccess((data?.message || 'Đã tạo sản phẩm.') + bomNote)
             setShowCreateModal(false)
             fetchProducts()
         } catch (error) {
@@ -574,7 +661,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                                 <td className="px-5 py-3 text-sm text-right">{item.internalPrice.toLocaleString('vi-VN')}đ</td>
                                             )}
                                             <td className="px-5 py-3 text-sm">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
                                                     <button
                                                         onClick={() => openViewModal(item)}
                                                         className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -596,6 +683,16 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                                     >
                                                         <span className="material-symbols-outlined text-[18px]">delete</span>
                                                     </button>
+                                                    {normalizedScope === 'finished' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCloneBomModal(item)}
+                                                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                                            title="Sao chép BOM từ sản phẩm đã có công thức (sửa lỗi thiếu định mức)"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">post_add</span>
+                                                        </button>
+                                                    ) : null}
                                                 </div>
                                             </td>
                                         </tr>
@@ -772,6 +869,80 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
                             >
                                 {createLoading ? 'Đang tạo...' : 'Xác nhận tạo'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCloneBomModal && cloneBomTarget && (
+                <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
+                    <div className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-base font-semibold">Sao chép BOM</p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowCloneBomModal(false)
+                                    setCloneBomTarget(null)
+                                }}
+                                className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                            Sản phẩm đích:{' '}
+                            <span className="font-semibold">
+                                #{cloneBomTarget.id} — {cloneBomTarget.name}
+                            </span>
+                        </p>
+                        <label className="flex flex-col gap-1 mb-3">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                Sao chép từ (thành phẩm đã có định mức trên trang Công thức)
+                            </span>
+                            <select
+                                value={cloneBomSourceId}
+                                onChange={(e) => setCloneBomSourceId(e.target.value)}
+                                disabled={recipeTemplatesLoading || cloneBomLoading}
+                                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm disabled:opacity-60"
+                            >
+                                <option value="">
+                                    {recipeTemplatesLoading ? 'Đang tải...' : '-- Chọn nguồn --'}
+                                </option>
+                                {recipeTemplates
+                                    .filter((t) => t.productId !== cloneBomTarget.id)
+                                    .map((t) => (
+                                        <option key={t.productId} value={String(t.productId)}>
+                                            #{t.productId} — {t.name}
+                                        </option>
+                                    ))}
+                            </select>
+                        </label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                            Chỉ dùng khi sản phẩm đích chưa có BOM. Nếu đích đã có dòng trùng nguyên liệu, API sẽ báo lỗi — xóa dòng trùng ở trang Công thức rồi thử lại.
+                        </p>
+                        {cloneBomError && (
+                            <p className="text-sm text-red-600 dark:text-red-400 mb-3">{cloneBomError}</p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowCloneBomModal(false)
+                                    setCloneBomTarget(null)
+                                }}
+                                className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCloneBomSubmit}
+                                disabled={cloneBomLoading || recipeTemplatesLoading}
+                                className="h-9 px-3 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60"
+                            >
+                                {cloneBomLoading ? 'Đang sao chép...' : 'Sao chép BOM'}
                             </button>
                         </div>
                     </div>

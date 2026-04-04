@@ -55,6 +55,15 @@ namespace Shop2026.DTOs
         public decimal MaxWastePercent { get; set; } = 0;
     }
 
+    public class CloneBomRequest
+    {
+        [Required]
+        public int SourceParentProductId { get; set; }
+
+        [Required]
+        public int TargetParentProductId { get; set; }
+    }
+
     public class RecipeResponse
     {
         public int RecipeId
