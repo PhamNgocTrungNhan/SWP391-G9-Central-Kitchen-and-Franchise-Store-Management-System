@@ -62,6 +62,8 @@ namespace Shop2026.DLL
             if (request.QuantityPlanned <= 0)
                 throw new Exception("Số lượng dự kiến phải lớn hơn 0");
 
+            _inventoryService.AssertProductCanBeProduced(request.ProductId, request.QuantityPlanned);
+
             var batch = new ProductionBatch
             {
                 ProductId = request.ProductId,
@@ -128,8 +130,25 @@ namespace Shop2026.DLL
                 if (batch.Status != "SCHEDULED")
                     throw new Exception("Chỉ có thể bắt đầu mẻ khi đang ở trạng thái SCHEDULED");
 
-                batch.Status = "IN_PROGRESS";
-                _repo.Update(batch);
+                using var transaction = _repo.GetContext().Database.BeginTransaction();
+                try
+                {
+                    batch.Status = "IN_PROGRESS";
+                    _repo.GetContext().ProductionBatches.Update(batch);
+                    _inventoryService.DeductMaterialForBatch(
+                        batch,
+                        1,
+                        true,
+                        InventoryService.StockRefTypeProductionBatchReserve,
+                        "Trừ nguyên liệu khi bắt đầu mẻ (SL kế hoạch, theo công thức/BOM)");
+                    _repo.GetContext().SaveChanges();
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
             }
             else if (normalizedStatus == "COMPLETED")
             {
@@ -145,7 +164,25 @@ namespace Shop2026.DLL
                     batch.Status = "COMPLETED";
                     _repo.GetContext().ProductionBatches.Update(batch);
 
-                    _inventoryService.DeductMaterialForBatch(batch, 1, true);
+                    var ctx = _repo.GetContext();
+                    bool materialsReservedAtInProgress = ctx.StockLogs.Any(l =>
+                        l.ReferenceId == batch.BatchId
+                        && l.ReferenceType == InventoryService.StockRefTypeProductionBatchReserve);
+
+                    if (materialsReservedAtInProgress)
+                    {
+                        _inventoryService.AdjustRawMaterialForPlannedVsActual(
+                            batch.ProductId ?? 0,
+                            batch.QuantityPlanned ?? 0,
+                            request.QuantityActual.Value,
+                            batch.BatchId,
+                            1,
+                            true);
+                    }
+                    else
+                    {
+                        _inventoryService.DeductMaterialForBatch(batch, 1, true);
+                    }
 
                     if (request.AdditionalMaterials != null && request.AdditionalMaterials.Any())
                     {

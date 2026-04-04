@@ -13,7 +13,80 @@ namespace Shop2026.DLL
 
         public InventoryService(InventoryRepository repo) => _repo = repo;
 
-        public void DeductMaterialForBatch(ProductionBatch batch, int kitchenId, bool useExternalTransaction = false)
+        public const string StockRefTypeProductionBatchReserve = "PRODUCTION_BATCH_RESERVE";
+        public const string StockRefTypeProductionBatchAdjust = "PRODUCTION_BATCH_ADJUST";
+
+        /// <summary>
+        /// Kiểm tra sản phẩm có BOM đầy đủ xuống tới RAW với số lượng kế hoạch (gọi khi tạo mẻ).
+        /// </summary>
+        public void AssertProductCanBeProduced(int productId, decimal plannedQuantity)
+        {
+            if (plannedQuantity <= 0)
+                throw new Exception("Số lượng dự kiến phải lớn hơn 0.");
+
+            var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
+            if (string.Equals(product.ProductType, "RAW", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("Không tạo mẻ sản xuất cho nguyên liệu RAW.");
+
+            var rawMaterialsToDeduct = new Dictionary<int, decimal>();
+            try
+            {
+                CalculateRawMaterialsRecursive(productId, plannedQuantity, rawMaterialsToDeduct, bomLineMaxWastePercent: null);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Không thể tạo mẻ: {ex.Message}");
+            }
+
+            if (!rawMaterialsToDeduct.Any())
+                throw new Exception("Công thức không cho ra nguyên liệu RAW nào — kiểm tra lại BOM.");
+        }
+
+        /// <summary>
+        /// Điều chỉnh trừ/ hoàn nguyên liệu khi SL thực tế khác SL kế hoạch (đã trừ theo kế hoạch lúc IN_PROGRESS).
+        /// </summary>
+        public void AdjustRawMaterialForPlannedVsActual(
+            int rootProductId,
+            decimal plannedQty,
+            decimal actualQty,
+            int batchId,
+            int kitchenId,
+            bool useExternalTransaction = false)
+        {
+            if (plannedQty == actualQty)
+                return;
+
+            var plannedMap = new Dictionary<int, decimal>();
+            var actualMap = new Dictionary<int, decimal>();
+            CalculateRawMaterialsRecursive(rootProductId, plannedQty, plannedMap, bomLineMaxWastePercent: null);
+            CalculateRawMaterialsRecursive(rootProductId, actualQty, actualMap, bomLineMaxWastePercent: null);
+
+            foreach (var key in plannedMap.Keys.Union(actualMap.Keys))
+            {
+                var p = plannedMap.TryGetValue(key, out var pv) ? pv : 0m;
+                var a = actualMap.TryGetValue(key, out var av) ? av : 0m;
+                var diff = a - p;
+                if (diff == 0m)
+                    continue;
+
+                UpdateStockAndLog(
+                    key,
+                    "KITCHEN",
+                    kitchenId,
+                    -diff,
+                    $"Điều chỉnh nguyên liệu mẻ #{batchId} (KH {plannedQty} → TT {actualQty})",
+                    batchId,
+                    StockRefTypeProductionBatchAdjust,
+                    null);
+            }
+        }
+
+        public void DeductMaterialForBatch(
+            ProductionBatch batch,
+            int kitchenId,
+            bool useExternalTransaction = false,
+            string? referenceType = null,
+            string? deductReason = null)
         {
             var transaction = useExternalTransaction ? null : _repo.GetContext().Database.BeginTransaction();
             try
@@ -27,10 +100,13 @@ namespace Shop2026.DLL
                 if (!rawMaterialsToDeduct.Any())
                     throw new Exception("Không tìm thấy nguyên liệu RAW nào trong cây công thức.");
 
+                var refType = string.IsNullOrWhiteSpace(referenceType) ? "PRODUCTION_BATCH" : referenceType.Trim();
+                var reasonText = string.IsNullOrWhiteSpace(deductReason) ? "Sản xuất mẻ" : deductReason.Trim();
+
                 foreach (var item in rawMaterialsToDeduct)
                 {
                     UpdateStockAndLog(item.Key, "KITCHEN", kitchenId, -item.Value,
-                                      "Sản xuất mẻ", batch.BatchId, "PRODUCTION_BATCH");
+                                      reasonText, batch.BatchId, refType);
                 }
 
                 if (!useExternalTransaction)
