@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Quét định kỳ: nếu đang ở FE_BE_DAT và có ≥ 2 file untracked mới dưới app/ hoặc Shop2026/Shop2026/
+ * Quét định kỳ: nếu đang ở FE_BE_DAT và có ≥ 1 file untracked mới dưới app/, Shop2026/Shop2026/, scripts/
  * → git add các file đó → commit → push.
- * Chạy song song với dev: npm run watch:fe-push (từ thư mục app)
+ * Chạy song song với dev: npm run watch:fe-push (từ thư mục app hoặc root)
  */
 import { execFileSync, execSync } from 'child_process'
 import { findGitRoot } from './find-git-root.mjs'
 
 const TARGET = 'FE_BE_DAT'
+const MIN_NEW_FILES = 1
 const INTERVAL_MS = 8000
 const PREFIXES = ['app/', 'Shop2026/Shop2026/', 'scripts/']
 
@@ -39,7 +40,9 @@ function currentBranch() {
 }
 
 console.log(`[watch-fe-bedat] Repo: ${repo}`)
-console.log(`[watch-fe-bedat] Nhánh yêu cầu: ${TARGET} | Chu kỳ ${INTERVAL_MS}ms | Prefix: ${PREFIXES.join(', ')}`)
+console.log(
+  `[watch-fe-bedat] Nhánh: ${TARGET} | Ngưỡng: ≥${MIN_NEW_FILES} file mới | Chu kỳ ${INTERVAL_MS}ms | Prefix: ${PREFIXES.join(', ')}`,
+)
 
 setInterval(() => {
   try {
@@ -48,11 +51,14 @@ setInterval(() => {
       return
     }
     const untracked = listUntrackedScoped()
-    if (untracked.length < 2) return
+    if (untracked.length < MIN_NEW_FILES) return
 
     console.log(`[watch-fe-bedat] Phát hiện ${untracked.length} file mới → commit + push…`)
     execFileSync('git', ['add', '--', ...untracked], { cwd: repo, stdio: 'inherit' })
-    const msg = `chore: auto-commit ${untracked.length} new files (watch FE_BE_DAT)`
+    const msg =
+      untracked.length === 1
+        ? 'chore: auto-commit 1 new file (watch FE_BE_DAT)'
+        : `chore: auto-commit ${untracked.length} new files (watch FE_BE_DAT)`
     execFileSync('git', ['commit', '-m', msg], { cwd: repo, stdio: 'inherit' })
     execFileSync('git', ['push', 'origin', TARGET], { cwd: repo, stdio: 'inherit' })
     console.log('[watch-fe-bedat] Xong.')
