@@ -24,7 +24,7 @@ namespace Shop2026.DLL
             return _repo.GetAll().Where(p => p.ProductType != "RAW").ToList();
         }
 
-        public void Create(ProductRequest request)
+        public int Create(ProductRequest request)
         {
             var product = new Product
             {
@@ -37,6 +37,7 @@ namespace Shop2026.DLL
                 InternalPrice = request.InternalPrice
             };
             _repo.Add(product);
+            return product.ProductId;
         }
 
         public void Update(int id, ProductRequest request)

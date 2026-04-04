@@ -38,10 +38,11 @@ namespace Shop2026.Controllers
         {
             try
             {
-                _service.Create(request);
+                var productId = _service.Create(request);
                 return Ok(new
                 {
-                    message = "Tạo sản phẩm thành công"
+                    message = "Tạo sản phẩm thành công",
+                    productId
                 });
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }

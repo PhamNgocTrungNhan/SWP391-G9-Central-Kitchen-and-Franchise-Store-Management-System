@@ -105,8 +105,7 @@
               "RelativeToolTip": "Shop2026\\Context\\ApplicationDbContext.cs",
               "ViewState": "AgIAAHEBAAAAAAAAAAAAAHwAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-04T00:53:15.869Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-04T00:53:15.869Z"
             },
             {
               "$type": "Document",
@@ -118,8 +117,7 @@
               "RelativeToolTip": "Shop2026\\Models\\ProductionBatch.cs",
               "ViewState": "AgIAAAYAAAAAAAAAAAAAABkAAAB8AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-04T00:53:15.873Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-04T00:53:15.873Z"
             },
             {
               "$type": "Document",
@@ -131,8 +129,7 @@
               "RelativeToolTip": "Shop2026\\Models\\RecipesBom.cs",
               "ViewState": "AgIAAA8AAAAAAAAAAAAmwCUAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-04T00:53:15.875Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-04T00:53:15.875Z"
             },
             {
               "$type": "Document",
@@ -142,7 +139,7 @@
               "RelativeDocumentMoniker": "Shop2026\\Models\\Product.cs",
               "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
               "RelativeToolTip": "Shop2026\\Models\\Product.cs",
-              "ViewState": "AgIAACIAAAAAAAAAAAAmwDEAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADEAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-04-04T00:53:15.878Z",
               "EditorCaption": ""
