@@ -1,4 +1,4 @@
-﻿using Shop2026.DAL;
+using Shop2026.DAL;
 using Shop2026.DTOs;
 using Shop2026.Models;
 using System;
@@ -248,8 +248,8 @@ namespace Shop2026.DLL
             if (request.QuantityActual <= 0)
                 throw new Exception("Số lượng thực tế phải lớn hơn 0!");
 
-            // Lấy toàn bộ công thức gốc của sản phẩm này để đối chiếu
-            var recipes = _repo.GetContext().RecipesBoms.Where(r => r.ParentProductId == batch.ProductId).ToList();
+            // Công thức gốc (kể cả fallback cùng tên SP khi mã mới chưa có BOM)
+            var recipes = _inventoryService.GetEffectiveRecipeLines(batch.ProductId ?? 0);
 
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try

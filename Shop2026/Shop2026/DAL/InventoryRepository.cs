@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Shop2026.Context;
 using Shop2026.Models;
 
@@ -22,10 +22,18 @@ namespace Shop2026.DAL
 
         public void AddStockLog(StockLog log) => _context.StockLogs.Add(log);
 
-        // Lấy công thức BOM để tính nguyên liệu cần trừ
+        // Lấy công thức BOM để tính nguyên liệu cần trừ (fallback: cùng tên SP khác đã có BOM)
         public IEnumerable<RecipesBom> GetRecipeByProduct(int productId)
         {
-            return _context.RecipesBoms.Where(r => r.ParentProductId == productId).ToList();
+            var direct = _context.RecipesBoms.Where(r => r.ParentProductId == productId).ToList();
+            if (direct.Count > 0)
+                return direct;
+
+            var donorId = BomFallbackHelper.FindDonorParentIdWithBom(_context, productId);
+            if (!donorId.HasValue)
+                return direct;
+
+            return _context.RecipesBoms.Where(r => r.ParentProductId == donorId.Value).ToList();
         }
 
         public Product GetProduct(int productId)

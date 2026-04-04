@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Shop2026.DAL;
 using Shop2026.DLL;
 using Shop2026.DTOs;
 
@@ -91,9 +92,17 @@ namespace Shop2026.Controllers
                 .Where(i => i.ProductId == id && i.LocationType == "KITCHEN" && i.LocationId == 1)
                 .Select(i => i.CurrentQuantity).FirstOrDefault();
 
-            // Lấy công thức (BOM)
+            // Lấy công thức (BOM), fallback cùng tên SP nếu mã này chưa có dòng Recipes_BOM
+            var recipeParentId = id;
+            if (!_context.RecipesBoms.Any(r => r.ParentProductId == id))
+            {
+                var donor = BomFallbackHelper.FindDonorParentIdWithBom(_context, id);
+                if (donor.HasValue)
+                    recipeParentId = donor.Value;
+            }
+
             var recipe = _context.RecipesBoms
-                .Where(r => r.ParentProductId == id)
+                .Where(r => r.ParentProductId == recipeParentId)
                 .Select(r => new {
                     MaterialName = r.Material.ProductName,
                     QuantityRequired = r.QuantityRequired,

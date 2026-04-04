@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Shop2026.DAL;
 using Shop2026.Models;
 using System;
@@ -12,6 +12,10 @@ namespace Shop2026.DLL
         private readonly InventoryRepository _repo;
 
         public InventoryService(InventoryRepository repo) => _repo = repo;
+
+        /// <summary>Dòng BOM hiệu lực cho thành phẩm (có fallback cùng tên SP).</summary>
+        public List<RecipesBom> GetEffectiveRecipeLines(int parentProductId) =>
+            _repo.GetRecipeByProduct(parentProductId).ToList();
 
         public const string StockRefTypeProductionBatchReserve = "PRODUCTION_BATCH_RESERVE";
         public const string StockRefTypeProductionBatchAdjust = "PRODUCTION_BATCH_ADJUST";

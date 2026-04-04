@@ -1143,7 +1143,6 @@ export default function CreateProductionBatchPage() {
                                     {batches.map((batch) => {
                                         const isCompleting = completingBatchId === batch.id
 
-                                        // Kiểm tra status - chỉ IN_PROGRESS mới có thể hoàn thành
                                         const batchStatus = String(batch.status || '').toUpperCase()
                                         const isInProgress = batchStatus === 'IN_PROGRESS'
 
