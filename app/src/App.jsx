@@ -82,6 +82,7 @@ const routeConfig = [
   { path: '/cancel', element: <PaymentResultPage variant="cancel" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
+  { path: '/categories', element: <CategoriesPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/suppliers', element: <SuppliersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },
 
