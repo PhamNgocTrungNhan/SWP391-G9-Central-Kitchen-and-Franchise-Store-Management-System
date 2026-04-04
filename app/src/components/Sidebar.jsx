@@ -37,13 +37,13 @@ export default function Sidebar() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="rounded-[1.35rem] border border-[#dfd4c4] bg-[#fff8ee] p-3.5">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-2xl bg-primary text-white shadow-sm flex-shrink-0">
-                <span className="material-symbols-outlined text-[22px]">storefront</span>
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-primary text-white shadow-sm flex-shrink-0 ring-2 ring-primary/20">
+                <span className="material-symbols-outlined text-[22px]">soup_kitchen</span>
               </div>
               {!isCollapsed && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#887654]">Hệ thống</p>
-                  <h2 className="mt-1 font-display text-lg font-bold text-[#223223]">AUTUMN</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#887654]">Bếp trung tâm</p>
+                  <h2 className="mt-1 font-display text-lg font-bold text-kitchen-ink">Central Kitchen</h2>
                 </div>
               )}
             </div>

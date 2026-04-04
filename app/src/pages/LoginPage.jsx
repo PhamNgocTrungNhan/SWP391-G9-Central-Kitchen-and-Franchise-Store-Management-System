@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { decodeJwtPayload, saveUserRole } from '../utils/auth';
@@ -15,9 +14,9 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isAnimating, setIsAnimating] = useState(true);
 
-    // Animation khi component mount
-    useState(() => {
-        setTimeout(() => setIsAnimating(false), 100);
+    useEffect(() => {
+        const t = setTimeout(() => setIsAnimating(false), 100);
+        return () => clearTimeout(t);
     }, []);
 
     const extractRawToken = (value) => {
@@ -110,8 +109,9 @@ export default function LoginPage() {
                 }`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6">
                     <div className="flex items-center justify-between h-16">
-                        <div className="font-bold text-xl text-white">
-                            Autumn Mooncake
+                        <div className="flex items-center gap-2 font-display text-xl font-bold text-white">
+                            <span className="material-symbols-outlined text-[26px] text-white/95">soup_kitchen</span>
+                            Central Kitchen
                         </div>
                         <button
                             onClick={() => navigate('/')}
@@ -130,20 +130,19 @@ export default function LoginPage() {
                 style={{ minHeight: 'calc(100vh - 64px)' }}
             >
                 <div className="w-full max-w-md">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                        {/* Header - Xóa icon, chỉ giữ tên */}
-                        <div className="p-8 pb-6 text-center bg-gradient-to-b from-amber-50 to-white dark:from-slate-800 dark:to-slate-900">
-                            <h1 className="text-slate-900 dark:text-white text-3xl font-bold mb-2">Autumn Mooncake</h1>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm">Management System</p>
+                    <div className="overflow-hidden rounded-2xl border border-[#e0d5c5] bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                        <div className="bg-gradient-to-b from-primary/12 via-[#fffbf6] to-white p-8 pb-6 text-center dark:from-slate-800 dark:via-slate-800 dark:to-slate-900">
+                            <h1 className="mb-2 font-display text-3xl font-bold text-kitchen-ink dark:text-white">Central Kitchen</h1>
+                            <p className="text-sm text-kitchen-steel dark:text-slate-400">Hệ thống bếp trung tâm & franchise</p>
                         </div>
 
                         {/* Form */}
                         <form className="p-8 pt-6 flex flex-col gap-5" onSubmit={handleLogin}>
                             {/* Username */}
                             <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">Tên đăng nhập</p>
+                                <p className="mb-2 text-sm font-medium text-kitchen-steel dark:text-slate-300">Tên đăng nhập</p>
                                 <input
-                                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                    className="w-full rounded-lg border border-[#d7cdbd] bg-[#fffaf1] px-4 py-3 text-kitchen-ink transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                     placeholder="Nhập tên đăng nhập"
                                     value={username}
                                     onChange={e => setUsername(e.target.value)}
@@ -153,11 +152,11 @@ export default function LoginPage() {
 
                             {/* Password */}
                             <label className="flex flex-col w-full">
-                                <p className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">Mật khẩu</p>
+                                <p className="mb-2 text-sm font-medium text-kitchen-steel dark:text-slate-300">Mật khẩu</p>
                                 <div className="relative">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
-                                        className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                        className="w-full rounded-lg border border-[#d7cdbd] bg-[#fffaf1] px-4 py-3 text-kitchen-ink transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                         placeholder="Nhập mật khẩu"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
@@ -177,16 +176,16 @@ export default function LoginPage() {
                             {/* Remember & Forgot */}
                             <div className="flex items-center justify-between text-sm">
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                                    <span className="text-slate-600 dark:text-slate-400">Ghi nhớ</span>
+                                    <input type="checkbox" className="h-4 w-4 rounded border-[#c4b8a8] text-primary focus:ring-primary/30" />
+                                    <span className="text-kitchen-steel dark:text-slate-400">Ghi nhớ</span>
                                 </label>
-                                <a href="#" className="text-amber-600 hover:text-amber-700 font-medium">Quên mật khẩu?</a>
+                                <a href="#" className="font-medium text-accent hover:brightness-90">Quên mật khẩu?</a>
                             </div>
 
                             {/* Submit Button */}
                             <button
                                 type="submit"
-                                className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors shadow-lg mt-2 disabled:opacity-60"
+                                className="mt-2 w-full rounded-full bg-primary py-3 font-semibold text-white shadow-lg transition hover:brightness-95 disabled:opacity-60 dark:bg-primary"
                                 disabled={loading}
                             >
                                 {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
@@ -198,8 +197,8 @@ export default function LoginPage() {
                         </form>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-t border-slate-200 dark:border-slate-800 text-center">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Cần hỗ trợ? Liên hệ quản trị viên</p>
+                        <div className="border-t border-[#ebe1d3] bg-[#f8f3ea] p-4 text-center dark:border-slate-800 dark:bg-slate-800/50">
+                            <p className="text-xs text-kitchen-steel dark:text-slate-400">Cần hỗ trợ? Liên hệ quản trị viên</p>
                         </div>
                     </div>
                 </div>

@@ -10,6 +10,10 @@ export default {
     extend: {
       colors: {
         'primary': '#2f6a3d',
+        'accent': '#b76e2e',
+        'kitchen-steel': '#3d4e56',
+        'kitchen-ink': '#1f2922',
+        'kitchen-tile': '#e8dfd0',
         'background-light': '#efe8da',
         'background-dark': '#101622',
         'surface-dark': '#1a2235',

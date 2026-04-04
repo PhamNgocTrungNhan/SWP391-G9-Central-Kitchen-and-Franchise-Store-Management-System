@@ -18,10 +18,11 @@
   body {
     min-height: 100vh;
     background:
-      radial-gradient(circle at top right, rgba(47, 106, 61, 0.15), transparent 28%),
-      radial-gradient(circle at bottom left, rgba(184, 122, 46, 0.12), transparent 25%),
-      linear-gradient(180deg, #f7f1e7 0%, #efe8da 100%);
-    color: #263327;
+      radial-gradient(circle at top right, rgba(47, 106, 61, 0.18), transparent 32%),
+      radial-gradient(circle at 18% 70%, rgba(183, 110, 46, 0.1), transparent 28%),
+      radial-gradient(circle at bottom left, rgba(61, 78, 86, 0.06), transparent 30%),
+      linear-gradient(180deg, #f8f3ea 0%, #efe8da 55%, #ebe3d4 100%);
+    color: #1f2922;
   }
 
   #root {
@@ -65,7 +66,7 @@
   }
 
   .app-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3.5 py-2 text-[13px] font-semibold text-white transition duration-150 hover:brightness-95;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm transition duration-150 hover:brightness-95;
   }
 
   .app-button-secondary {

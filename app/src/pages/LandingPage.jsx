@@ -1,256 +1,239 @@
 import { useNavigate } from 'react-router-dom'
 
 export default function LandingPage() {
-    const navigate = useNavigate()
+  const navigate = useNavigate()
 
-    return (
-        <div className="min-h-screen bg-white dark:bg-slate-900">
-            {/* Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="font-bold text-xl text-slate-900 dark:text-white">
-                            Autumn Mooncake
-                        </div>
+  return (
+    <div className="min-h-screen bg-background-light text-kitchen-ink">
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-[#dfd4c4] bg-[#fbf7ef]/95 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-2 font-display text-xl font-bold text-kitchen-ink">
+              <span className="material-symbols-outlined text-primary text-[28px]">soup_kitchen</span>
+              Central Kitchen
+            </div>
 
-                        <nav className="hidden md:flex items-center gap-8">
-                            <a href="#about" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                Giới thiệu
-                            </a>
-                            <a href="#products" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                Sản phẩm
-                            </a>
-                            <a href="#ingredients" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                Nguyên liệu
-                            </a>
-                            <a href="#contact" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                Liên hệ
-                            </a>
-                        </nav>
+            <nav className="hidden items-center gap-8 md:flex">
+              {[
+                ['#about', 'Vận hành'],
+                ['#products', 'Năng lực'],
+                ['#ingredients', 'Chuỗi cung ứng'],
+                ['#contact', 'Liên hệ'],
+              ].map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="text-sm font-medium text-kitchen-steel transition hover:text-primary"
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
 
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold rounded-lg hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
-                        >
-                            Đăng nhập
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Hero Section */}
-            <section className="relative pt-32 pb-20 px-4 sm:px-6 overflow-hidden">
-                {/* Background Image */}
-                <div className="absolute inset-0 z-0">
-                    <img
-                        src="/backgroundhero.jpg"
-                        alt="Background"
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40"></div>
-                </div>
-
-                {/* Content */}
-                <div className="relative z-10 max-w-7xl mx-auto">
-                    <div className="max-w-4xl">
-                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 drop-shadow-lg">
-                            Bánh Trung Thu<br />
-                            Truyền Thống Việt Nam
-                        </h1>
-                        <p className="text-lg sm:text-xl text-white mb-8 leading-relaxed drop-shadow-md">
-                            Hương vị thuần khiết từ công thức gia truyền, được chế biến từ những nguyên liệu tươi ngon nhất.
-                            Mang đến cho gia đình bạn một mùa Trung Thu trọn vẹn.
-                        </p>
-                        <div className="flex flex-wrap gap-4">
-                            <button
-                                onClick={() => navigate('/login')}
-                                className="px-8 py-3 text-base bg-white text-slate-900 rounded-lg font-semibold hover:bg-slate-100 transition-colors shadow-lg"
-                            >
-                                Đặt hàng ngay
-                            </button>
-                            <button
-                                onClick={() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="px-8 py-3 text-base border-2 border-white text-white rounded-lg font-semibold hover:bg-white/10 transition-colors"
-                            >
-                                Xem sản phẩm
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* About Section */}
-            <section id="about" className="py-20 px-4 sm:px-6 bg-slate-100 dark:bg-slate-800">
-                <div className="max-w-7xl mx-auto">
-                    <div className="grid md:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-6">
-                                Về chúng tôi
-                            </h2>
-                            <p className="text-slate-600 dark:text-slate-400 mb-4">
-                                Với hơn 20 năm kinh nghiệm trong nghề làm bánh Trung Thu, chúng tôi tự hào mang đến
-                                những sản phẩm chất lượng cao, đảm bảo vệ sinh an toàn thực phẩm.
-                            </p>
-                            <p className="text-slate-600 dark:text-slate-400">
-                                Mỗi chiếc bánh đều được làm thủ công tỉ mỉ, từ khâu chọn nguyên liệu đến quy trình
-                                sản xuất, đều tuân thủ nghiêm ngặt các tiêu chuẩn chất lượng.
-                            </p>
-                        </div>
-                        <img
-                            src="/vechungtoi.jpg"
-                            alt="Về chúng tôi"
-                            className="rounded-2xl h-96 w-full object-cover"
-                        />
-                    </div>
-                </div>
-            </section>
-
-            {/* Products Section */}
-            <section id="products" className="py-20 px-4 sm:px-6 bg-white dark:bg-slate-900">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Sản phẩm của chúng tôi</h2>
-                        <p className="text-slate-600 dark:text-slate-400">Đa dạng chủng loại, phù hợp mọi khẩu vị</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {[
-                            {
-                                name: 'Bánh Dẻo Truyền Thống',
-                                desc: 'Vỏ bánh mềm mịn, nhân đậu xanh thơm ngon, trứng muối béo ngậy',
-                                price: '180.000đ/hộp 4 bánh',
-                                image: '/banh1.jpg'
-                            },
-                            {
-                                name: 'Bánh Nướng Thập Cẩm',
-                                desc: 'Vỏ bánh giòn tan, nhân thập cẩm đậm đà theo công thức gia truyền',
-                                price: '200.000đ/hộp 4 bánh',
-                                image: '/banh2.jpg'
-                            },
-                            {
-                                name: 'Bánh Cao Cấp',
-                                desc: 'Nhân sen hạt dẻ, trứng muối đặc biệt, dành cho khách hàng sành điệu',
-                                price: '250.000đ/hộp 4 bánh',
-                                image: '/banh3.webp'
-                            },
-                        ].map((product) => (
-                            <div key={product.name} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
-                                <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="w-full h-64 object-cover"
-                                />
-                                <div className="p-6">
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{product.name}</h3>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">{product.desc}</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white mb-4">{product.price}</p>
-                                    <button
-                                        onClick={() => navigate('/login')}
-                                        className="w-full py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
-                                    >
-                                        Đặt hàng
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Ingredients Section */}
-            <section id="ingredients" className="py-20 px-4 sm:px-6 bg-amber-50 dark:bg-slate-800">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Nguyên liệu chất lượng</h2>
-                        <p className="text-slate-600 dark:text-slate-400">Cam kết 100% nguyên liệu tươi ngon, an toàn</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-4 gap-6">
-                        {[
-                            { name: 'Đậu xanh nguyên chất', desc: 'Đậu xanh Việt Nam, không tạp chất' },
-                            { name: 'Trứng muối Giang Tô', desc: 'Trứng vịt muối cao cấp, béo ngậy' },
-                            { name: 'Bột mì Mỹ', desc: 'Bột mì nhập khẩu, đạt chuẩn FDA' },
-                            { name: 'Đường phèn Bình Định', desc: 'Đường phèn truyền thống, vị ngọt tự nhiên' },
-                        ].map((ingredient) => (
-                            <div key={ingredient.name} className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-                                <h3 className="font-bold text-slate-900 dark:text-white mb-2">{ingredient.name}</h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-400">{ingredient.desc}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Contact Section */}
-            <section id="contact" className="py-20 px-4 sm:px-6 bg-slate-900 dark:bg-black text-white">
-                <div className="max-w-4xl mx-auto text-center">
-                    <h2 className="text-3xl font-bold text-white mb-6">Liên hệ đặt hàng</h2>
-                    <p className="text-lg text-slate-300 mb-8">
-                        Hotline: 1900 xxxx | Email: order@banhtrungth2026.vn
-                    </p>
-                    <div className="grid md:grid-cols-3 gap-6 mb-8">
-                        <div className="text-center">
-                            <h3 className="font-bold text-white mb-2">Giao hàng toàn quốc</h3>
-                            <p className="text-sm text-slate-400">Miễn phí ship đơn từ 500k</p>
-                        </div>
-                        <div className="text-center">
-                            <h3 className="font-bold text-white mb-2">Đổi trả trong 7 ngày</h3>
-                            <p className="text-sm text-slate-400">Nếu có vấn đề về chất lượng</p>
-                        </div>
-                        <div className="text-center">
-                            <h3 className="font-bold text-white mb-2">Ưu đãi đặc biệt</h3>
-                            <p className="text-sm text-slate-400">Giảm 10% cho đơn từ 1 triệu</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => navigate('/login')}
-                        className="px-8 py-3 bg-white text-slate-900 rounded-lg font-semibold hover:bg-slate-100 transition-colors"
-                    >
-                        Đăng nhập để đặt hàng
-                    </button>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="py-12 px-4 sm:px-6 border-t border-slate-200 dark:border-slate-800">
-                <div className="max-w-7xl mx-auto">
-                    <div className="grid md:grid-cols-4 gap-8 mb-8">
-                        <div>
-                            <h3 className="font-bold text-slate-900 dark:text-white mb-4">Autumn Mooncake</h3>
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Chất lượng là hàng đầu
-                            </p>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Sản phẩm</h4>
-                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                                <li>Bánh Dẻo</li>
-                                <li>Bánh Nướng</li>
-                                <li>Bánh Cao Cấp</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Về chúng tôi</h4>
-                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                                <li>Giới thiệu</li>
-                                <li>Nguyên liệu</li>
-                                <li>Quy trình sản xuất</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Liên hệ</h4>
-                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                                <li>Hotline: 1900 xxxx</li>
-                                <li>Email: order@banhtrungth2026.vn</li>
-                                <li>Địa chỉ: TP.HCM</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div className="pt-8 border-t border-slate-200 dark:border-slate-800 text-center text-sm text-slate-500">
-                        © 2026 Autumn Mooncake. All rights reserved.
-                    </div>
-                </div>
-            </footer>
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+            >
+              Đăng nhập
+            </button>
+          </div>
         </div>
-    )
+      </header>
+
+      <section className="relative overflow-hidden px-4 pb-20 pt-32 sm:px-6">
+        <div className="absolute inset-0 z-0">
+          <img src="/backgroundhero.jpg" alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-kitchen-ink/85 via-kitchen-ink/55 to-kitchen-ink/35" />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <div className="max-w-3xl">
+            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90 backdrop-blur-sm">
+              Bếp trung tâm · Chuỗi nhượng quyền
+            </p>
+            <h1 className="mb-6 font-display text-4xl font-bold leading-tight text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
+              Một bếp — đồng bộ toàn hệ thống
+            </h1>
+            <p className="mb-8 max-w-xl text-lg leading-relaxed text-white/90 sm:text-xl">
+              Sản xuất tập trung, kiểm soát lô — BOM, kho, điều phối tới cửa hàng và phản hồi chất lượng trong một luồng dữ liệu thống nhất.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="rounded-full bg-white px-8 py-3 text-base font-semibold text-kitchen-ink shadow-lg transition hover:bg-kitchen-tile"
+              >
+                Vào hệ thống
+              </button>
+              <button
+                type="button"
+                onClick={() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}
+                className="rounded-full border-2 border-white/80 px-8 py-3 text-base font-semibold text-white transition hover:bg-white/10"
+              >
+                Xem năng lực
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="about" className="border-t border-[#e5dccf] bg-[#f4ede2] px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid items-center gap-12 md:grid-cols-2">
+            <div>
+              <h2 className="mb-4 font-display text-3xl font-bold text-kitchen-ink">Vận hành bếp trung tâm</h2>
+              <p className="mb-4 text-kitchen-steel">
+                Chuẩn hóa công thức, lịch sản xuất và phân bổ — giảm lệch tồn giữa bếp và các điểm bán nhượng quyền.
+              </p>
+              <p className="text-kitchen-steel">
+                Dashboard theo dõi lô, hạn dùng, cảnh báo ngưỡng tồn kho và truy vết nguyên liệu giúp đội ngũ ra quyết định nhanh hơn.
+              </p>
+            </div>
+            <img src="/vechungtoi.jpg" alt="Đội ngũ bếp" className="h-96 w-full rounded-[1.5rem] border border-[#dfd4c4] object-cover shadow-[0_20px_50px_rgba(47,106,61,0.12)]" />
+          </div>
+        </div>
+      </section>
+
+      <section id="products" className="bg-[#fbf7ef] px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 font-display text-3xl font-bold text-kitchen-ink">Năng lực nổi bật</h2>
+            <p className="text-kitchen-steel">Thiết kế cho quy mô chuỗi — từ BOM đến giao nhận</p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-3">
+            {[
+              {
+                name: 'BOM & định mức',
+                desc: 'Ràng buộc nguyên liệu theo món, kiểm soát biến thể và phiên bản công thức.',
+                price: 'Đồng bộ đa cửa hàng',
+                image: '/banh1.jpg',
+              },
+              {
+                name: 'Lệnh sản xuất & lô',
+                desc: 'Theo dõi lô xuất xưởng, hạn sử dụng và trạng thái giao cho franchise.',
+                price: 'Truy vết đầu cuối',
+                image: '/banh2.jpg',
+              },
+              {
+                name: 'Kho trung tâm',
+                desc: 'Nhập — xuất — tồn theo thời gian thực, cảnh báo tồn tối thiểu.',
+                price: 'Cảnh báo theo ngưỡng',
+                image: '/banh3.webp',
+              },
+            ].map((item) => (
+              <div
+                key={item.name}
+                className="overflow-hidden rounded-[1.25rem] border border-[#e0d5c5] bg-white shadow-[0_14px_36px_rgba(94,77,52,0.08)] transition hover:shadow-[0_20px_48px_rgba(47,106,61,0.12)]"
+              >
+                <img src={item.image} alt="" className="h-56 w-full object-cover" />
+                <div className="p-6">
+                  <h3 className="mb-2 font-display text-xl font-bold text-kitchen-ink">{item.name}</h3>
+                  <p className="mb-4 text-sm text-kitchen-steel">{item.desc}</p>
+                  <p className="mb-4 text-sm font-semibold text-primary">{item.price}</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/login')}
+                    className="w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
+                  >
+                    Đăng nhập để dùng
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="ingredients" className="border-t border-[#e5dccf] bg-[#f0e8db] px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 font-display text-3xl font-bold text-kitchen-ink">Chuỗi cung ứng minh bạch</h2>
+            <p className="text-kitchen-steel">Nguyên liệu, nhà cung cấp và chất lượng đầu vào</p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-4">
+            {[
+              { name: 'Nguồn gốc lô', desc: 'Gắn COA, chứng từ nhập và lịch sử kiểm tra.' },
+              { name: 'Đối soát tồn', desc: 'Đồng bộ số liệu bếp — kho — cửa hàng theo phiếu.' },
+              { name: 'Kiểm soát chất lượng', desc: 'Checklist và ghi nhận lệch trong quy trình chế biến.' },
+              { name: 'Dự báo tiêu thụ', desc: 'Gợi ý sản lượng theo mùa và lịch giao franchise.' },
+            ].map((row) => (
+              <div key={row.name} className="rounded-[1.1rem] border border-[#dfd4c4] bg-[#fffbf6] p-6 shadow-sm">
+                <h3 className="mb-2 font-semibold text-kitchen-ink">{row.name}</h3>
+                <p className="text-sm text-kitchen-steel">{row.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" className="bg-kitchen-ink px-4 py-20 text-white sm:px-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-4 font-display text-3xl font-bold">Liên hệ vận hành</h2>
+          <p className="mb-8 text-lg text-white/75">
+            Hotline: 1900 xxxx · Email: ops@centralkitchen.vn
+          </p>
+          <div className="mb-10 grid gap-6 md:grid-cols-3">
+            {[
+              ['Giao nhận chuẩn giờ', 'Khung giờ cố định tới các điểm franchise.'],
+              ['Hỗ trợ triển khai', 'Onboarding quy trình và phân quyền theo vai trò.'],
+              ['Báo cáo tập trung', 'Một nguồn số liệu cho bếp và ban điều hành.'],
+            ].map(([t, d]) => (
+              <div key={t} className="text-center">
+                <h3 className="mb-2 font-semibold text-white">{t}</h3>
+                <p className="text-sm text-white/65">{d}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="rounded-full bg-primary px-8 py-3 font-semibold text-white shadow-lg transition hover:brightness-110"
+          >
+            Đăng nhập hệ thống
+          </button>
+        </div>
+      </section>
+
+      <footer className="border-t border-[#dfd4c4] bg-[#fbf7ef] px-4 py-12 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 grid gap-8 md:grid-cols-4">
+            <div>
+              <h3 className="mb-3 font-display font-bold text-kitchen-ink">Central Kitchen</h3>
+              <p className="text-sm text-kitchen-steel">Bếp trung tâm & quản lý chuỗi nhượng quyền</p>
+            </div>
+            <div>
+              <h4 className="mb-3 font-semibold text-kitchen-ink">Module</h4>
+              <ul className="space-y-2 text-sm text-kitchen-steel">
+                <li>BOM / công thức</li>
+                <li>Sản xuất & lô</li>
+                <li>Kho & điều phối</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-3 font-semibold text-kitchen-ink">Tổ chức</h4>
+              <ul className="space-y-2 text-sm text-kitchen-steel">
+                <li>Vận hành bếp</li>
+                <li>Franchise</li>
+                <li>Báo cáo</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-3 font-semibold text-kitchen-ink">Liên hệ</h4>
+              <ul className="space-y-2 text-sm text-kitchen-steel">
+                <li>Hotline: 1900 xxxx</li>
+                <li>ops@centralkitchen.vn</li>
+                <li>TP. Hồ Chí Minh</li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-[#e5dccf] pt-8 text-center text-sm text-kitchen-steel">
+            © {new Date().getFullYear()} Central Kitchen. Bảo lưu mọi quyền.
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
 }

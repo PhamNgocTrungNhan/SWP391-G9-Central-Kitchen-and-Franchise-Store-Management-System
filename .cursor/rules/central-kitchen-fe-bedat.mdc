@@ -1,0 +1,20 @@
+---
+description: Giao diện Central Kitchen và quy trình git nhánh FE_BE_DAT
+alwaysApply: true
+---
+
+# Central Kitchen & FE_BE_DAT
+
+## Giao diện
+
+- Giữ **chủ đề bếp trung tâm**: xanh thảo mộc (`primary`), kem/gạch ấm (`background-light`, `kitchen-tile`), chữ `kitchen-ink` / `kitchen-steel`, nhấn đồng **`accent`** khi cần CTA phụ.
+- Trang marketing và form đăng nhập dùng cùng ngôn ngữ thương hiệu **Central Kitchen** (không dùng copy mooncake cũ).
+- Ưu tiên class Tailwind đã mở rộng trong `tailwind.config.js` và utility toàn cục trong `index.css` (`app-card`, `app-button-*`, v.v.).
+
+## Git: commit & push lên `FE_BE_DAT`
+
+- **Chỉ thực hiện khi nhánh hiện tại là `FE_BE_DAT`** (không checkout nhánh giúp user trừ khi họ yêu cầu).
+- Sau khi **tạo từ 2 file mới trở lên** (untracked) trong `app/`, `Shop2026/Shop2026/`, hoặc `scripts/` trong một phiên:
+  - Chạy watcher nền (một terminal riêng, từ thư mục `app`): `npm run watch:fe-push`, **hoặc**
+  - Sau khi stage xong, chạy một lần: `npm run git:push-fe -- "mô tả commit"`.
+- Nếu watcher không chạy, agent **tự** chạy `git add`, `git commit`, `git push origin FE_BE_DAT` cho các file vừa tạo (và thay đổi liên quan cùng cụm), với message rõ ràng.
