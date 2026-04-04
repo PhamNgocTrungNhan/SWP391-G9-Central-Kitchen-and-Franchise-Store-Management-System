@@ -87,6 +87,11 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const [formPurchasePrice, setFormPurchasePrice] = useState('')
     const [formInternalPrice, setFormInternalPrice] = useState('')
 
+    /** Thành phẩm đã có ít nhất một dòng BOM (trang Công thức) — dùng khi tạo thành phẩm mới */
+    const [recipeTemplates, setRecipeTemplates] = useState([])
+    const [recipeTemplatesLoading, setRecipeTemplatesLoading] = useState(false)
+    const [formRecipeTemplateId, setFormRecipeTemplateId] = useState('')
+
     const [showEditModal, setShowEditModal] = useState(false)
     const [editLoading, setEditLoading] = useState(false)
     const [editError, setEditError] = useState('')
@@ -204,6 +209,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const resetCreateForm = () => {
         setFormSku('')
         setFormProductName('')
+        setFormRecipeTemplateId('')
         setFormCategoryId(categories.length > 0 ? String(categories[0].categoryId) : '')
         setFormBaseUnit('')
         setFormPurchasePrice('')
@@ -211,11 +217,74 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         setFormProductType(scopeMeta.defaultType)
     }
 
+    const loadRecipeTemplates = async () => {
+        const token = getToken()
+        if (!token) {
+            setRecipeTemplates([])
+            return
+        }
+        setRecipeTemplatesLoading(true)
+        try {
+            const res = await fetch(`${apiBase}/Products/manufactured`, {
+                method: 'GET',
+                headers: { accept: '*/*', Authorization: `Bearer ${token}` },
+            })
+            const data = res.ok ? await res.json().catch(() => []) : []
+            const parents = Array.isArray(data) ? data : []
+            const results = await Promise.all(
+                parents.map(async (p) => {
+                    const id = p?.productId ?? p?.id
+                    if (!id) return null
+                    try {
+                        const rr = await fetch(`${apiBase}/recipes/parent/${id}`, {
+                            method: 'GET',
+                            headers: { accept: '*/*', Authorization: `Bearer ${token}` },
+                        })
+                        const lines = rr.ok ? await rr.json().catch(() => []) : []
+                        if (!Array.isArray(lines) || lines.length === 0) return null
+                        return {
+                            productId: Number(id),
+                            name: p.productName || p.name || `Sản phẩm #${id}`,
+                            baseUnit: p.baseUnit || '',
+                            categoryId: Number(p.categoryId ?? 0),
+                        }
+                    } catch {
+                        return null
+                    }
+                }),
+            )
+            const opts = results.filter(Boolean)
+            opts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'vi'))
+            setRecipeTemplates(opts)
+        } catch {
+            setRecipeTemplates([])
+        } finally {
+            setRecipeTemplatesLoading(false)
+        }
+    }
+
+    const applyRecipeTemplateSelection = (templateId) => {
+        setFormRecipeTemplateId(templateId)
+        if (!templateId) {
+            setFormProductName('')
+            return
+        }
+        const opt = recipeTemplates.find((t) => String(t.productId) === templateId)
+        if (opt) {
+            setFormProductName(opt.name)
+            setFormBaseUnit(opt.baseUnit || '')
+            if (opt.categoryId > 0) setFormCategoryId(String(opt.categoryId))
+        }
+    }
+
     const openCreateModal = () => {
         setCreateError('')
         setCreateSuccess('')
         resetCreateForm()
         setShowCreateModal(true)
+        if (normalizedScope === 'finished') {
+            loadRecipeTemplates()
+        }
     }
 
     const handleCreateProduct = async () => {
@@ -238,8 +307,19 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             internalPrice: Number(formInternalPrice) || 0,
         }
 
+        if (normalizedScope === 'finished') {
+            if (!formRecipeTemplateId) {
+                setCreateError('Vui lòng chọn thành phẩm từ công thức đã tạo (trang Công thức).')
+                return
+            }
+        }
+
         if (!payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
-            setCreateError('Vui lòng nhập đầy đủ SKU, Tên sản phẩm, Danh mục, Đơn vị gốc và Loại sản phẩm.')
+            setCreateError(
+                normalizedScope === 'finished'
+                    ? 'Vui lòng nhập đủ SKU, chọn công thức, Danh mục, Đơn vị gốc và Loại sản phẩm.'
+                    : 'Vui lòng nhập đầy đủ SKU, Tên sản phẩm, Danh mục, Đơn vị gốc và Loại sản phẩm.',
+            )
             return
         }
 
@@ -554,15 +634,48 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
                             </label>
-                            <label className="flex flex-col gap-1">
-                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tên sản phẩm</span>
-                                <input
-                                    value={formProductName}
-                                    onChange={(e) => setFormProductName(e.target.value)}
-                                    placeholder="Ví dụ: Rice"
-                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                            </label>
+                            {normalizedScope === 'finished' ? (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                        Chọn từ công thức (thành phẩm đã có định mức)
+                                    </span>
+                                    <select
+                                        value={formRecipeTemplateId}
+                                        onChange={(e) => applyRecipeTemplateSelection(e.target.value)}
+                                        disabled={recipeTemplatesLoading}
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm disabled:opacity-60"
+                                    >
+                                        <option value="">
+                                            {recipeTemplatesLoading ? 'Đang tải danh sách...' : '-- Chọn công thức đã tạo --'}
+                                        </option>
+                                        {recipeTemplates.map((t) => (
+                                            <option key={t.productId} value={String(t.productId)}>
+                                                {t.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {!recipeTemplatesLoading && recipeTemplates.length === 0 && (
+                                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                                            Chưa có công thức nào. Hãy tạo công thức ở trang &quot;Công thức&quot; trước.
+                                        </span>
+                                    )}
+                                    {formProductName ? (
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                            Tên sản phẩm: <span className="font-medium text-slate-700 dark:text-slate-200">{formProductName}</span>
+                                        </span>
+                                    ) : null}
+                                </label>
+                            ) : (
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tên sản phẩm</span>
+                                    <input
+                                        value={formProductName}
+                                        onChange={(e) => setFormProductName(e.target.value)}
+                                        placeholder="Ví dụ: Rice"
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </label>
+                            )}
                             <label className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Danh mục (Category)</span>
                                 {categories.length > 0 ? (
@@ -655,7 +768,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </button>
                             <button
                                 onClick={handleCreateProduct}
-                                disabled={createLoading}
+                                disabled={createLoading || (normalizedScope === 'finished' && recipeTemplatesLoading)}
                                 className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
                             >
                                 {createLoading ? 'Đang tạo...' : 'Xác nhận tạo'}
