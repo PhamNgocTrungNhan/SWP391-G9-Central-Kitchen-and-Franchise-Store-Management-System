@@ -1603,6 +1603,18 @@
         }
       }
     },
+    "/api/Recipes/all": {
+      "delete": {
+        "tags": [
+          "Recipes"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/Suppliers": {
       "get": {
         "tags": [

@@ -936,6 +936,16 @@
   },
   {
     "ContainingType": "Shop2026.Controllers.RecipesController",
+    "Method": "DeleteAllBom",
+    "RelativePath": "api/Recipes/all",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.RecipesController",
     "Method": "CloneBom",
     "RelativePath": "api/Recipes/clone-bom",
     "HttpMethod": "POST",
