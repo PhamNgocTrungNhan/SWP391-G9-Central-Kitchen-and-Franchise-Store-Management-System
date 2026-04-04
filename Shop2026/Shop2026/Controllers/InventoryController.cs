@@ -2,18 +2,18 @@
 using Microsoft.AspNetCore.Mvc;
 using Shop2026.DLL;
 using Shop2026.DTOs;
+using System;
 
 namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] 
+    [Authorize(Roles = "ADMIN, MANAGER")]
     public class InventoryController : ControllerBase
     {
         private readonly InventoryService _service;
         public InventoryController(InventoryService service) => _service = service;
 
-        // Xem danh sách tồn kho hiện tại
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
 
@@ -23,11 +23,9 @@ namespace Shop2026.Controllers
             return Ok(_service.GetStoreInventory(storeId));
         }
 
-        // Xem lịch sử ra/vào kho (Nhật ký)
         [HttpGet("logs")]
         public IActionResult GetLogs() => Ok(_service.GetStockLogs());
 
-        // Xuất kho giao cho cửa hàng
         [HttpPost("transfer/{orderId}")]
         public IActionResult TransferToStore(int orderId)
         {
@@ -53,7 +51,6 @@ namespace Shop2026.Controllers
         {
             try
             {
-                // Truyền thêm request.SupplierId vào cuối cùng
                 _service.ImportRawMaterial(request.ProductId, request.Quantity, 1, request.SupplierId);
 
                 return Ok(new

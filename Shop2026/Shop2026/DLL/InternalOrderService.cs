@@ -105,9 +105,6 @@ namespace Shop2026.DLL
             return transaction;
         }
 
-        // ==========================================
-        // 🚀 TẠO LINK THANH TOÁN VNPAY
-        // ==========================================
         public string CreateVnPayLink(int orderId, int storeId, string returnUrl, string ipAddress)
         {
             var order = _orderRepository.GetOrderDetail(orderId);
@@ -129,7 +126,6 @@ namespace Shop2026.DLL
             vnpay.AddRequestData("vnp_Version", "2.1.0");
             vnpay.AddRequestData("vnp_Command", "pay");
             vnpay.AddRequestData("vnp_TmnCode", vnp_TmnCode);
-            // VNPAY yêu cầu số tiền nhân với 100
             vnpay.AddRequestData("vnp_Amount", ((long)(order.TotalAmount * 100)).ToString());
             vnpay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
             vnpay.AddRequestData("vnp_CurrCode", "VND");
@@ -140,35 +136,26 @@ namespace Shop2026.DLL
             vnpay.AddRequestData("vnp_ReturnUrl", returnUrl);
             vnpay.AddRequestData("vnp_TxnRef", order.OrderId.ToString() + "_" + DateTime.Now.Ticks.ToString());
 
-            string paymentUrl = vnpay.CreateRequestUrl(vnp_Url, vnp_HashSecret);
-            return paymentUrl;
+            return vnpay.CreateRequestUrl(vnp_Url, vnp_HashSecret);
         }
 
-        // ==========================================
-        // 🤖 HỨNG IPN TỪ VNPAY ĐỂ TỰ CHỐT ĐƠN
-        // ==========================================
         public bool ProcessVnPayIPN(Dictionary<string, string> requestData)
         {
             VnPayLibrary vnpay = new VnPayLibrary();
             foreach (var kv in requestData)
             {
                 if (kv.Key.StartsWith("vnp_"))
-                {
                     vnpay.AddResponseData(kv.Key, kv.Value);
-                }
             }
 
             string vnp_HashSecret = _configuration["VNPAY:HashSecret"];
             string vnp_SecureHash = requestData.ContainsKey("vnp_SecureHash") ? requestData["vnp_SecureHash"] : "";
-            bool checkSignature = vnpay.ValidateSignature(vnp_SecureHash, vnp_HashSecret);
 
-            if (!checkSignature)
+            if (!vnpay.ValidateSignature(vnp_SecureHash, vnp_HashSecret))
                 return false;
 
-            // Thanh toán thành công (Mã 00)
             if (vnpay.GetResponseData("vnp_ResponseCode") == "00" && vnpay.GetResponseData("vnp_TransactionStatus") == "00")
             {
-                // Tách lấy OrderId từ TxnRef (Lúc tạo mình ghép dạng OrderId_Ticks)
                 string txnRef = vnpay.GetResponseData("vnp_TxnRef");
                 int orderId = int.Parse(txnRef.Split('_')[0]);
 
@@ -285,6 +272,7 @@ namespace Shop2026.DLL
                 throw new Exception("Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.");
             if (order.OrderStatus.ToUpper() != "SHIPPING")
                 throw new Exception("Only SHIPPING orders can be confirmed");
+
             order.OrderStatus = "COMPLETED";
             order.UpdatedAt = DateTime.Now;
             _orderRepository.UpdateOrder(order);
@@ -322,6 +310,7 @@ namespace Shop2026.DLL
                 throw new Exception("Đơn chưa thanh toán, không thể chuyển sang COMPLETED.");
             }
 
+            // Giao toàn bộ 1 lần (Luồng cũ)
             if (newStatus.ToUpper() == "SHIPPING")
             {
                 var orderWithDetails = _orderRepository.GetOrderDetail(orderId);
@@ -333,6 +322,76 @@ namespace Shop2026.DLL
             }
 
             return _orderRepository.UpdateOrderStatus(orderId, newStatus);
+        }
+
+        // ==========================================
+        // 🚚 API MỚI: XUẤT GIAO TỪNG PHẦN (PARTIAL SHIPPING)
+        // ==========================================
+        public InternalOrder? ShipItemsPartial(int orderId, List<ShipItemRequest> items)
+        {
+            var order = _orderRepository.GetOrderDetail(orderId) ?? throw new Exception("Không tìm thấy đơn hàng");
+
+            // Chỉ cho phép giao khi đơn đang xử lý hoặc đã sản xuất
+            if (order.OrderStatus != "APPROVED" && order.OrderStatus != "PROCESSING" && order.OrderStatus != "PRODUCED")
+                throw new Exception($"Không thể xuất giao ở trạng thái {order.OrderStatus}.");
+
+            using var transaction = _orderRepository.GetContext().Database.BeginTransaction();
+            try
+            {
+                bool isFullyShipped = true;
+
+                foreach (var detail in order.InternalOrderDetails)
+                {
+                    var reqItem = items.FirstOrDefault(x => x.ProductId == detail.ProductId);
+                    decimal qtyToShip = reqItem?.QuantityToShip ?? 0;
+
+                    if (qtyToShip > 0)
+                    {
+                        decimal targetQtyForDetail = detail.QuantityConfirmed > 0 ? detail.QuantityConfirmed.Value : (detail.QuantityOrdered ?? 0);
+
+                        if ((detail.QuantityShipped + qtyToShip) > targetQtyForDetail)
+                            throw new Exception($"Sản phẩm mã {detail.ProductId} xuất giao vượt quá số lượng yêu cầu!");
+
+                        // Cập nhật số lượng đã giao
+                        detail.QuantityShipped += qtyToShip;
+
+                        // Trừ kho KITCHEN ngay lập tức cho số lượng vừa giao
+                        _inventoryService.UpdateStockAndLog(
+                            detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -qtyToShip,
+                            "Xuất giao từng phần cho cửa hàng", order.OrderId, "INTERNAL_ORDER", null
+                        );
+                    }
+
+                    // Kiểm tra lại xem dòng này đã giao đủ tổng chưa
+                    decimal finalTargetQty = detail.QuantityConfirmed > 0 ? detail.QuantityConfirmed.Value : (detail.QuantityOrdered ?? 0);
+                    if (detail.QuantityShipped < finalTargetQty)
+                    {
+                        isFullyShipped = false;
+                    }
+                }
+
+                // Nếu giao đủ 100% tất cả các món, tự động chuyển sang SHIPPING để cửa hàng nhận
+                if (isFullyShipped)
+                {
+                    order.OrderStatus = "SHIPPING";
+                }
+                else if (order.OrderStatus == "APPROVED" || order.OrderStatus == "PRODUCED")
+                {
+                    // Chuyển sang PROCESSING để hiểu là đang trong quá trình chuẩn bị/giao dở dang
+                    order.OrderStatus = "PROCESSING";
+                }
+
+                order.UpdatedAt = DateTime.Now;
+                _orderRepository.GetContext().SaveChanges();
+                transaction.Commit();
+
+                return order;
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
 
         public InternalOrder? ReturnOrder(int orderId, int storeId, string reason)

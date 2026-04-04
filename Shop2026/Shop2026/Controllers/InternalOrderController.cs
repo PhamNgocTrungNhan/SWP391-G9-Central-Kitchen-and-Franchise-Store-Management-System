@@ -107,9 +107,6 @@ namespace Shop2026.Controllers
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
-        // ==========================================
-        // 🚀 API LẤY LINK MÃ QR THANH TOÁN TỪ VNPAY
-        // ==========================================
         [HttpPost("{orderId}/vnpay-link")]
         [Authorize(Roles = "ADMIN, STORE_STAFF")]
         public IActionResult CreateVnPayLink(int orderId, [FromQuery] string returnUrl = "http://localhost:5173/payment-result")
@@ -147,11 +144,8 @@ namespace Shop2026.Controllers
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
-        // ==========================================
-        // 🤖 API HỨNG IPN TỪ VNPAY (VNPAY BẮN VỀ)
-        // ==========================================
         [HttpGet("vnpay-ipn")]
-        [AllowAnonymous] // Bắt buộc mở để máy chủ VNPAY chọc vào được
+        [AllowAnonymous]
         public IActionResult VnPayIPN()
         {
             try
@@ -160,30 +154,23 @@ namespace Shop2026.Controllers
                 foreach (var (key, value) in Request.Query)
                 {
                     if (!string.IsNullOrEmpty(key) && key.StartsWith("vnp_"))
-                    {
                         requestData.Add(key, value.ToString());
-                    }
                 }
 
                 bool isSuccess = _orderService.ProcessVnPayIPN(requestData);
 
-                // VNPAY yêu cầu định dạng phản hồi chuẩn này để họ không gọi lại nữa
                 if (isSuccess)
-                {
                     return Ok(new
                     {
                         RspCode = "00",
                         Message = "Confirm Success"
                     });
-                }
                 else
-                {
                     return Ok(new
                     {
                         RspCode = "97",
                         Message = "Invalid Signature or Failed"
                     });
-                }
             }
             catch (Exception ex)
             {
@@ -378,6 +365,25 @@ namespace Shop2026.Controllers
                 return Ok(new
                 {
                     message = "Order status updated successfully",
+                    order
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        // ==========================================
+        // 🚚 API: GIAO HÀNG TỪNG PHẦN TỪ BẾP XUỐNG CỬA HÀNG
+        // ==========================================
+        [HttpPost("{orderId}/ship-partial")]
+        [Authorize(Roles = "ADMIN, SUPPLY_COORDINATOR, KITCHEN_STAFF")]
+        public IActionResult ShipPartial(int orderId, [FromBody] List<ShipItemRequest> items)
+        {
+            try
+            {
+                var order = _orderService.ShipItemsPartial(orderId, items);
+                return Ok(new
+                {
+                    message = order.OrderStatus == "SHIPPING" ? "Đã giao đủ 100% hàng!" : "Đã ghi nhận giao hàng từng phần.",
                     order
                 });
             }

@@ -19,10 +19,10 @@ namespace Shop2026.DLL
             try
             {
                 var rawMaterialsToDeduct = new Dictionary<int, decimal>();
-
                 decimal actualQty = batch.QuantityActual ?? batch.QuantityPlanned ?? 0;
 
-                CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct);
+                // Bắt đầu đệ quy từ bánh thành phẩm (Gửi lượng bánh Net xuống để phân rã)
+                CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct, bomLineMaxWastePercent: null);
 
                 if (!rawMaterialsToDeduct.Any())
                     throw new Exception("Không tìm thấy nguyên liệu RAW nào trong cây công thức.");
@@ -46,27 +46,46 @@ namespace Shop2026.DLL
             }
         }
 
-        private void CalculateRawMaterialsRecursive(int productId, decimal requiredQty, Dictionary<int, decimal> aggregatedRawMaterials)
+        // ==========================================
+        // ✅ THUẬT TOÁN ĐỆ QUY TÍNH HAO HỤT MỚI
+        // ==========================================
+        private void CalculateRawMaterialsRecursive(int productId, decimal requiredNetQty, Dictionary<int, decimal> aggregatedRawMaterials, decimal? bomLineMaxWastePercent)
         {
             var product = _repo.GetProduct(productId) ?? throw new Exception($"Không tìm thấy sản phẩm ID {productId}");
 
+            // 1. Hao hụt theo dòng BOM (Recipes_BOM.max_waste_percent); thành phẩm gốc mẻ không có dòng BOM cha → 0%
+            decimal wastePercent = bomLineMaxWastePercent ?? 0m;
+            if (wastePercent >= 100)
+                throw new Exception($"Sản phẩm '{product.ProductName}' có tỷ lệ hao hụt không hợp lệ ({wastePercent}%). Hao hụt phải < 100%.");
+
+            // 2. Tính lượng Gross (Thô) thực tế cần xuất kho (hoặc cần sản xuất)
+            decimal grossQty = (wastePercent > 0)
+                               ? requiredNetQty / (1m - (wastePercent / 100m))
+                               : requiredNetQty;
+
+            // Nếu chạm đáy là đồ RAW (Bột, Thịt...) -> Ghi nhận lượng Gross vào sổ để chuẩn bị xuất kho
             if (product.ProductType == "RAW")
             {
                 if (aggregatedRawMaterials.ContainsKey(productId))
-                    aggregatedRawMaterials[productId] += requiredQty;
+                    aggregatedRawMaterials[productId] += grossQty;
                 else
-                    aggregatedRawMaterials[productId] = requiredQty;
+                    aggregatedRawMaterials[productId] = grossQty;
                 return;
             }
 
+            // Nếu là Bánh hoặc Bán thành phẩm -> Tìm công thức BOM
             var recipes = _repo.GetRecipeByProduct(productId);
             if (!recipes.Any())
                 throw new Exception($"Sản phẩm '{product.ProductName}' cần được sản xuất nhưng chưa cấu hình công thức (BOM).");
 
+            // Phân rã tiếp các nguyên liệu con để gom đủ lượng GrossQty của cha
             foreach (var recipe in recipes)
             {
-                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
-                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
+                // Mỗi cái bánh cha cần 'QuantityRequired' nguyên liệu con.
+                decimal childNetQty = grossQty * recipe.QuantityRequired;
+
+                // Gọi đệ quy tiếp tục chui xuống dưới
+                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childNetQty, aggregatedRawMaterials, recipe.MaxWastePercent);
             }
         }
 
@@ -231,13 +250,9 @@ namespace Shop2026.DLL
             _repo.AddStockLog(log);
         }
 
-        // ==========================================
-        // THUẬT TOÁN FIFO ẢO: QUÉT VÀ HỦY HÀNG HẾT HẠN
-        // ==========================================
         public void ScanAndRemoveExpiredStock()
         {
             var dbContext = _repo.GetContext();
-
             var kitchenInventories = dbContext.Inventories
                 .Where(i => i.LocationType == "KITCHEN" && i.CurrentQuantity > 0)
                 .ToList();

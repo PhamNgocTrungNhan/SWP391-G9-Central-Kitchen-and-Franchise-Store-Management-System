@@ -30,7 +30,6 @@ namespace Shop2026.DAL
             return _context.Products.Any(p => p.ProductId == productId);
         }
 
-        // ✅ HÀM MỚI: Thêm hàng loạt dữ liệu vào Database cực nhanh
         public void AddRange(IEnumerable<RecipesBom> recipes)
         {
             _context.RecipesBoms.AddRange(recipes);

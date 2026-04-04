@@ -44,6 +44,7 @@ export const navigationGroups = [
   {
     title: 'Hệ thống',
     items: [
+      { to: '/mock-api', key: 'mockApi', label: 'MockAPI', icon: 'cloud_download', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/users', key: 'users', label: 'Người dùng', icon: 'group', roles: [roles.ADMIN] },
     ],
   },
@@ -153,6 +154,13 @@ export const pageCatalog = {
       { method: 'POST', path: '/api/ProductionBatches/{id}/allocate', body: 'List<BatchAllocationRequest>' },
       { method: 'PUT', path: '/api/ProductionBatches/{id}/cancel' },
     ],
+  },
+  mockApi: {
+    controller: 'MockAPI (external)',
+    title: 'Dữ liệu MockAPI',
+    description: 'Đọc dữ liệu từ mockapi.io theo endpoint bạn cấu hình trên project.',
+    authorize: 'ADMIN, MANAGER',
+    endpoints: [{ method: 'GET', path: 'https://69d0627190cd06523d5d33ca.mockapi.io/{endpoint}' }],
   },
   users: {
     controller: 'UserController',

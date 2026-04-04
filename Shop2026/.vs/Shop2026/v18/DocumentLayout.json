@@ -1,0 +1,459 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\productservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\productservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\internalorderservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\internalorderservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dal\\productrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dal\\productrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\recipescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\recipescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\productionbatchservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\productionbatchservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\recipeservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\recipeservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dtos\\completebatchrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dtos\\completebatchrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dtos\\reciperequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dtos\\reciperequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\context\\applicationdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\context\\applicationdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\productionbatch.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\productionbatch.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\recipesbom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\recipesbom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\product.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\product.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\productionbatchmaterial.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\productionbatchmaterial.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dtos\\shipitemrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dtos\\shipitemrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dal\\internalorderrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dal\\internalorderrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dal\\productionbatchrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dal\\productionbatchrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dtos\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dtos\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dal\\reciperepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dal\\reciperepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\internalorder.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\internalorder.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\models\\productionbatchorder.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\models\\productionbatchorder.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 7,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ProductService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\ProductService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\ProductService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.803Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "ProductRepository.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductRepository.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DAL\\ProductRepository.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductRepository.cs",
+              "RelativeToolTip": "Shop2026\\DAL\\ProductRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.844Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "RecipeService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\RecipeService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\RecipeService.cs",
+              "ViewState": "AgIAAAoAAAAAAAAAAAAmwFQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.848Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "ProductionBatchService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductionBatchService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\ProductionBatchService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductionBatchService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\ProductionBatchService.cs",
+              "ViewState": "AgIAANwAAAAAAAAAAAAmwAQBAABtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.85Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "ProductsController.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductsController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\ProductsController.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductsController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\ProductsController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.852Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "InternalOrderService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InternalOrderService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\InternalOrderService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InternalOrderService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\InternalOrderService.cs",
+              "ViewState": "AgIAAMQAAAAAAAAAAAAAwNcAAABxAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.854Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "CompleteBatchRequest.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.861Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "InventoryService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\InventoryService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\InventoryService.cs",
+              "ViewState": "AgIAANkAAAAAAAAAAAAawDgAAABAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.891Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "RecipesController.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\RecipesController.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\RecipesController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAmwEQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.864Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "ProductionBatchesController.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "ViewState": "AgIAAGwAAAAAAAAAAAAmwHgAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.867Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "ApplicationDbContext.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Context\\ApplicationDbContext.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs",
+              "RelativeToolTip": "Shop2026\\Context\\ApplicationDbContext.cs",
+              "ViewState": "AgIAAHQAAAAAAAAAAAAmwHABAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.869Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "ProductionBatch.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatch.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs",
+              "RelativeToolTip": "Shop2026\\Models\\ProductionBatch.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABkAAAB8AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.873Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "RecipesBom.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\RecipesBom.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs",
+              "RelativeToolTip": "Shop2026\\Models\\RecipesBom.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAmwCUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.875Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "Product.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\Product.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
+              "RelativeToolTip": "Shop2026\\Models\\Product.cs",
+              "ViewState": "AgIAACIAAAAAAAAAAAAmwDEAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.878Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "ProductionBatchMaterial.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "RelativeToolTip": "Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAACMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.881Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "RecipeRequest.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\RecipeRequest.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\RecipeRequest.cs",
+              "ViewState": "AgIAAEgAAAAAAAAAAAAmwFoAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.883Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "ShipItemRequest.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\ShipItemRequest.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\ShipItemRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.886Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "InternalOrderRepository.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DAL\\InternalOrderRepository.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
+              "RelativeToolTip": "Shop2026\\DAL\\InternalOrderRepository.cs",
+              "ViewState": "AgIAALMAAAAAAAAAAAAmwM0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.888Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "InternalOrderController.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InternalOrderController.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\InternalOrderController.cs",
+              "ViewState": "AgIAAIoBAAAAAAAAAAAmwLkBAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.894Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\appsettings.json",
+              "RelativeDocumentMoniker": "Shop2026\\appsettings.json",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\appsettings.json",
+              "RelativeToolTip": "Shop2026\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-04T00:53:15.896Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "ProductionBatchRepository.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductionBatchRepository.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DAL\\ProductionBatchRepository.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductionBatchRepository.cs",
+              "RelativeToolTip": "Shop2026\\DAL\\ProductionBatchRepository.cs",
+              "ViewState": "AgIAABAAAAAAAAAAAAAmwBgAAABrAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.898Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Program.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
+              "RelativeToolTip": "Shop2026\\Program.cs",
+              "ViewState": "AgIAAEQAAAAAAAAAAAAmwFUAAAAsAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.901Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "InventoryController.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InventoryController.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\InventoryController.cs",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAmwEUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.902Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "ProductDTO.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ProductDTO.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\ProductDTO.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ProductDTO.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\ProductDTO.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.905Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 24,
+              "Title": "RecipeRepository.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\RecipeRepository.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DAL\\RecipeRepository.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\RecipeRepository.cs",
+              "RelativeToolTip": "Shop2026\\DAL\\RecipeRepository.cs",
+              "ViewState": "AgIAABEAAAAAAAAAAAAmwCAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.907Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 25,
+              "Title": "InternalOrder.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\InternalOrder.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\InternalOrder.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\InternalOrder.cs",
+              "RelativeToolTip": "Shop2026\\Models\\InternalOrder.cs",
+              "ViewState": "AgIAAEIAAAAAAAAAAAAmwFoAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.911Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 26,
+              "Title": "ProductionBatchOrder.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchOrder.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatchOrder.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchOrder.cs",
+              "RelativeToolTip": "Shop2026\\Models\\ProductionBatchOrder.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-04T00:53:15.913Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
