@@ -473,6 +473,48 @@ export default function RecipesPage() {
     }
   }
 
+  const handleDeleteRecipeGroup = async (group) => {
+    const name = group.parentProductName || `Sản phẩm #${group.parentProductId}`
+    const n = group.lines.length
+    if (
+      !window.confirm(
+        `Xóa toàn bộ công thức "${name}"?\n\nSẽ xóa ${n} dòng định mức nguyên liệu. Thành phẩm vẫn còn trong danh mục sản phẩm (chỉ gỡ BOM).`
+      )
+    ) {
+      return
+    }
+
+    const tk = getToken()
+    if (!tk) return
+
+    setLoading(true)
+    try {
+      for (const line of group.lines) {
+        const id = line.recipeId || line.bomId
+        if (!id) continue
+        const response = await fetch(`${apiBase}/recipes/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${tk}` },
+        })
+        if (!response.ok) {
+          alert(await readApiErrorMessage(response, `Không xóa được dòng định mức #${id}.`))
+          await fetchAllRecipes()
+          return
+        }
+      }
+      await fetchAllRecipes()
+      if (detailParentId != null && Number(detailParentId) === Number(group.parentProductId)) {
+        setDetailParentId(null)
+      }
+      alert('Đã xóa toàn bộ công thức.')
+    } catch (err) {
+      console.error(err)
+      alert('Có lỗi xảy ra khi xóa công thức.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const stats = {
     totalRecipes: new Set(allRecipes.map((r) => r.parentProductId).filter(Boolean)).size,
     totalLines: allRecipes.length,
@@ -585,14 +627,26 @@ export default function RecipesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
-                      <button
-                        type="button"
-                        onClick={() => openRecipeDetail(group.parentProductId)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/15"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">visibility</span>
-                        Xem nguyên liệu
-                      </button>
+                      <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openRecipeDetail(group.parentProductId)}
+                          disabled={loading}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/15 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          Xem nguyên liệu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRecipeGroup(group)}
+                          disabled={loading}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                          Xóa công thức
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
