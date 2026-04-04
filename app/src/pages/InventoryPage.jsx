@@ -75,13 +75,20 @@ export default function InventoryPage() {
     supplierId: '',
   })
   const [deleteStockId, setDeleteStockId] = useState(null)
+  const [showEditStockModal, setShowEditStockModal] = useState(false)
+  const [editStockRow, setEditStockRow] = useState(null)
+  const [editStockSaving, setEditStockSaving] = useState(false)
+  const [editStockError, setEditStockError] = useState('')
+  const [editStockForm, setEditStockForm] = useState({ quantity: '', unit: '' })
+  const [editStockId, setEditStockId] = useState(null)
 
-  const canDeleteInventoryRow = () => {
+  const canManageInventoryRow = () => {
     const r = getCurrentUserRole()
     return r === 'ADMIN' || r === 'MANAGER'
   }
 
-  const isAnyModalOpen = showExpiredModal || showDetailModal || showExpiryDetailModal || showImportModal
+  const isAnyModalOpen =
+    showExpiredModal || showDetailModal || showExpiryDetailModal || showImportModal || showEditStockModal
 
   useEffect(() => {
     if (!isAnyModalOpen) return undefined
@@ -109,7 +116,10 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = {
+            name: p.productName || p.name || `Sản phẩm #${p.productId}`,
+            baseUnit: p.baseUnit || '',
+          }
         })
       }
 
@@ -130,9 +140,21 @@ export default function InventoryPage() {
       }
 
       const normalized = data.map((item) => {
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
+        const meta = productMap[item.productId]
+        const productName =
+          meta?.name ||
+          item.product?.productName ||
+          item.product?.name ||
+          item.productName ||
+          `Sản phẩm #${item.productId}`
         const location = item.location || item.locationName || 'Bếp trung tâm #1'
         const quantity = Number(item.currentQuantity || item.quantity || 0)
+        const baseUnit = meta?.baseUnit || item.product?.baseUnit || item.baseUnit || ''
+        const displayOverride = item.displayUnit ?? item.display_unit
+        const unit =
+          (displayOverride != null && String(displayOverride).trim() !== '' ? String(displayOverride).trim() : '') ||
+          baseUnit ||
+          'unit'
 
         const inventoryId = Number(item.inventoryId ?? item.inventory_id)
         return {
@@ -142,7 +164,10 @@ export default function InventoryPage() {
           product: productName,
           location,
           quantity,
-          unit: item.product?.baseUnit || item.baseUnit || 'unit',
+          unit,
+          productBaseUnit: baseUnit,
+          inventoryDisplayUnit:
+            displayOverride != null && String(displayOverride).trim() !== '' ? String(displayOverride).trim() : null,
         }
       })
 
@@ -191,6 +216,78 @@ export default function InventoryPage() {
     }
   }
 
+  const openEditStockModal = (row) => {
+    if (!row?.inventoryId) return
+    setEditStockRow(row)
+    setEditStockError('')
+    setEditStockForm({
+      quantity: String(row.quantity ?? ''),
+      unit: row.inventoryDisplayUnit != null ? row.inventoryDisplayUnit : '',
+    })
+    setShowEditStockModal(true)
+  }
+
+  const closeEditStockModal = () => {
+    if (editStockSaving) return
+    setShowEditStockModal(false)
+    setEditStockRow(null)
+    setEditStockError('')
+  }
+
+  const submitEditStock = async (e) => {
+    e.preventDefault()
+    setEditStockError('')
+    const invId = editStockRow?.inventoryId
+    if (!invId) {
+      setEditStockError('Không xác định được mã dòng tồn kho.')
+      return
+    }
+    const tk = getToken()
+    if (!tk) {
+      setEditStockError('Bạn chưa đăng nhập.')
+      return
+    }
+    const qty = Number(editStockForm.quantity)
+    if (!Number.isFinite(qty) || qty < 0) {
+      setEditStockError('Số lượng phải là số không âm.')
+      return
+    }
+    const unitTrim = String(editStockForm.unit || '').trim()
+    const displayUnitPayload = unitTrim === '' ? null : unitTrim
+
+    setEditStockSaving(true)
+    setEditStockId(invId)
+    try {
+      const response = await fetch(`${apiBase}/Inventory/stock/${invId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${tk}`,
+          accept: '*/*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentQuantity: qty,
+          displayUnit: displayUnitPayload,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.message || data?.title || 'Không thể cập nhật tồn kho.')
+      }
+      setMessage({ type: 'success', text: data?.message || 'Đã cập nhật tồn kho.' })
+      setShowEditStockModal(false)
+      setEditStockRow(null)
+      setEditStockError('')
+      await fetchStock()
+      fetchLogs()
+    } catch (err) {
+      setEditStockError(err.message || 'Cập nhật thất bại.')
+    } finally {
+      setEditStockSaving(false)
+      setEditStockId(null)
+    }
+  }
+
   const fetchLogs = async () => {
     const tk = getToken()
     if (!tk) return
@@ -235,6 +332,7 @@ export default function InventoryPage() {
         if (action.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
         if (action.includes('NHẬP NGUYÊN LIỆU') || action.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
         if (item.referenceType === 'INVENTORY_DELETE') action = 'Xóa dòng tồn kho (quản trị)'
+        if (item.referenceType === 'INVENTORY_ADJUST') action = 'Điều chỉnh tồn (quản trị)'
 
         let actor = 'Hệ thống'
         if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
@@ -787,8 +885,8 @@ export default function InventoryPage() {
                       <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tồn hiện tại</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
                       <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cảnh báo</th>
-                      {canDeleteInventoryRow() ? (
-                        <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
+                      {canManageInventoryRow() ? (
+                        <th className="w-[18%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
                       ) : null}
                     </tr>
                   </thead>
@@ -808,19 +906,31 @@ export default function InventoryPage() {
                             {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
                           </span>
                         </td>
-                        {canDeleteInventoryRow() ? (
+                        {canManageInventoryRow() ? (
                           <td className="px-4 py-3 text-right">
                             {item.inventoryId ? (
-                              <button
-                                type="button"
-                                onClick={() => deleteInventoryRow(item)}
-                                disabled={deleteStockId === item.inventoryId}
-                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 dark:border-red-800 px-2 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
-                                title="Xóa dòng tồn kho tại vị trí này (không xóa sản phẩm)"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">delete</span>
-                                {deleteStockId === item.inventoryId ? '…' : 'Xóa'}
-                              </button>
+                              <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditStockModal(item)}
+                                  disabled={editStockId === item.inventoryId || deleteStockId === item.inventoryId}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-800 dark:border-slate-600 bg-slate-900 dark:bg-slate-800 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50"
+                                  title="Chỉnh sửa số lượng và đơn vị hiển thị"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                                  {editStockId === item.inventoryId ? '…' : 'Sửa'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteInventoryRow(item)}
+                                  disabled={deleteStockId === item.inventoryId || editStockId === item.inventoryId}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 dark:border-red-800 px-2 py-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                                  title="Xóa dòng tồn kho tại vị trí này (không xóa sản phẩm)"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  {deleteStockId === item.inventoryId ? '…' : 'Xóa'}
+                                </button>
+                              </div>
                             ) : (
                               <span className="text-xs text-slate-400">—</span>
                             )}
@@ -1326,6 +1436,97 @@ export default function InventoryPage() {
         </div>
       )}
 
+
+      {/* Chỉnh sửa tồn kho (Admin / Manager) */}
+      {showEditStockModal && editStockRow && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          onClick={closeEditStockModal}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold">Chỉnh sửa tồn kho</h3>
+              <button
+                type="button"
+                onClick={closeEditStockModal}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                aria-label="Đóng"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3 text-sm">
+              <p className="font-medium text-slate-900 dark:text-slate-100">{editStockRow.product}</p>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">{editStockRow.location}</p>
+            </div>
+
+            <form onSubmit={submitEditStock} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Tồn hiện tại
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editStockForm.quantity}
+                  onChange={(e) => setEditStockForm((f) => ({ ...f, quantity: e.target.value }))}
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Đơn vị hiển thị
+                </label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={editStockForm.unit}
+                  onChange={(e) => setEditStockForm((f) => ({ ...f, unit: e.target.value }))}
+                  placeholder={
+                    editStockRow.productBaseUnit
+                      ? `Để trống = mặc định (${editStockRow.productBaseUnit})`
+                      : 'Ví dụ: kg, thùng, quả'
+                  }
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                  Để trống để dùng đơn vị mặc định của sản phẩm trong hệ thống.
+                </p>
+              </div>
+
+              {editStockError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                  {editStockError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEditStockModal}
+                  className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={editStockSaving}
+                  className="h-10 px-4 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white text-sm font-semibold hover:bg-slate-800 dark:hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {editStockSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Import Ingredient Modal */}
       {showImportModal && (

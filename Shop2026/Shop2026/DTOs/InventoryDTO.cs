@@ -1,5 +1,11 @@
 namespace Shop2026.DTOs
 {
+    public class UpdateInventoryRowRequest
+    {
+        public decimal CurrentQuantity { get; set; }
+        public string? DisplayUnit { get; set; }
+    }
+
     public class InventoryResponse
     {
         public int InventoryId { get; set; }

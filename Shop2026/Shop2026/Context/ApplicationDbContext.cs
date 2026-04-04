@@ -159,6 +159,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.LocationId).HasColumnName("location_id");
             entity.Property(e => e.LocationType).HasMaxLength(20).HasColumnName("location_type");
             entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.DisplayUnit).HasMaxLength(50).HasColumnName("display_unit");
 
             entity.HasOne(d => d.Product).WithMany(p => p.Inventories)
                 .HasForeignKey(d => d.ProductId).HasConstraintName("FK__Inventory__produ__693CA210");

@@ -65,6 +65,24 @@ namespace Shop2026.Controllers
             }
         }
 
+        [HttpPut("stock/{inventoryId:int}")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
+        public IActionResult UpdateStockRow(int inventoryId, [FromBody] UpdateInventoryRowRequest body)
+        {
+            if (body == null)
+                return BadRequest(new { message = "Thiếu dữ liệu cập nhật." });
+
+            try
+            {
+                _service.UpdateInventoryRowAdmin(inventoryId, body.CurrentQuantity, body.DisplayUnit);
+                return Ok(new { message = "Đã cập nhật tồn kho." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("import")]
         [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult ImportRawMaterial([FromBody] ImportMaterialRequest request)

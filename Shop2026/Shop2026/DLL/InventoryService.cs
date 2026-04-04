@@ -238,6 +238,55 @@ namespace Shop2026.DLL
             ctx.SaveChanges();
         }
 
+        /// <summary>Admin/Manager: chỉnh sửa số lượng tồn và/hoặc đơn vị hiển thị tại một dòng Inventory.</summary>
+        public void UpdateInventoryRowAdmin(int inventoryId, decimal newQuantity, string? displayUnit)
+        {
+            if (newQuantity < 0)
+                throw new Exception("Số lượng tồn không được âm.");
+
+            var ctx = _repo.GetContext();
+            var inv = ctx.Inventories.Find(inventoryId)
+                ?? throw new Exception("Không tìm thấy bản ghi tồn kho.");
+
+            string? newUnit = string.IsNullOrWhiteSpace(displayUnit) ? null : displayUnit.Trim();
+            if (newUnit != null && newUnit.Length > 50)
+                throw new Exception("Đơn vị tối đa 50 ký tự.");
+
+            decimal oldQty = inv.CurrentQuantity ?? 0;
+            decimal delta = newQuantity - oldQty;
+            string? oldUnit = inv.DisplayUnit;
+            bool unitChanged = !string.Equals(oldUnit ?? "", newUnit ?? "", StringComparison.Ordinal);
+
+            if (delta == 0 && !unitChanged)
+                throw new Exception("Không có thay đổi.");
+
+            inv.CurrentQuantity = newQuantity;
+            inv.DisplayUnit = newUnit;
+            inv.LastUpdated = DateTime.Now;
+            _repo.UpdateInventory(inv);
+
+            var reasonParts = new List<string>();
+            if (delta != 0)
+                reasonParts.Add($"Điều chỉnh SL: {oldQty} → {newQuantity}");
+            if (unitChanged)
+                reasonParts.Add($"Đơn vị hiển thị: {(string.IsNullOrEmpty(oldUnit) ? "(mặc định SP)" : oldUnit)} → {(newUnit ?? "(mặc định SP)")}");
+
+            _repo.AddStockLog(new StockLog
+            {
+                ProductId = inv.ProductId,
+                LocationType = inv.LocationType,
+                LocationId = inv.LocationId,
+                ChangeQuantity = delta,
+                Reason = string.Join(" | ", reasonParts),
+                ReferenceId = inventoryId,
+                ReferenceType = "INVENTORY_ADJUST",
+                SupplierId = null,
+                CreatedAt = DateTime.Now
+            });
+
+            ctx.SaveChanges();
+        }
+
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
             var stock = _repo.GetStock(productId, locationType, locationId);

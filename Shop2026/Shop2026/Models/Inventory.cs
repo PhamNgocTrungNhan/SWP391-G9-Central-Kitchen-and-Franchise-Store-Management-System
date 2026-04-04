@@ -15,6 +15,9 @@ public partial class Inventory
 
     public decimal? CurrentQuantity { get; set; }
 
+    /// <summary>Đơn vị hiển thị tại dòng tồn kho; null = dùng đơn vị mặc định của sản phẩm.</summary>
+    public string? DisplayUnit { get; set; }
+
     public DateTime? LastUpdated { get; set; }
 
     public virtual Product? Product { get; set; }
