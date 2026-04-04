@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
   const candidates = [
@@ -38,7 +39,7 @@ function toShortDate(dateString) {
 }
 
 export default function InventoryPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const [activeTab, setActiveTab] = useState('stock')
   const [stock, setStock] = useState([])
   const [logs, setLogs] = useState([])

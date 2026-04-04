@@ -15,8 +15,8 @@ namespace Shop2026.Controllers
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest request)
         {
-            var token = _authService.Login(request);
-            if (token == null)
+            var result = _authService.Login(request);
+            if (result == null)
                 return Unauthorized(new
                 {
                     message = "Sai tài khoản hoặc mật khẩu"
@@ -24,7 +24,8 @@ namespace Shop2026.Controllers
 
             return Ok(new
             {
-                token
+                token = result.Value.Token,
+                role = result.Value.Role,
             });
         }
 

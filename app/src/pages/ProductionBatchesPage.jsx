@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, EmptyState, Field, PageHeader, SectionCard } from '../components/ui'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const blankAllocation = { OrderId: 0, AllocatedQuantity: 0 }
 
 export default function ProductionBatchesPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
 
   const [managedId, setManagedId] = useState('')
   const [createForm, setCreateForm] = useState({

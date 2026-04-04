@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function toKitchenItem(item) {
     const id = Number(item?.kitchenId ?? item?.id)
@@ -19,7 +20,7 @@ function toKitchenItem(item) {
 }
 
 export default function KitchenManagementPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const [kitchens, setKitchens] = useState([])
     const [loading, setLoading] = useState(false)
     const [keyword, setKeyword] = useState('')

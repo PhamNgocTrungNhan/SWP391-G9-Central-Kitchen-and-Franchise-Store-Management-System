@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
   const candidates = [
@@ -11,7 +12,7 @@ function getToken() {
 }
 
 export default function UsersPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const [users, setUsers] = useState([])
   const [stores, setStores] = useState([])
   const [kitchens, setKitchens] = useState([])
@@ -174,7 +175,7 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user`, {
+      const response = await fetch(`${apiBase}/User`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tk}`,
@@ -221,7 +222,7 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user/${selectedId}`, {
+      const response = await fetch(`${apiBase}/User/${selectedId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${tk}`,
@@ -266,7 +267,7 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user/${userId}`, {
+      const response = await fetch(`${apiBase}/User/${userId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${tk}` },
       })

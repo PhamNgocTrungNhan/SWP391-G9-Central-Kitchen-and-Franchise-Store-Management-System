@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const statusColors = {
     ok: 'bg-emerald-500',
@@ -142,7 +143,7 @@ function toInventoryLogRow(item, productNameById) {
 }
 
 export default function BatchTraceabilityPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
 
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')

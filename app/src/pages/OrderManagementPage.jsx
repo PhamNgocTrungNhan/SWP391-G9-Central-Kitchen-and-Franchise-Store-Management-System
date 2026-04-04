@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const statusStyle = {
     Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -91,7 +92,7 @@ function resolveDefaultStoreId() {
 }
 
 export default function OrderManagementPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const [orders, setOrders] = useState([])
     const [productNameMap, setProductNameMap] = useState({})
     const [loading, setLoading] = useState(false)

@@ -1,11 +1,12 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/apiConfig';
 import { decodeJwtPayload, saveUserRole } from '../utils/auth';
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+    const apiBase = getApiBaseUrl();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');

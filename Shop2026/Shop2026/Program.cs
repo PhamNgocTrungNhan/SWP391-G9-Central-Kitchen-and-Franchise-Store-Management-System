@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Text;
+using System.Threading.Tasks;
 
 using Shop2026.Context;
 using Shop2026.DAL;
@@ -47,6 +49,8 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
 {
+    // .NET 8: MapInboundClaims mặc định false → role trong JWT dễ không khớp RoleClaimType.
+    options.MapInboundClaims = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -55,7 +59,43 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "Shop2026",
         ValidAudience = builder.Configuration["Jwt:Audience"] ?? "Shop2026Users",
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        // MapInboundClaims = true → claim role từ JWT được map sang ClaimTypes.Role (URI dài).
+        // Nếu để RoleClaimType = "role" thì [Authorize(Roles)] không khớp → mọi user (kể cả ADMIN) bị 403.
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = ClaimTypes.Name,
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is not ClaimsIdentity id)
+                return Task.CompletedTask;
+
+            foreach (var claim in context.Principal.Claims)
+            {
+                var t = claim.Type;
+                var isRole = t == ClaimTypes.Role
+                    || string.Equals(t, "role", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t, "roles", StringComparison.OrdinalIgnoreCase)
+                    || t.EndsWith("/role", StringComparison.Ordinal);
+
+                if (!isRole)
+                    continue;
+
+                foreach (var part in claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (!id.HasClaim(ClaimTypes.Role, part) && !id.HasClaim("role", part))
+                    {
+                        id.AddClaim(new Claim(ClaimTypes.Role, part));
+                        id.AddClaim(new Claim("role", part));
+                    }
+                }
+            }
+
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -111,6 +151,23 @@ builder.Services.AddScoped<TransactionService>();
 
 builder.Services.AddHostedService<ExpiredStockScannerJob>();
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+        {
+            policy
+                .SetIsOriginAllowed(static origin =>
+                    !string.IsNullOrEmpty(origin) &&
+                    (origin.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
+                     origin.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase)))
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+    });
+}
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -121,6 +178,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

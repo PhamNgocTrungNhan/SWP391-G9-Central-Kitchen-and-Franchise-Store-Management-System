@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function parseArrayData(raw) {
     if (Array.isArray(raw)) return raw
@@ -69,7 +70,7 @@ function toInventoryLogRow(item, productNameById) {
 }
 
 export default function InventoryLogsPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [logs, setLogs] = useState([])

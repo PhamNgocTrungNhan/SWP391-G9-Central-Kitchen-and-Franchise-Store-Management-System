@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PageHeader, SectionCard } from '../components/ui'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
   const candidates = [
@@ -29,7 +30,7 @@ async function readApiErrorMessage(response, fallback = 'Có lỗi xảy ra!') {
 }
 
 export default function RecipesPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const [allRecipes, setAllRecipes] = useState([])
   const [filteredRecipes, setFilteredRecipes] = useState([])
   const [products, setProducts] = useState([])
@@ -56,10 +57,10 @@ export default function RecipesPage() {
       })
       if (response.ok) {
         const data = await response.json()
-        const finished = Array.isArray(data)
-          ? data.filter(p => p.productType === 'FINISHED' || p.productType === 'Finished')
-          : []
-        setProducts(finished)
+        // Backend GetManufacturedProducts() đã trả về mọi loại khác RAW (FINISHED, SEMI_FINISHED, ...).
+        // Không lọc thêm chỉ FINISHED — nếu không SEMI_FINISHED bị loại hết → không gọi recipes/parent → luôn 0 dòng.
+        const list = Array.isArray(data) ? data : []
+        setProducts(list)
       }
     } catch (err) {
       console.error(err)
@@ -101,11 +102,9 @@ export default function RecipesPage() {
       }
 
       const productsData = await response.json()
-      const finishedProducts = Array.isArray(productsData)
-        ? productsData.filter(p => p.productType === 'FINISHED' || p.productType === 'Finished')
-        : []
+      const parentProducts = Array.isArray(productsData) ? productsData : []
 
-      const promises = finishedProducts.map(async (product) => {
+      const promises = parentProducts.map(async (product) => {
         try {
           const res = await fetch(`${apiBase}/recipes/parent/${product.productId}`, {
             headers: { Authorization: `Bearer ${tk}` },

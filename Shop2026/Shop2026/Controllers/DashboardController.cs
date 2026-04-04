@@ -6,7 +6,8 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")] // Dữ liệu nhạy cảm của hệ thống, chỉ sếp mới được xem
+    // Đọc dashboard: toàn bộ vai trò đăng nhập hợp lệ (FE gọi khi vào trang chủ). Thao tác nhạy cảm vẫn nằm ở controller khác.
+    [Authorize(Roles = "ADMIN, MANAGER, KITCHEN_STAFF, STORE_STAFF, SUPPLY_COORDINATOR")]
     public class DashboardController : ControllerBase
     {
         private readonly DashboardService _service;

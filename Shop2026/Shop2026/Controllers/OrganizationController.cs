@@ -19,7 +19,7 @@ namespace Shop2026.Controllers
         // ================= STORE API (Thoải mái CRUD) =================
 
         [HttpGet("stores")]
-        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")] // STORE_STAFF cần xem danh sách store
+        [Authorize(Roles = "ADMIN, MANAGER, KITCHEN_STAFF, STORE_STAFF, SUPPLY_COORDINATOR")]
         public IActionResult GetStores()
         {
             var stores = _service.GetAllStores();
@@ -27,7 +27,6 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("stores")]
-        [Authorize(Roles = "ADMIN")]
         [Authorize(Roles = "ADMIN")]
         public IActionResult CreateStore([FromBody] Store store)
         {

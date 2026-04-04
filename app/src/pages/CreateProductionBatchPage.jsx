@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
     const candidates = [
@@ -215,7 +216,7 @@ function resolveDefaultStoreId() {
 }
 
 export default function CreateProductionBatchPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
 
     const [orders, setOrders] = useState([])
     const [ordersLoading, setOrdersLoading] = useState(false)

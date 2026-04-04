@@ -41,7 +41,14 @@ namespace Shop2026.DLL
                 }
 
                 // Chạy mỗi ngày 1 lần. Đổi thành TimeSpan.FromSeconds(30) nếu muốn test ngay.
-                await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }

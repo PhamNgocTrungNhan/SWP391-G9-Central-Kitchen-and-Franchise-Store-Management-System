@@ -1,6 +1,7 @@
 import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { Badge, SectionCard } from '../components/ui'
 import { useEffect, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const variantMeta = {
   success: {
@@ -42,7 +43,7 @@ function formatVnpayDate(vnpPayDate) {
 }
 
 export default function PaymentResultPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const [variant, setVariant] = useState('success')

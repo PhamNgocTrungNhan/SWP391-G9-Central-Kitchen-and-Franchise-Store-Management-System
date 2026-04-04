@@ -18,17 +18,26 @@ namespace Shop2026.DLL
             _config = config;
         }
 
-        public string? Login(LoginRequest request)
+        /// <summary>Token JWT và role đã chuẩn hóa (uppercase) để khớp [Authorize(Roles = "...")].</summary>
+        public (string Token, string Role)? Login(LoginRequest request)
         {
             var user = _repo.GetUserWithRole(request.Username);
 
             if (user == null || user.PasswordHash != request.Password)
                 return null;
 
+            if (user.Role == null || string.IsNullOrWhiteSpace(user.Role.RoleName))
+                return null;
+
+            // Khớp [Authorize(Roles = "MANAGER")] (so khớp role phân biệt hoa thường)
+            var roleClaim = user.Role.RoleName.Trim().ToUpperInvariant();
+
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, user.Role.RoleName),
+                new Claim(ClaimTypes.Role, roleClaim),
+                // Một số pipeline JWT chỉ giữ claim tên ngắn — thêm explicit để chắc chắn
+                new Claim("role", roleClaim),
                 new Claim("UserId", user.UserId.ToString())
             };
 
@@ -46,7 +55,8 @@ namespace Shop2026.DLL
                 signingCredentials: creds
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+            return (jwt, roleClaim);
         }
     }
 }

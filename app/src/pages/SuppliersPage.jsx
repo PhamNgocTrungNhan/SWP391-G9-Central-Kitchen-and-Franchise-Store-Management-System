@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function parseArrayData(raw) {
     if (Array.isArray(raw)) return raw
@@ -37,7 +38,7 @@ function normalizeSuppliers(raw) {
 }
 
 export default function SuppliersPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
 
     const [loading, setLoading] = useState(false)
     const [suppliers, setSuppliers] = useState([])

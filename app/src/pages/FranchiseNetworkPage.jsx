@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const statusStyle = {
     active: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
@@ -24,7 +25,7 @@ function toStoreItem(item) {
 }
 
 export default function FranchiseNetworkPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const [stores, setStores] = useState([])
     const [loading, setLoading] = useState(false)
     const [keyword, setKeyword] = useState('')

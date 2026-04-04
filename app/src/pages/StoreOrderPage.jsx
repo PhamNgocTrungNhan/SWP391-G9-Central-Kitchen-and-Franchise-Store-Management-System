@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const fallbackStoreOptions = [{ id: 1, name: 'Cửa hàng #1' }]
 const fallbackProductOptions = [
@@ -185,7 +186,7 @@ function normalizeSupplierList(raw) {
 }
 
 export default function StoreOrderPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const ordersPerPage = 12
     const [tab, setTab] = useState(0) // 0=Place Order, 1=My Orders
     const [inventoryFilter, setInventoryFilter] = useState('store')
@@ -1126,7 +1127,13 @@ export default function StoreOrderPage() {
 
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || 'Gửi đơn hàng thất bại.')
+                const hint =
+                    response.status === 403
+                        ? 'Không đủ quyền (cần ADMIN / MANAGER / STORE_STAFF). Hãy đăng xuất, đăng nhập lại sau khi cập nhật API; kiểm tra API /Auth/login trả về field role đúng.'
+                        : ''
+                throw new Error(
+                    [extractErrorMessage(data, 'Gửi đơn hàng thất bại.'), hint].filter(Boolean).join(' ')
+                )
             }
 
             const orderCode = data?.id || data?.orderId || data?.code

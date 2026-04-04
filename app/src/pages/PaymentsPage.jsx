@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { roles } from '../data/appSchema'
 import { getCurrentUserRole } from '../utils/auth'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
   const candidates = [
@@ -210,7 +211,7 @@ function refundDebug(step, details) {
 }
 
 export default function PaymentsPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const enableRefundAction = false
   const ordersPerPage = 10
   const currentRole = getCurrentUserRole()

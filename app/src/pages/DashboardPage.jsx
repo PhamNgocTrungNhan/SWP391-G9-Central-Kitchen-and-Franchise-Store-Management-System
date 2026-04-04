@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Badge, Field, PageHeader, SectionCard, StatCard } from '../components/ui'
+import { getApiBaseUrl } from '../utils/apiConfig'
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 function getToken() {
@@ -16,7 +17,7 @@ function getToken() {
 }
 
 export default function DashboardPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const apiBase = getApiBaseUrl()
   const [days, setDays] = useState('30')
   const [locationType, setLocationType] = useState('')
   const [productionData, setProductionData] = useState([])
@@ -86,8 +87,8 @@ export default function DashboardPage() {
     if (!tk) return
 
     try {
-      // Fetch all inventory items
-      const response = await fetch(`${apiBase}/Inventory`, {
+      // Backend: GET api/Inventory/stock (không có GET /api/Inventory)
+      const response = await fetch(`${apiBase}/Inventory/stock`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
 
@@ -103,8 +104,10 @@ export default function DashboardPage() {
       const alertItems = []
 
       data.forEach(item => {
-        const qty = item.quantity || 0
-        const min = item.minStockLevel || 0
+        const qty = Number(item.currentQuantity ?? item.quantity ?? 0)
+        const min = Number(
+          item.minimumQuantity ?? item.minQuantity ?? item.minStockLevel ?? item.reorderLevel ?? 0
+        )
 
         if (qty === 0) {
           outOfStock++

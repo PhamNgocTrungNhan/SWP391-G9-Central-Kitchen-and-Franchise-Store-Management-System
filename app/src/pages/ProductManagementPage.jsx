@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const productColumns = [
     { key: 'id', label: 'Mã sản phẩm' },
@@ -53,7 +54,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const normalizedScope = scope === 'ingredient' ? 'ingredient' : 'finished'
     const scopeMeta = scopeConfig[normalizedScope]
     const columns = normalizedScope === 'ingredient' ? ingredientColumns : productColumns
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
 
     const getToken = () => {
         const candidates = [

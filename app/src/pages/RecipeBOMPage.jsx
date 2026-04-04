@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 const bom = [
     { icon: 'grocery', type: 'raw', name: 'Premium Beef Patty (180g)', qty: '1.00', unit: 'pc', cost: '$1.80' },
@@ -16,7 +17,7 @@ const steps = [
 
 export default function RecipeBOMPage() {
     const [active, setActive] = useState(0)
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const [parentId, setParentId] = useState('1')
     const [recipeRows, setRecipeRows] = useState([])
     const [recipesLoading, setRecipesLoading] = useState(false)
@@ -128,7 +129,7 @@ export default function RecipeBOMPage() {
         const tk = token()
 
         try {
-            const response = await fetch(`${apiBase}/products`, {
+            const response = await fetch(`${apiBase}/Products`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',

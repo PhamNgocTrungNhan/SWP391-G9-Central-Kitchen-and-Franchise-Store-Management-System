@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getCurrentUserRole } from '../utils/auth'
+import { getApiBaseUrl } from '../utils/apiConfig'
 
 function getToken() {
     const candidates = [
@@ -12,7 +13,7 @@ function getToken() {
 }
 
 export default function StoresPage() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const apiBase = getApiBaseUrl()
     const currentRole = getCurrentUserRole()
     const isAdmin = currentRole === 'ADMIN'
 
