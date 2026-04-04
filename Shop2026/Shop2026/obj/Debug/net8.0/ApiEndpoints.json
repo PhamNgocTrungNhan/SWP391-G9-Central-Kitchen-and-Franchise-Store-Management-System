@@ -1,5 +1,52 @@
 [
   {
+    "ContainingType": "Shop2026.Controllers.AgentSyncController",
+    "Method": "PostSnapshot",
+    "RelativePath": "api/AgentSync/snapshot",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "body",
+        "Type": "Shop2026.DTOs.AgentSnapshotDto",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.AgentSyncController",
+    "Method": "GetStatus",
+    "RelativePath": "api/AgentSync/status",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.AgentSyncController",
+    "Method": "PostWebhook",
+    "RelativePath": "api/AgentSync/webhook",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "body",
+        "Type": "System.Text.Json.JsonElement",
+        "IsRequired": false
+      },
+      {
+        "Name": "X-Agent-Webhook-Secret",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "Shop2026.Controllers.AuthController",
     "Method": "Login",
     "RelativePath": "api/Auth/login",
