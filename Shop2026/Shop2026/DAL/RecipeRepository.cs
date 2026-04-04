@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Linq;
+using Microsoft.EntityFrameworkCore;
 using Shop2026.Context;
 using Shop2026.Models;
 
@@ -46,6 +47,17 @@ namespace Shop2026.DAL
         {
             _context.RecipesBoms.Remove(recipe);
             _context.SaveChanges();
+        }
+
+        /// <summary>Xóa mọi dòng trong bảng Recipes_BOM.</summary>
+        public int DeleteAll()
+        {
+            var rows = _context.RecipesBoms.ToList();
+            var n = rows.Count;
+            if (n == 0) return 0;
+            _context.RecipesBoms.RemoveRange(rows);
+            _context.SaveChanges();
+            return n;
         }
     }
 }

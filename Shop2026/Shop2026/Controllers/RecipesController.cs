@@ -65,6 +65,23 @@ namespace Shop2026.Controllers
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
+        /// <summary>Xóa toàn bộ định mức (mọi dòng Recipes_BOM). Chỉ ADMIN.</summary>
+        [HttpDelete("all")]
+        [Authorize(Roles = "ADMIN")]
+        public IActionResult DeleteAllBom()
+        {
+            try
+            {
+                var n = _service.DeleteAllBom();
+                return Ok(new
+                {
+                    message = n == 0 ? "Không có dòng BOM nào để xóa." : $"Đã xóa toàn bộ {n} dòng BOM.",
+                    deletedCount = n,
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {

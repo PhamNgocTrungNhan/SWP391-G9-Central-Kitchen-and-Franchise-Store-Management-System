@@ -116,5 +116,8 @@ namespace Shop2026.DLL
             var recipe = _repo.GetById(id) ?? throw new Exception("Không tìm thấy dòng định mức nguyên liệu");
             _repo.Delete(recipe);
         }
+
+        /// <returns>Số dòng đã xóa.</returns>
+        public int DeleteAllBom() => _repo.DeleteAll();
     }
 }
