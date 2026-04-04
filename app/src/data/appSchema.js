@@ -18,6 +18,13 @@ export const navigationGroups = [
     title: 'Tổng quan',
     items: [
       { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      {
+        to: '/agent-console',
+        key: 'agentConsole',
+        label: 'Agent đồng bộ',
+        icon: 'smart_toy',
+        roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR, roles.STORE_STAFF],
+      },
     ],
   },
   {
@@ -165,6 +172,32 @@ export const pageCatalog = {
       { method: 'POST', path: '/api/User', body: 'User' },
       { method: 'PUT', path: '/api/User/{id}', body: 'User' },
       { method: 'DELETE', path: '/api/User/{userId}' },
+    ],
+  },
+  agentConsole: {
+    controller: 'AgentConsole (FE) + AgentSync (BE)',
+    title: 'Agent vận hành & đồng bộ dữ liệu',
+    description:
+      'FE: polling nhiều GET + snapshot sessionStorage + POST /AgentSync/snapshot. BE: POST /AgentSync/webhook (secret) nhận sự kiện ngoài. Git chỉ trên máy dev.',
+    authorize: 'Giống dashboard + POST snapshot; webhook: secret header',
+    endpoints: [
+      { method: 'GET', path: '/api/Dashboard/production?days=7' },
+      { method: 'GET', path: '/api/Dashboard/orders' },
+      { method: 'GET', path: '/api/Dashboard/inventory' },
+      { method: 'GET', path: '/api/Inventory/stock' },
+      { method: 'GET', path: '/api/Inventory/logs' },
+      { method: 'GET', path: '/api/ProductionBatches' },
+      { method: 'GET', path: '/api/internal-orders' },
+      { method: 'GET', path: '/api/Organization/stores' },
+      { method: 'GET', path: '/api/Organization/kitchens' },
+      { method: 'GET', path: '/api/Products/raw' },
+      { method: 'GET', path: '/api/Products' },
+      { method: 'GET', path: '/api/Category' },
+      { method: 'GET', path: '/api/Suppliers' },
+      { method: 'GET', path: '/api/Transactions/summary' },
+      { method: 'GET', path: '/api/AgentSync/status' },
+      { method: 'POST', path: '/api/AgentSync/snapshot', body: 'AgentSnapshotDto' },
+      { method: 'POST', path: '/api/AgentSync/webhook', note: 'X-Agent-Webhook-Secret' },
     ],
   },
   payments: {

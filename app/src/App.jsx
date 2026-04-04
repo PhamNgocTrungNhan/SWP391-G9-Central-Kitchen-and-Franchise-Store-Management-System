@@ -25,6 +25,7 @@ import CreateProductionBatchPage from './pages/CreateProductionBatchPage'
 import UsersPage from './pages/UsersPage'
 import StoresPage from './pages/StoresPage'
 import LandingPage from './pages/LandingPage'
+import AgentConsolePage from './pages/AgentConsolePage'
 import PaymentsPage from './pages/PaymentsPage'
 import PaymentResultPage from './pages/PaymentResultPage'
 import Layout from './components/Layout'
@@ -62,6 +63,11 @@ function LoginOrHome() {
 
 const routeConfig = [
   { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  {
+    path: '/agent-console',
+    element: <AgentConsolePage />,
+    roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR, roles.STORE_STAFF],
+  },
 
   { path: '/inventory', element: <InventoryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
