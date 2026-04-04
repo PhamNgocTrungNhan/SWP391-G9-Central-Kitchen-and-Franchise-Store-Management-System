@@ -828,6 +828,46 @@
             "description": "Success"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Inventory"
+        ],
+        "parameters": [
+          {
+            "name": "inventoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInventoryRowRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInventoryRowRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInventoryRowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
       }
     },
     "/api/Inventory/import": {
@@ -2224,6 +2264,10 @@
             "format": "double",
             "nullable": true
           },
+          "displayUnit": {
+            "type": "string",
+            "nullable": true
+          },
           "lastUpdated": {
             "type": "string",
             "format": "date-time",
@@ -2797,6 +2841,20 @@
           },
           "isActive": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateInventoryRowRequest": {
+        "type": "object",
+        "properties": {
+          "currentQuantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "displayUnit": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

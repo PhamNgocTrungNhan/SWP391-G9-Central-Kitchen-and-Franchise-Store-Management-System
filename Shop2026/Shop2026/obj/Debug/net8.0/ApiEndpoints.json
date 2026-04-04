@@ -500,6 +500,27 @@
   },
   {
     "ContainingType": "Shop2026.Controllers.InventoryController",
+    "Method": "UpdateStockRow",
+    "RelativePath": "api/Inventory/stock/{inventoryId}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "inventoryId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "body",
+        "Type": "Shop2026.DTOs.UpdateInventoryRowRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Shop2026.Controllers.InventoryController",
     "Method": "GetStoreInventory",
     "RelativePath": "api/Inventory/store/{storeId}",
     "HttpMethod": "GET",
