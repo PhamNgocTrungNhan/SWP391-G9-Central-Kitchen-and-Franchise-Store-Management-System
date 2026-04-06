@@ -16,9 +16,10 @@ namespace Shop2026.DLL
         private readonly InventoryService _inventoryService;
         private readonly IConfiguration _configuration;
 
+        // ✅ BỔ SUNG PARTIAL_SHIPPING VÀO DANH SÁCH ĐƯỢC PHÉP THANH TOÁN
         private static readonly HashSet<string> PayableStatuses = new(StringComparer.OrdinalIgnoreCase)
         {
-            "APPROVED", "PROCESSING", "PRODUCED", "SHIPPING"
+            "APPROVED", "PROCESSING", "PRODUCED", "PARTIAL_SHIPPING", "SHIPPING"
         };
 
         public static readonly Dictionary<string, (string DisplayName, decimal Percentage)> RefundPolicies = new()
@@ -317,8 +318,10 @@ namespace Shop2026.DLL
                 throw new Exception("Không có quyền");
             if (!string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase))
                 throw new Exception("Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.");
-            if (order.OrderStatus.ToUpper() != "SHIPPING")
-                throw new Exception("Only SHIPPING orders can be confirmed");
+
+            // ✅ SỬA LẠI: Cho phép nhận hàng khi đơn đang ở SHIPPING hoặc PARTIAL_SHIPPING
+            if (order.OrderStatus.ToUpper() != "SHIPPING" && order.OrderStatus.ToUpper() != "PARTIAL_SHIPPING")
+                throw new Exception("Chỉ đơn hàng đang giao (SHIPPING / PARTIAL_SHIPPING) mới có thể xác nhận nhận hàng.");
 
             order.OrderStatus = "COMPLETED";
             order.UpdatedAt = DateTime.Now;
@@ -339,12 +342,14 @@ namespace Shop2026.DLL
             if (string.IsNullOrWhiteSpace(currentStatus))
                 throw new Exception("Order status is invalid");
 
+            // ✅ BỔ SUNG PARTIAL_SHIPPING VÀO CÂY TRẠNG THÁI
             var validTransitions = new Dictionary<string, List<string>>
             {
                 { "PENDING", new List<string> { "APPROVED", "REJECTED", "CANCELLED" } },
                 { "APPROVED", new List<string> { "PROCESSING", "PRODUCED" } },
-                { "PROCESSING", new List<string> { "PRODUCED", "SHIPPING" } },
-                { "PRODUCED", new List<string> { "SHIPPING" } },
+                { "PROCESSING", new List<string> { "PRODUCED", "PARTIAL_SHIPPING", "SHIPPING" } },
+                { "PRODUCED", new List<string> { "PARTIAL_SHIPPING", "SHIPPING" } },
+                { "PARTIAL_SHIPPING", new List<string> { "SHIPPING", "COMPLETED", "RETURNED" } },
                 { "SHIPPING", new List<string> { "COMPLETED", "RETURNED" } }
             };
 
@@ -372,14 +377,14 @@ namespace Shop2026.DLL
         }
 
         // ==========================================
-        // 🚚 API MỚI: XUẤT GIAO TỪNG PHẦN (PARTIAL SHIPPING)
+        // 🚚 API: XUẤT GIAO TỪNG PHẦN (CÓ UPDATE TRẠNG THÁI MỚI)
         // ==========================================
         public InternalOrder? ShipItemsPartial(int orderId, List<ShipItemRequest> items)
         {
             var order = _orderRepository.GetOrderDetail(orderId) ?? throw new Exception("Không tìm thấy đơn hàng");
 
-            // Chỉ cho phép giao khi đơn đang xử lý hoặc đã sản xuất
-            if (order.OrderStatus != "APPROVED" && order.OrderStatus != "PROCESSING" && order.OrderStatus != "PRODUCED")
+            // ✅ Cho phép giao thêm khi đơn đang ở PARTIAL_SHIPPING
+            if (order.OrderStatus != "APPROVED" && order.OrderStatus != "PROCESSING" && order.OrderStatus != "PRODUCED" && order.OrderStatus != "PARTIAL_SHIPPING")
                 throw new Exception($"Không thể xuất giao ở trạng thái {order.OrderStatus}.");
 
             using var transaction = _orderRepository.GetContext().Database.BeginTransaction();
@@ -422,10 +427,10 @@ namespace Shop2026.DLL
                 {
                     order.OrderStatus = "SHIPPING";
                 }
-                else if (order.OrderStatus == "APPROVED" || order.OrderStatus == "PRODUCED")
+                else
                 {
-                    // Chuyển sang PROCESSING để hiểu là đang trong quá trình chuẩn bị/giao dở dang
-                    order.OrderStatus = "PROCESSING";
+                    // ✅ GÁN TRẠNG THÁI MỚI VÀO ĐÂY
+                    order.OrderStatus = "PARTIAL_SHIPPING";
                 }
 
                 order.UpdatedAt = DateTime.Now;
@@ -448,8 +453,10 @@ namespace Shop2026.DLL
                 return null;
             if (order.StoreId != storeId)
                 throw new Exception("Không có quyền thao tác đơn này");
-            if (order.OrderStatus.ToUpper() != "SHIPPING")
-                throw new Exception("Chỉ có thể trả hàng khi đơn đang giao (SHIPPING)");
+
+            // ✅ SỬA LẠI: Cho phép trả hàng khi đang giao dở (PARTIAL) hoặc giao xong (SHIPPING)
+            if (order.OrderStatus.ToUpper() != "SHIPPING" && order.OrderStatus.ToUpper() != "PARTIAL_SHIPPING")
+                throw new Exception("Chỉ có thể trả hàng khi đơn đang giao (PARTIAL_SHIPPING / SHIPPING)");
 
             var orderWithDetails = _orderRepository.GetOrderDetail(orderId);
             if (orderWithDetails == null || !orderWithDetails.InternalOrderDetails.Any())

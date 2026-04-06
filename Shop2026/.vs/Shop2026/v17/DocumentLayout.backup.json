@@ -7,6 +7,14 @@
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\internalorderservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\productservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\productservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -17,10 +25,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\productionbatchescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\recipescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -91,10 +95,6 @@
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\inventorycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|e:\\study\\swp\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dtos\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dtos\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -118,24 +118,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "ProductService.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DLL\\ProductService.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
-              "RelativeToolTip": "Shop2026\\DLL\\ProductService.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-03T15:05:51.558Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "ProductRepository.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductRepository.cs",
               "RelativeDocumentMoniker": "Shop2026\\DAL\\ProductRepository.cs",
@@ -143,38 +130,35 @@
               "RelativeToolTip": "Shop2026\\DAL\\ProductRepository.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-03T15:05:48.68Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-03T15:05:48.68Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "RecipeService.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\RecipeService.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\RecipeService.cs",
+              "ViewState": "AgIAAAoAAAAAAAAAAAAmwFQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:52:41.274Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 7,
-              "Title": "RecipeService.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DLL\\RecipeService.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\RecipeService.cs*",
-              "RelativeToolTip": "Shop2026\\DLL\\RecipeService.cs*",
-              "ViewState": "AgIAAAoAAAAAAAAAAAAmwFQAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:52:41.274Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
               "Title": "ProductionBatchService.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductionBatchService.cs",
               "RelativeDocumentMoniker": "Shop2026\\DLL\\ProductionBatchService.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductionBatchService.cs*",
-              "RelativeToolTip": "Shop2026\\DLL\\ProductionBatchService.cs*",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductionBatchService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\ProductionBatchService.cs",
               "ViewState": "AgIAANwAAAAAAAAAAAAmwAQBAABtAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T21:01:27.778Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-01T21:01:27.778Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "ProductsController.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductsController.cs",
               "RelativeDocumentMoniker": "Shop2026\\Controllers\\ProductsController.cs",
@@ -182,8 +166,7 @@
               "RelativeToolTip": "Shop2026\\Controllers\\ProductsController.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T21:01:09.706Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-01T21:01:09.706Z"
             },
             {
               "$type": "Document",
@@ -191,179 +174,25 @@
               "Title": "InternalOrderService.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InternalOrderService.cs",
               "RelativeDocumentMoniker": "Shop2026\\DLL\\InternalOrderService.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InternalOrderService.cs",
-              "RelativeToolTip": "Shop2026\\DLL\\InternalOrderService.cs",
-              "ViewState": "AgIAAMQAAAAAAAAAAAAAwNcAAABxAAAAAAAAAA==",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InternalOrderService.cs*",
+              "RelativeToolTip": "Shop2026\\DLL\\InternalOrderService.cs*",
+              "ViewState": "AgIAAOMBAAAAAAAAAAAmwPYBAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-03-30T08:35:19.723Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "CompleteBatchRequest.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DTOs\\CompleteBatchRequest.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs*",
-              "RelativeToolTip": "Shop2026\\DTOs\\CompleteBatchRequest.cs*",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAACgAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-03T15:00:10.348Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "RecipesController.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Controllers\\RecipesController.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
-              "RelativeToolTip": "Shop2026\\Controllers\\RecipesController.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAmwEQAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:52:58.402Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 1,
               "Title": "ProductionBatchesController.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductionBatchesController.cs",
               "RelativeDocumentMoniker": "Shop2026\\Controllers\\ProductionBatchesController.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductionBatchesController.cs*",
-              "RelativeToolTip": "Shop2026\\Controllers\\ProductionBatchesController.cs*",
-              "ViewState": "AgIAAGwAAAAAAAAAAAAmwHgAAAANAAAAAAAAAA==",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\ProductionBatchesController.cs",
+              "ViewState": "AgIAAF0AAAAAAAAAAAAmwHIAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-04-01T21:01:10.842Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "ApplicationDbContext.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Context\\ApplicationDbContext.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs*",
-              "RelativeToolTip": "Shop2026\\Context\\ApplicationDbContext.cs*",
-              "ViewState": "AgIAAHQAAAAAAAAAAAAmwHABAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:38:48.364Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
-              "Title": "ProductionBatch.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatch.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs*",
-              "RelativeToolTip": "Shop2026\\Models\\ProductionBatch.cs*",
-              "ViewState": "AgIAAAYAAAAAAAAAAAAAABkAAAB8AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:35:48.519Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 12,
-              "Title": "RecipesBom.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Models\\RecipesBom.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs*",
-              "RelativeToolTip": "Shop2026\\Models\\RecipesBom.cs*",
-              "ViewState": "AgIAAA8AAAAAAAAAAAAmwCUAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:39:04.852Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 13,
-              "Title": "Product.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Models\\Product.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs*",
-              "RelativeToolTip": "Shop2026\\Models\\Product.cs*",
-              "ViewState": "AgIAACIAAAAAAAAAAAAmwDEAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:39:22.038Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 14,
-              "Title": "ProductionBatchMaterial.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatchMaterial.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs*",
-              "RelativeToolTip": "Shop2026\\Models\\ProductionBatchMaterial.cs*",
-              "ViewState": "AgIAABIAAAAAAAAAAAAAACMAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-03T14:55:53.079Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "RecipeRequest.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DTOs\\RecipeRequest.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs*",
-              "RelativeToolTip": "Shop2026\\DTOs\\RecipeRequest.cs*",
-              "ViewState": "AgIAAEgAAAAAAAAAAAAmwFoAAAAKAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T20:39:50.796Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 16,
-              "Title": "ShipItemRequest.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DTOs\\ShipItemRequest.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
-              "RelativeToolTip": "Shop2026\\DTOs\\ShipItemRequest.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T21:15:29.912Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 18,
-              "Title": "InternalOrderRepository.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DAL\\InternalOrderRepository.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
-              "RelativeToolTip": "Shop2026\\DAL\\InternalOrderRepository.cs",
-              "ViewState": "AgIAALMAAAAAAAAAAAAmwM0AAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:40:08.532Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 15,
-              "Title": "InventoryService.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DLL\\InventoryService.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
-              "RelativeToolTip": "Shop2026\\DLL\\InventoryService.cs",
-              "ViewState": "AgIAADwAAAAAAAAAAAAmwAoBAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-01T21:01:42.246Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 17,
-              "Title": "InternalOrderController.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InternalOrderController.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
-              "RelativeToolTip": "Shop2026\\Controllers\\InternalOrderController.cs",
-              "ViewState": "AgIAAIoBAAAAAAAAAAAmwLkBAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:35:33.673Z"
             },
             {
               "$type": "Bookmark",
@@ -375,7 +204,175 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "ProductService.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\ProductService.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\ProductService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\ProductService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-03T15:05:51.558Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "InventoryController.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InventoryController.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\InventoryController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAmwEUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-30T08:35:32.268Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "CompleteBatchRequest.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\CompleteBatchRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-03T15:00:10.348Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "RecipesController.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\RecipesController.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\RecipesController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\RecipesController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAmwEQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:52:58.402Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "ApplicationDbContext.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Context\\ApplicationDbContext.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Context\\ApplicationDbContext.cs",
+              "RelativeToolTip": "Shop2026\\Context\\ApplicationDbContext.cs",
+              "ViewState": "AgIAAHQAAAAAAAAAAAAmwHABAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:38:48.364Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "ProductionBatch.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatch.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatch.cs",
+              "RelativeToolTip": "Shop2026\\Models\\ProductionBatch.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABkAAAB8AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:35:48.519Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "RecipesBom.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\RecipesBom.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\RecipesBom.cs",
+              "RelativeToolTip": "Shop2026\\Models\\RecipesBom.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAmwCUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:39:04.852Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "Product.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\Product.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\Product.cs",
+              "RelativeToolTip": "Shop2026\\Models\\Product.cs",
+              "ViewState": "AgIAACIAAAAAAAAAAAAmwDEAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:39:22.038Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "ProductionBatchMaterial.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "RelativeToolTip": "Shop2026\\Models\\ProductionBatchMaterial.cs",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAACMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-03T14:55:53.079Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "RecipeRequest.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\RecipeRequest.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\RecipeRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\RecipeRequest.cs",
+              "ViewState": "AgIAAEgAAAAAAAAAAAAmwFoAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T20:39:50.796Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "ShipItemRequest.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DTOs\\ShipItemRequest.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DTOs\\ShipItemRequest.cs",
+              "RelativeToolTip": "Shop2026\\DTOs\\ShipItemRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T21:15:29.912Z"
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 19,
+              "Title": "InternalOrderRepository.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DAL\\InternalOrderRepository.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
+              "RelativeToolTip": "Shop2026\\DAL\\InternalOrderRepository.cs",
+              "ViewState": "AgIAALMAAAAAAAAAAAAmwM0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-30T08:40:08.532Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "InventoryService.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\InventoryService.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\InventoryService.cs",
+              "ViewState": "AgIAADwAAAAAAAAAAAAmwAoBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T21:01:42.246Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "InternalOrderController.cs",
+              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
+              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InternalOrderController.cs",
+              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
+              "RelativeToolTip": "Shop2026\\Controllers\\InternalOrderController.cs",
+              "ViewState": "AgIAAIoBAAAAAAAAAAAmwLkBAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-30T08:35:33.673Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
               "Title": "appsettings.json",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\appsettings.json",
               "RelativeDocumentMoniker": "Shop2026\\appsettings.json",
@@ -387,7 +384,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 20,
+              "DocumentIndex": 21,
               "Title": "ProductionBatchRepository.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\ProductionBatchRepository.cs",
               "RelativeDocumentMoniker": "Shop2026\\DAL\\ProductionBatchRepository.cs",
@@ -399,7 +396,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 21,
+              "DocumentIndex": 22,
               "Title": "Program.cs",
               "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Program.cs",
               "RelativeDocumentMoniker": "Shop2026\\Program.cs",
@@ -408,18 +405,6 @@
               "ViewState": "AgIAAEQAAAAAAAAAAAAmwFUAAAAsAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-03-30T08:16:46.53Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 22,
-              "Title": "InventoryController.cs",
-              "DocumentMoniker": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
-              "RelativeDocumentMoniker": "Shop2026\\Controllers\\InventoryController.cs",
-              "ToolTip": "E:\\Study\\SWP\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InventoryController.cs",
-              "RelativeToolTip": "Shop2026\\Controllers\\InventoryController.cs",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAmwEUAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-30T08:35:32.268Z"
             },
             {
               "$type": "Document",
