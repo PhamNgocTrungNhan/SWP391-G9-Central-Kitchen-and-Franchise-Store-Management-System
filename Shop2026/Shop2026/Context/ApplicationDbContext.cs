@@ -260,7 +260,7 @@ public partial class ApplicationDbContext : DbContext
             // ✅ CẤU HÌNH MAX WASTE THEO TỪNG CÔNG THỨC
             entity.Property(e => e.MaxWastePercent)
                 .HasColumnType("decimal(5, 2)")
-                .HasColumnName("max_waste_percent")
+                .HasColumnName("waste_allowance_percent")
                 .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)

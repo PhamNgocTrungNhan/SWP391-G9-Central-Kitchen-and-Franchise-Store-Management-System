@@ -47,29 +47,20 @@ namespace Shop2026.DLL
         }
 
         // ==========================================
-        // ✅ THUẬT TOÁN ĐỆ QUY TÍNH HAO HỤT MỚI
+        // ✅ THUẬT TOÁN ĐỆ QUY TÍNH NGUYÊN LIỆU THEO BOM GỐC
+        // Không tự cộng hao hụt vào định mức trừ kho cơ bản.
         // ==========================================
         private void CalculateRawMaterialsRecursive(int productId, decimal requiredNetQty, Dictionary<int, decimal> aggregatedRawMaterials)
         {
             var product = _repo.GetProduct(productId) ?? throw new Exception($"Không tìm thấy sản phẩm ID {productId}");
 
-            // 1. Lấy tỷ lệ hao hụt từ bảng Product
-            decimal wastePercent = product.DefaultWastePercent ?? 0m;
-            if (wastePercent >= 100)
-                throw new Exception($"Sản phẩm '{product.ProductName}' có tỷ lệ hao hụt không hợp lệ ({wastePercent}%). Hao hụt phải < 100%.");
-
-            // 2. Tính lượng Gross (Thô) thực tế cần xuất kho (hoặc cần sản xuất)
-            decimal grossQty = (wastePercent > 0)
-                               ? requiredNetQty / (1m - (wastePercent / 100m))
-                               : requiredNetQty;
-
             // Nếu chạm đáy là đồ RAW (Bột, Thịt...) -> Ghi nhận lượng Gross vào sổ để chuẩn bị xuất kho
             if (product.ProductType == "RAW")
             {
                 if (aggregatedRawMaterials.ContainsKey(productId))
-                    aggregatedRawMaterials[productId] += grossQty;
+                    aggregatedRawMaterials[productId] += requiredNetQty;
                 else
-                    aggregatedRawMaterials[productId] = grossQty;
+                    aggregatedRawMaterials[productId] = requiredNetQty;
                 return;
             }
 
@@ -78,11 +69,11 @@ namespace Shop2026.DLL
             if (!recipes.Any())
                 throw new Exception($"Sản phẩm '{product.ProductName}' cần được sản xuất nhưng chưa cấu hình công thức (BOM).");
 
-            // Phân rã tiếp các nguyên liệu con để gom đủ lượng GrossQty của cha
+            // Phân rã tiếp các nguyên liệu con theo định mức BOM gốc.
             foreach (var recipe in recipes)
             {
                 // Mỗi cái bánh cha cần 'QuantityRequired' nguyên liệu con.
-                decimal childNetQty = grossQty * recipe.QuantityRequired;
+                decimal childNetQty = requiredNetQty * recipe.QuantityRequired;
 
                 // Gọi đệ quy tiếp tục chui xuống dưới
                 CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childNetQty, aggregatedRawMaterials);
