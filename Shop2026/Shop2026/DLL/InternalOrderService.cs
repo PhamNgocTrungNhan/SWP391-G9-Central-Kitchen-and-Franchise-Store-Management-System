@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Shop2026.DLL
 {
@@ -117,26 +119,35 @@ namespace Shop2026.DLL
             if (order.PaymentStatus == "PAID")
                 throw new Exception("Đơn này đã thanh toán rồi!");
 
-            string vnp_TmnCode = _configuration["VNPAY:TmnCode"];
-            string vnp_HashSecret = _configuration["VNPAY:HashSecret"];
-            string vnp_Url = _configuration["VNPAY:BaseUrl"];
+            var vnpConfig = GetVnPayConfig();
+            decimal amount = order.TotalAmount ?? 0m;
+            if (amount <= 0)
+                throw new Exception("Đơn hàng không có số tiền hợp lệ để thanh toán VNPAY.");
+
+            var resolvedReturnUrl = !string.IsNullOrWhiteSpace(returnUrl)
+                ? returnUrl
+                : vnpConfig.DefaultReturnUrl;
+
+            if (string.IsNullOrWhiteSpace(resolvedReturnUrl))
+                throw new Exception("Thiếu cấu hình VNPAY return URL.");
 
             VnPayLibrary vnpay = new VnPayLibrary();
 
             vnpay.AddRequestData("vnp_Version", "2.1.0");
             vnpay.AddRequestData("vnp_Command", "pay");
-            vnpay.AddRequestData("vnp_TmnCode", vnp_TmnCode);
-            vnpay.AddRequestData("vnp_Amount", ((long)(order.TotalAmount * 100)).ToString());
+            vnpay.AddRequestData("vnp_TmnCode", vnpConfig.TmnCode);
+            vnpay.AddRequestData("vnp_Amount", ((long)(amount * 100)).ToString());
             vnpay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
+            vnpay.AddRequestData("vnp_ExpireDate", DateTime.Now.AddMinutes(15).ToString("yyyyMMddHHmmss"));
             vnpay.AddRequestData("vnp_CurrCode", "VND");
-            vnpay.AddRequestData("vnp_IpAddr", ipAddress);
+            vnpay.AddRequestData("vnp_IpAddr", NormalizeIpAddress(ipAddress));
             vnpay.AddRequestData("vnp_Locale", "vn");
             vnpay.AddRequestData("vnp_OrderInfo", $"Thanh toan don hang {order.OrderId}");
             vnpay.AddRequestData("vnp_OrderType", "other");
-            vnpay.AddRequestData("vnp_ReturnUrl", returnUrl);
-            vnpay.AddRequestData("vnp_TxnRef", order.OrderId.ToString() + "_" + DateTime.Now.Ticks.ToString());
+            vnpay.AddRequestData("vnp_ReturnUrl", resolvedReturnUrl);
+            vnpay.AddRequestData("vnp_TxnRef", $"{order.OrderId}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
 
-            return vnpay.CreateRequestUrl(vnp_Url, vnp_HashSecret);
+            return vnpay.CreateRequestUrl(vnpConfig.BaseUrl, vnpConfig.HashSecret);
         }
 
         public bool ProcessVnPayIPN(Dictionary<string, string> requestData)
@@ -148,19 +159,21 @@ namespace Shop2026.DLL
                     vnpay.AddResponseData(kv.Key, kv.Value);
             }
 
-            string vnp_HashSecret = _configuration["VNPAY:HashSecret"];
+            var vnpConfig = GetVnPayConfig();
             string vnp_SecureHash = requestData.ContainsKey("vnp_SecureHash") ? requestData["vnp_SecureHash"] : "";
 
-            if (!vnpay.ValidateSignature(vnp_SecureHash, vnp_HashSecret))
+            if (!vnpay.ValidateSignature(vnp_SecureHash, vnpConfig.HashSecret))
                 return false;
 
             if (vnpay.GetResponseData("vnp_ResponseCode") == "00" && vnpay.GetResponseData("vnp_TransactionStatus") == "00")
             {
                 string txnRef = vnpay.GetResponseData("vnp_TxnRef");
-                int orderId = int.Parse(txnRef.Split('_')[0]);
+                var orderRef = txnRef?.Split('_').FirstOrDefault();
+                if (!int.TryParse(orderRef, out int orderId))
+                    return false;
 
                 var order = _orderRepository.GetOrderById(orderId);
-                if (order != null && order.PaymentStatus != "PAID")
+                if (order != null && !string.Equals(order.PaymentStatus, "PAID", StringComparison.OrdinalIgnoreCase))
                 {
                     order.PaymentStatus = "PAID";
                     order.UpdatedAt = DateTime.Now;
@@ -180,6 +193,40 @@ namespace Shop2026.DLL
                 return true;
             }
             return false;
+        }
+
+        private (string TmnCode, string HashSecret, string BaseUrl, string DefaultReturnUrl) GetVnPayConfig()
+        {
+            var tmnCode = _configuration["VNPAY:TmnCode"];
+            var hashSecret = _configuration["VNPAY:HashSecret"];
+            var baseUrl = _configuration["VNPAY:BaseUrl"];
+            var defaultReturnUrl = _configuration["VNPAY:DefaultReturnUrl"];
+
+            if (string.IsNullOrWhiteSpace(tmnCode)
+                || string.IsNullOrWhiteSpace(hashSecret)
+                || string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new Exception("Thiếu cấu hình VNPAY (TmnCode/HashSecret/BaseUrl).");
+            }
+
+            return (tmnCode, hashSecret, baseUrl, defaultReturnUrl ?? string.Empty);
+        }
+
+        private static string NormalizeIpAddress(string ipAddress)
+        {
+            if (string.IsNullOrWhiteSpace(ipAddress))
+                return "127.0.0.1";
+
+            if (!IPAddress.TryParse(ipAddress, out var parsed))
+                return "127.0.0.1";
+
+            if (IPAddress.IsLoopback(parsed))
+                return "127.0.0.1";
+
+            if (parsed.AddressFamily == AddressFamily.InterNetworkV6 && parsed.IsIPv4MappedToIPv6)
+                return parsed.MapToIPv4().ToString();
+
+            return parsed.ToString();
         }
 
         public Transaction? RefundOrderByPolicy(int orderId, int storeId, string policyCode, string? additionalNote)
