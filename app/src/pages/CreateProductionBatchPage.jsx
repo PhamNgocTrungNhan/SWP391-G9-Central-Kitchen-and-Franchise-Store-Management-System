@@ -1760,34 +1760,35 @@ export default function CreateProductionBatchPage() {
                                                     const rowInvalid = Number.isFinite(enteredWasted) && enteredWasted > maxWasteQty + 0.000001
 
                                                     return (
-                                                    <tr key={`${usage.materialId}-${index}`}>
-                                                        <td className="px-3 py-2 text-sm">
-                                                            <p className="font-medium">{usage.materialName}</p>
-                                                            <p className="text-xs text-slate-500 dark:text-slate-400">ID #{usage.materialId} {usage.materialUnit ? `• ${usage.materialUnit}` : ''}</p>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm">{usage.quantityRequired}</td>
-                                                        <td className="px-3 py-2 text-sm">{usage.maxWastePercent}%</td>
-                                                        <td className="px-3 py-2 text-sm">
-                                                            <p className="font-semibold">{expectedNet}</p>
-                                                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">= Định mức × SL thực tế</p>
-                                                        </td>
-                                                        <td className="px-3 py-2">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                max={maxWasteQty}
-                                                                step="0.0001"
-                                                                value={usage.actualWasted}
-                                                                onChange={(e) => updateCompleteMaterialUsage(index, 'actualWasted', e.target.value)}
-                                                                className={`w-full h-9 rounded-lg border bg-white dark:bg-slate-800 px-2 text-sm outline-none focus:border-primary ${rowInvalid ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}
-                                                                required
-                                                            />
-                                                            <p className={`mt-1 text-[11px] ${rowInvalid ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                                Tối đa {maxWasteQty} (theo {usage.maxWastePercent}%)
-                                                            </p>
-                                                        </td>
-                                                    </tr>
-                                                )})}
+                                                        <tr key={`${usage.materialId}-${index}`}>
+                                                            <td className="px-3 py-2 text-sm">
+                                                                <p className="font-medium">{usage.materialName}</p>
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400">ID #{usage.materialId} {usage.materialUnit ? `• ${usage.materialUnit}` : ''}</p>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-sm">{usage.quantityRequired}</td>
+                                                            <td className="px-3 py-2 text-sm">{usage.maxWastePercent}%</td>
+                                                            <td className="px-3 py-2 text-sm">
+                                                                <p className="font-semibold">{expectedNet}</p>
+                                                                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">= Định mức × SL thực tế</p>
+                                                            </td>
+                                                            <td className="px-3 py-2">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={maxWasteQty}
+                                                                    step="0.0001"
+                                                                    value={usage.actualWasted}
+                                                                    onChange={(e) => updateCompleteMaterialUsage(index, 'actualWasted', e.target.value)}
+                                                                    className={`w-full h-9 rounded-lg border bg-white dark:bg-slate-800 px-2 text-sm outline-none focus:border-primary ${rowInvalid ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}
+                                                                    required
+                                                                />
+                                                                <p className={`mt-1 text-[11px] ${rowInvalid ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                                    Tối đa {maxWasteQty} (theo {usage.maxWastePercent}%)
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
