@@ -1,328 +1,797 @@
-import { useEffect, useState } from 'react'
-import { PageHeader, SectionCard } from '../components/ui'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+function parseArrayData(raw) {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.items)) return raw.items
+  if (Array.isArray(raw?.data)) return raw.data
+  return []
+}
 
 function getToken() {
   const candidates = [
     localStorage.getItem('auth_token'),
     localStorage.getItem('token'),
     localStorage.getItem('access_token'),
+    sessionStorage.getItem('auth_token'),
+    sessionStorage.getItem('token'),
+    sessionStorage.getItem('access_token'),
   ]
   const first = candidates.find((item) => String(item || '').trim())
   return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
 }
 
-export default function RecipesPage() {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
-  const [allRecipes, setAllRecipes] = useState([])
-  const [filteredRecipes, setFilteredRecipes] = useState([])
-  const [products, setProducts] = useState([])
-  const [materials, setMaterials] = useState([])
-  const [filterProductId, setFilterProductId] = useState('')
-  const [searchText, setSearchText] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({
-    parentProductId: '',
-    materialId: '',
-    quantityRequired: '',
-    wasteAllowancePercent: '0',
+function normalizeProduct(item) {
+  const id = Number(item?.productId ?? item?.id)
+  if (!id || id < 1) return null
+
+  const normalizedType = String(item?.productType || '').toUpperCase().trim()
+  const productType = normalizedType === 'SEMI-FINISHED' || normalizedType === 'SEMI_FINISH' || normalizedType === 'SEMIFINISHED'
+    ? 'SEMI_FINISHED'
+    : normalizedType
+
+  return {
+    id,
+    name: String(item?.productName || item?.name || `Sản phẩm #${id}`),
+    baseUnit: String(item?.baseUnit || '').trim(),
+    productType,
+  }
+}
+
+function normalizeRecipe(item) {
+  const recipeId = Number(item?.recipeId ?? item?.id ?? item?.bomId)
+  const parentProductId = Number(item?.parentProductId ?? item?.parentId ?? item?.parentProduct?.productId ?? item?.parentProduct?.id ?? 0)
+  const materialId = Number(item?.materialId ?? item?.material?.productId ?? item?.material?.id ?? 0)
+
+  if (!recipeId || !parentProductId || !materialId) return null
+
+  return {
+    recipeId,
+    parentProductId,
+    materialId,
+    quantityRequired: Number(item?.quantityRequired ?? 0),
+    maxWastePercent: Number(item?.maxWastePercent ?? item?.max_waste_percent ?? item?.wasteAllowancePercent ?? item?.waste_allowance_percent ?? 0),
+  }
+}
+
+const blankMaterialLine = () => ({ materialId: '', quantityRequired: '', maxWastePercent: '0' })
+const API_TIMEOUT_MS = 15000
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = API_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const method = options?.method || 'GET'
+      throw new Error(`Yeu cau bi timeout sau ${Math.round(timeoutMs / 1000)}s (${method} ${url}).`)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
+async function readResponsePayload(response) {
+  const rawText = await response.text().catch(() => '')
+  if (!rawText) return { json: {}, text: '' }
+
+  try {
+    return { json: JSON.parse(rawText), text: rawText }
+  } catch {
+    return { json: {}, text: rawText }
+  }
+}
+
+function logRecipesApi({ stage, method, url, payload, status, data, rawText, attempt, totalAttempts }) {
+  const attemptText = Number.isFinite(attempt) && Number.isFinite(totalAttempts)
+    ? ` [${attempt}/${totalAttempts}]`
+    : ''
+
+  console.groupCollapsed(`[RecipesAPI] ${stage}${attemptText} ${method} ${url} -> ${status}`)
+  if (payload !== undefined) {
+    console.log('request payload:', payload)
+  }
+  console.log('response data:', data)
+  if (rawText && typeof rawText === 'string') {
+    console.log('response text:', rawText)
+  }
+  console.groupEnd()
+}
+
+function resolveApiErrorMessage(data, fallback) {
+  if (typeof data === 'string' && data.trim()) return data.trim()
+
+  const message = data?.message || data?.title || data?.error
+  if (message) return String(message)
+
+  if (data?.errors && typeof data.errors === 'object') {
+    const firstKey = Object.keys(data.errors)[0]
+    const firstValue = firstKey ? data.errors[firstKey] : null
+    const firstText = Array.isArray(firstValue) ? firstValue[0] : firstValue
+    if (firstKey && firstText) {
+      return `${firstKey}: ${firstText}`
+    }
+    if (firstText) {
+      return String(firstText)
+    }
+  }
+
+  return fallback
+}
+
+function isEntitySaveError(message) {
+  const normalized = String(message || '').toLowerCase()
+  return normalized.includes('error occurred while saving the entity changes')
+    || normalized.includes('saving the entity changes')
+}
+
+async function createBulkRecipesWithRetry(apiBase, token, parentProductId, materials) {
+  const requestUrl = `${apiBase}/Recipes`
+  const payload = {
+    parentProductId,
+    materials: materials.map((item) => ({
+      materialId: item.materialId,
+      quantityRequired: item.quantityRequired,
+      maxWastePercent: item.maxWastePercent,
+    })),
+  }
+
+  const response = await fetchWithTimeout(requestUrl, {
+    method: 'POST',
+    headers: {
+      accept: '*/*',
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   })
 
-  const fetchProducts = async () => {
-    const tk = getToken()
-    if (!tk) return
+  const { json: data, text: rawText } = await readResponsePayload(response)
+  logRecipesApi({
+    stage: 'create-bulk',
+    method: 'POST',
+    url: requestUrl,
+    payload,
+    status: response.status,
+    data,
+    rawText,
+    attempt: 1,
+    totalAttempts: 1,
+  })
 
-    try {
-      const response = await fetch(`${apiBase}/Products/manufactured`, {
-        headers: { Authorization: `Bearer ${tk}` },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const finished = Array.isArray(data)
-          ? data.filter(p => p.productType === 'FINISHED' || p.productType === 'Finished')
-          : []
-        setProducts(finished)
-      }
-    } catch (err) {
-      console.error(err)
-    }
+  if (response.ok) {
+    return { ok: true, data }
   }
 
-  const fetchMaterials = async () => {
-    const tk = getToken()
-    if (!tk) return
+  const errorMessage = resolveApiErrorMessage(data, 'Không thể tạo BOM.')
+  return { ok: false, errorMessage }
+}
 
-    try {
-      const response = await fetch(`${apiBase}/Products/raw`, {
-        headers: { Authorization: `Bearer ${tk}` },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const materialsArray = Array.isArray(data) ? data : []
-        setMaterials(materialsArray)
-      }
-    } catch (err) {
-      console.error('Error fetching materials:', err)
-    }
+export default function RecipesPage() {
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const didInitialLoadRef = useRef(false)
+
+  const [products, setProducts] = useState([])
+  const [materials, setMaterials] = useState([])
+  const [recipes, setRecipes] = useState([])
+
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const [filterProductId, setFilterProductId] = useState('')
+  const [searchText, setSearchText] = useState('')
+
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createParentProductId, setCreateParentProductId] = useState('')
+  const [createMaterials, setCreateMaterials] = useState([blankMaterialLine()])
+
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editRecipeId, setEditRecipeId] = useState('')
+  const [editMaterialId, setEditMaterialId] = useState('')
+  const [editQuantityRequired, setEditQuantityRequired] = useState('')
+  const [editMaxWastePercent, setEditMaxWastePercent] = useState('0')
+
+  const clearNotice = () => {
+    setError('')
+    setSuccess('')
   }
 
-  const fetchAllRecipes = async () => {
-    const tk = getToken()
-    if (!tk) return
+  const getProductName = (id) => {
+    const numberId = Number(id)
+    if (!numberId) return 'N/A'
 
-    setLoading(true)
-    try {
-      // Fetch by parent product
-      const response = await fetch(`${apiBase}/Products/manufactured`, {
-        headers: { Authorization: `Bearer ${tk}` },
+    const fromProducts = products.find((p) => p.id === numberId)
+    if (fromProducts) return fromProducts.name
+
+    const fromMaterials = materials.find((m) => m.id === numberId)
+    if (fromMaterials) return fromMaterials.name
+
+    return `#${numberId}`
+  }
+
+  const getMaterialUnit = (materialId) => {
+    const id = Number(materialId)
+    if (!id) return 'đơn vị'
+
+    const material = materials.find((item) => item.id === id)
+    if (material?.baseUnit) return material.baseUnit
+
+    const product = products.find((item) => item.id === id)
+    if (product?.baseUnit) return product.baseUnit
+
+    return 'đơn vị'
+  }
+
+  const fetchProducts = async (tk) => {
+    const requestUrl = `${apiBase}/Products/manufactured`
+    const response = await fetchWithTimeout(requestUrl, {
+      method: 'GET',
+      headers: {
+        accept: '*/*',
+        Authorization: `Bearer ${tk}`,
+      },
+    })
+
+    const { json: data, text: rawText } = await readResponsePayload(response)
+    logRecipesApi({
+      stage: 'load-products',
+      method: 'GET',
+      url: requestUrl,
+      status: response.status,
+      data,
+      rawText,
+    })
+
+    if (!response.ok) {
+      const statusHint = response.status ? ` (HTTP ${response.status})` : ''
+      throw new Error(resolveApiErrorMessage(data, `Không thể tải danh sách thành phẩm từ /Products/manufactured${statusHint}.`))
+    }
+
+    return parseArrayData(data).map(normalizeProduct).filter(Boolean)
+  }
+
+  const fetchMaterials = async (tk) => {
+    const requestUrl = `${apiBase}/Products/raw`
+    const response = await fetchWithTimeout(requestUrl, {
+      method: 'GET',
+      headers: {
+        accept: '*/*',
+        Authorization: `Bearer ${tk}`,
+      },
+    })
+
+    const { json: data, text: rawText } = await readResponsePayload(response)
+    logRecipesApi({
+      stage: 'load-materials',
+      method: 'GET',
+      url: requestUrl,
+      status: response.status,
+      data,
+      rawText,
+    })
+
+    if (!response.ok) {
+      const statusHint = response.status ? ` (HTTP ${response.status})` : ''
+      throw new Error(resolveApiErrorMessage(data, `Không thể tải danh sách nguyên liệu từ /Products/raw${statusHint}.`))
+    }
+
+    return parseArrayData(data).map(normalizeProduct).filter(Boolean)
+  }
+
+  const fetchRecipesByParents = async (tk, parentProducts) => {
+    if (!Array.isArray(parentProducts) || parentProducts.length === 0) return []
+
+    const requests = parentProducts.map(async (product) => {
+      const requestUrl = `${apiBase}/Recipes/parent/${product.id}`
+      const response = await fetchWithTimeout(requestUrl, {
+        method: 'GET',
+        headers: {
+          accept: '*/*',
+          Authorization: `Bearer ${tk}`,
+        },
+      })
+
+      const { json: data, text: rawText } = await readResponsePayload(response)
+      logRecipesApi({
+        stage: 'load-recipes-parent',
+        method: 'GET',
+        url: requestUrl,
+        status: response.status,
+        data,
+        rawText,
       })
 
       if (!response.ok) {
-        setLoading(false)
-        return
+        if (response.status === 404) return []
+
+        const requestError = new Error(resolveApiErrorMessage(data, `Không thể tải BOM cho sản phẩm #${product.id}.`))
+        requestError.status = response.status
+        throw requestError
       }
 
-      const productsData = await response.json()
-      const finishedProducts = Array.isArray(productsData)
-        ? productsData.filter(p => p.productType === 'FINISHED' || p.productType === 'Finished')
-        : []
+      return parseArrayData(data)
+    })
 
-      const promises = finishedProducts.map(async (product) => {
-        try {
-          const res = await fetch(`${apiBase}/recipes/parent/${product.productId}`, {
-            headers: { Authorization: `Bearer ${tk}` },
-          })
-          if (res.ok) {
-            const data = await res.json()
-            return Array.isArray(data) ? data : []
-          }
-          return []
-        } catch {
-          return []
-        }
+    const results = await Promise.all(requests)
+    return results.flat().map(normalizeRecipe).filter(Boolean)
+  }
+
+  const fetchRecipesByParentId = async (tk, parentProductId) => {
+    const requestUrl = `${apiBase}/Recipes/parent/${parentProductId}`
+    const response = await fetchWithTimeout(requestUrl, {
+      method: 'GET',
+      headers: {
+        accept: '*/*',
+        Authorization: `Bearer ${tk}`,
+      },
+    })
+
+    const { json: data, text: rawText } = await readResponsePayload(response)
+    logRecipesApi({
+      stage: 'precheck-parent-recipes',
+      method: 'GET',
+      url: requestUrl,
+      status: response.status,
+      data,
+      rawText,
+    })
+
+    if (!response.ok) {
+      const requestError = new Error(resolveApiErrorMessage(data, `Không thể kiểm tra BOM hiện có cho sản phẩm #${parentProductId}.`))
+      requestError.status = response.status
+      throw requestError
+    }
+
+    return parseArrayData(data).map(normalizeRecipe).filter(Boolean)
+  }
+
+  const refreshRecipesForParent = async (tk, parentProductId) => {
+    const normalizedParentId = Number(parentProductId)
+    if (!normalizedParentId) return
+
+    try {
+      const rows = await fetchRecipesByParentId(tk, normalizedParentId)
+      setRecipes((current) => {
+        const withoutParent = current.filter((row) => Number(row.parentProductId) !== normalizedParentId)
+        return [...withoutParent, ...rows]
       })
+    } catch (requestError) {
+      if (requestError?.status === 404) {
+        setRecipes((current) => current.filter((row) => Number(row.parentProductId) !== normalizedParentId))
+        return
+      }
+      throw requestError
+    }
+  }
 
-      const results = await Promise.all(promises)
-      const all = results.flat()
-      setAllRecipes(all)
-      setFilteredRecipes(all)
-    } catch (err) {
-      console.error(err)
+  const loadAllData = async () => {
+    const tk = getToken()
+    if (!tk) {
+      setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+      setProducts([])
+      setMaterials([])
+      setRecipes([])
+      return
+    }
+
+    setLoading(true)
+    clearNotice()
+    try {
+      const [fetchedProducts, fetchedMaterials] = await Promise.all([
+        fetchProducts(tk),
+        fetchMaterials(tk),
+      ])
+
+      setProducts(fetchedProducts)
+      setMaterials(fetchedMaterials)
+
+      const fetchedRecipes = await fetchRecipesByParents(tk, fetchedProducts)
+      setRecipes(fetchedRecipes)
+    } catch (requestError) {
+      setError(requestError.message || 'Không thể tải dữ liệu công thức.')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([fetchProducts(), fetchMaterials()])
-      await fetchAllRecipes()
-    }
-    loadData()
-  }, [])
-
-  useEffect(() => {
-    let filtered = allRecipes
+  const filteredRecipes = useMemo(() => {
+    let result = recipes
 
     if (filterProductId) {
-      filtered = filtered.filter(r => r.parentProductId === Number(filterProductId))
+      result = result.filter((row) => row.parentProductId === Number(filterProductId))
     }
 
-    if (searchText.trim()) {
-      const search = searchText.toLowerCase()
-      filtered = filtered.filter(r => {
-        const productName = getProductName(r.parentProductId).toLowerCase()
-        const materialName = getMaterialName(r.materialId).toLowerCase()
-        return productName.includes(search) || materialName.includes(search)
+    const keyword = searchText.trim().toLowerCase()
+    if (keyword) {
+      result = result.filter((row) => {
+        const parentName = getProductName(row.parentProductId).toLowerCase()
+        const materialName = getProductName(row.materialId).toLowerCase()
+        return parentName.includes(keyword) || materialName.includes(keyword)
       })
     }
 
-    setFilteredRecipes(filtered)
-  }, [filterProductId, searchText, allRecipes])
+    return result
+  }, [recipes, filterProductId, searchText, products, materials])
+
+  const groupedRecipes = useMemo(() => {
+    const groups = new Map()
+
+    filteredRecipes.forEach((row) => {
+      const key = Number(row.parentProductId)
+      if (!groups.has(key)) {
+        groups.set(key, {
+          parentProductId: key,
+          parentProductName: getProductName(key),
+          lines: [],
+        })
+      }
+
+      groups.get(key).lines.push(row)
+    })
+
+    return Array.from(groups.values()).sort((a, b) => a.parentProductName.localeCompare(b.parentProductName, 'vi'))
+  }, [filteredRecipes, products, materials])
+
+  const stats = useMemo(() => {
+    return {
+      totalLines: recipes.length,
+      parentProducts: new Set(recipes.map((r) => r.parentProductId)).size,
+      uniqueMaterials: new Set(recipes.map((r) => r.materialId)).size,
+    }
+  }, [recipes])
 
   const openCreateModal = () => {
-    setEditingId(null)
-    setForm({
-      parentProductId: '',
-      materialId: '',
-      quantityRequired: '',
-      wasteAllowancePercent: '0',
+    clearNotice()
+    setCreateParentProductId(filterProductId || (products[0] ? String(products[0].id) : ''))
+    setCreateMaterials([blankMaterialLine()])
+    setShowCreateModal(true)
+  }
+
+  const addCreateMaterialLine = () => {
+    setCreateMaterials((current) => [...current, blankMaterialLine()])
+  }
+
+  const removeCreateMaterialLine = (index) => {
+    setCreateMaterials((current) => {
+      if (current.length === 1) return current
+      return current.filter((_, idx) => idx !== index)
     })
-    setShowModal(true)
   }
 
-  const openEditModal = (recipe) => {
-    const id = recipe.recipeId || recipe.bomId
-    setEditingId(id)
-    setForm({
-      parentProductId: String(recipe.parentProductId),
-      materialId: String(recipe.materialId),
-      quantityRequired: String(recipe.quantityRequired),
-      wasteAllowancePercent: String(recipe.wasteAllowancePercent),
-    })
-    setShowModal(true)
+  const updateCreateMaterialLine = (index, key, value) => {
+    setCreateMaterials((current) =>
+      current.map((line, idx) => (idx === index ? { ...line, [key]: value } : line)),
+    )
   }
 
-  const closeModal = () => {
-    setShowModal(false)
-    setEditingId(null)
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!form.parentProductId || !form.materialId || !form.quantityRequired) return
+  const submitCreateBulkRecipe = async (event) => {
+    event.preventDefault()
 
     const tk = getToken()
-    if (!tk) return
+    if (!tk) {
+      setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+      return
+    }
 
-    setLoading(true)
+    const parentProductId = Number(createParentProductId)
+    if (!parentProductId || parentProductId < 1) {
+      setError('Vui lòng chọn sản phẩm thành phẩm hợp lệ.')
+      return
+    }
+
+    let materialsPayload = []
     try {
-      const url = editingId ? `${apiBase}/recipes/${editingId}` : `${apiBase}/recipes`
-      const method = editingId ? 'PUT' : 'POST'
+      materialsPayload = createMaterials.map((line, index) => {
+        const materialId = Number(line.materialId)
+        const quantityRequired = Number(line.quantityRequired)
+        const maxWastePercent = Number(line.maxWastePercent)
 
-      const response = await fetch(url, {
-        method,
+        if (!materialId || materialId < 1) {
+          throw new Error(`Dòng ${index + 1}: Vui lòng chọn nguyên liệu hợp lệ.`)
+        }
+
+        if (materialId === parentProductId) {
+          throw new Error(`Dòng ${index + 1}: Nguyên liệu không được trùng với thành phẩm.`)
+        }
+
+        if (!Number.isFinite(quantityRequired) || quantityRequired <= 0) {
+          throw new Error(`Dòng ${index + 1}: Định mức phải lớn hơn 0.`)
+        }
+
+        if (!Number.isFinite(maxWastePercent) || maxWastePercent < 0 || maxWastePercent >= 100) {
+          throw new Error(`Dòng ${index + 1}: Hao hụt tối đa phải trong khoảng 0 đến dưới 100%.`)
+        }
+
+        return {
+          materialId,
+          quantityRequired,
+          maxWastePercent,
+        }
+      })
+    } catch (validationError) {
+      setError(validationError.message || 'Dữ liệu dòng nguyên liệu không hợp lệ.')
+      return
+    }
+
+    if (materialsPayload.length === 0) {
+      setError('Vui lòng nhập ít nhất một dòng nguyên liệu hợp lệ.')
+      return
+    }
+
+    const duplicateSet = new Set()
+    for (let index = 0; index < materialsPayload.length; index += 1) {
+      const key = String(materialsPayload[index].materialId)
+      if (duplicateSet.has(key)) {
+        setError(`Dòng ${index + 1}: Nguyên liệu bị trùng trong danh sách tạo BOM.`)
+        return
+      }
+      duplicateSet.add(key)
+    }
+
+    let serverExistingMaterialSet = new Set()
+    try {
+      const latestRows = await fetchRecipesByParentId(tk, parentProductId)
+      serverExistingMaterialSet = new Set(latestRows.map((row) => Number(row.materialId)))
+    } catch (precheckError) {
+      console.warn('[RecipesAPI] precheck-parent-recipes failed:', precheckError?.message || precheckError)
+    }
+
+    const localExistingMaterialSet = new Set(
+      recipes
+        .filter((row) => Number(row.parentProductId) === parentProductId)
+        .map((row) => Number(row.materialId)),
+    )
+
+    const existingMaterialSet = new Set([...localExistingMaterialSet, ...serverExistingMaterialSet])
+    const duplicatedExisting = materialsPayload.find((line) => existingMaterialSet.has(Number(line.materialId)))
+    if (duplicatedExisting) {
+      setError(`Nguyên liệu ${getProductName(duplicatedExisting.materialId)} đã tồn tại trong BOM của thành phẩm này.`)
+      return
+    }
+
+    setSubmitting(true)
+    clearNotice()
+    try {
+      const createResult = await createBulkRecipesWithRetry(apiBase, tk, parentProductId, materialsPayload)
+      if (!createResult.ok) {
+        let finalError = createResult.errorMessage || 'Không thể tạo BOM.'
+
+        if (isEntitySaveError(finalError)) {
+          const conflictNames = materialsPayload
+            .filter((line) => existingMaterialSet.has(Number(line.materialId)))
+            .map((line) => getProductName(line.materialId))
+
+          if (conflictNames.length > 0) {
+            finalError = `BOM đã có sẵn nguyên liệu: ${conflictNames.join(', ')}. Vui lòng sửa dòng cũ thay vì thêm mới.`
+          } else {
+            finalError = 'Backend báo lỗi khi lưu DB (Entity save). Có thể do ràng buộc dữ liệu (trùng BOM, khóa ngoại, kiểu dữ liệu). Vui lòng kiểm tra log BE để xem inner exception chi tiết.'
+          }
+        }
+
+        throw new Error(finalError)
+      }
+
+      const successMessage = createResult.data?.message || `Lưu BOM thành công (${materialsPayload.length} dòng).`
+      setSuccess(successMessage)
+      setShowCreateModal(false)
+      await refreshRecipesForParent(tk, parentProductId)
+    } catch (requestError) {
+      setError(requestError.message || 'Tạo BOM thất bại.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const openEditModal = (row) => {
+    clearNotice()
+    setEditRecipeId(String(row.recipeId))
+    setEditMaterialId(String(row.materialId))
+    setEditQuantityRequired(String(row.quantityRequired))
+    setEditMaxWastePercent(String(row.maxWastePercent ?? 0))
+    setShowEditModal(true)
+  }
+
+  const submitUpdateRecipeLine = async (event) => {
+    event.preventDefault()
+
+    const tk = getToken()
+    if (!tk) {
+      setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+      return
+    }
+
+    const recipeId = Number(editRecipeId)
+    const currentParentProductId = Number(recipes.find((row) => Number(row.recipeId) === recipeId)?.parentProductId || 0)
+    const materialId = Number(editMaterialId)
+    const quantityRequired = Number(editQuantityRequired)
+    const maxWastePercent = Number(editMaxWastePercent)
+
+    if (!recipeId || recipeId < 1) {
+      setError('Recipe ID không hợp lệ.')
+      return
+    }
+
+    if (!materialId || materialId < 1 || !Number.isFinite(quantityRequired) || quantityRequired <= 0) {
+      setError('Vui lòng nhập material và quantityRequired hợp lệ.')
+      return
+    }
+
+    if (!Number.isFinite(maxWastePercent) || maxWastePercent < 0 || maxWastePercent >= 100) {
+      setError('Hao hụt tối đa phải trong khoảng từ 0 đến dưới 100%.')
+      return
+    }
+
+    setSubmitting(true)
+    clearNotice()
+    try {
+      const payload = { materialId, quantityRequired, maxWastePercent }
+      const requestUrl = `${apiBase}/Recipes/${recipeId}`
+
+      const response = await fetchWithTimeout(requestUrl, {
+        method: 'PUT',
         headers: {
+          accept: '*/*',
           Authorization: `Bearer ${tk}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          parentProductId: Number(form.parentProductId),
-          materialId: Number(form.materialId),
-          quantityRequired: Number(form.quantityRequired),
-          wasteAllowancePercent: Number(form.wasteAllowancePercent),
-        }),
+        body: JSON.stringify(payload),
       })
 
-      if (response.ok) {
-        await fetchAllRecipes()
-        closeModal()
-        alert(editingId ? 'Cập nhật thành công!' : 'Thêm thành công!')
-      } else {
-        const error = await response.json()
-        alert(error.message || 'Có lỗi xảy ra!')
+      const { json: data, text: rawText } = await readResponsePayload(response)
+      logRecipesApi({
+        stage: 'update-recipe',
+        method: 'PUT',
+        url: requestUrl,
+        payload,
+        status: response.status,
+        data,
+        rawText,
+        attempt: 1,
+        totalAttempts: 1,
+      })
+
+      if (!response.ok) {
+        throw new Error(resolveApiErrorMessage(data, 'Không thể cập nhật dòng BOM.'))
       }
-    } catch (err) {
-      console.error(err)
-      alert('Có lỗi xảy ra!')
+
+      setSuccess(data?.message || 'Cập nhật dòng BOM thành công.')
+      setShowEditModal(false)
+      if (currentParentProductId > 0) {
+        await refreshRecipesForParent(tk, currentParentProductId)
+      } else {
+        await loadAllData()
+      }
+    } catch (requestError) {
+      setError(requestError.message || 'Cập nhật BOM thất bại.')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
-  const handleDelete = async (recipeId) => {
-    if (!window.confirm(`Xóa công thức #${recipeId}?`)) return
+  const handleDeleteLine = async (recipeId) => {
+    if (!window.confirm(`Xóa dòng BOM #${recipeId}?`)) return
 
     const tk = getToken()
-    if (!tk) return
+    if (!tk) {
+      setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+      return
+    }
 
-    setLoading(true)
+    const currentParentProductId = Number(recipes.find((row) => Number(row.recipeId) === Number(recipeId))?.parentProductId || 0)
+
+    setDeletingId(recipeId)
+    clearNotice()
     try {
-      const response = await fetch(`${apiBase}/recipes/${recipeId}`, {
+      const requestUrl = `${apiBase}/Recipes/${recipeId}`
+      const response = await fetchWithTimeout(requestUrl, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${tk}` },
+        headers: {
+          accept: '*/*',
+          Authorization: `Bearer ${tk}`,
+        },
       })
 
-      if (response.ok) {
-        await fetchAllRecipes()
-        alert('Xóa thành công!')
-      } else {
-        const error = await response.json()
-        alert(error.message || 'Xóa thất bại!')
+      const { json: data, text: rawText } = await readResponsePayload(response)
+      logRecipesApi({
+        stage: 'delete-recipe',
+        method: 'DELETE',
+        url: requestUrl,
+        status: response.status,
+        data,
+        rawText,
+      })
+
+      if (!response.ok) {
+        throw new Error(data?.message || data?.title || 'Không thể xóa dòng BOM.')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Có lỗi xảy ra!')
+
+      setSuccess(data?.message || `Đã xóa dòng BOM #${recipeId}.`)
+      if (currentParentProductId > 0) {
+        await refreshRecipesForParent(tk, currentParentProductId)
+      } else {
+        await loadAllData()
+      }
+    } catch (requestError) {
+      setError(requestError.message || 'Xóa dòng BOM thất bại.')
     } finally {
-      setLoading(false)
+      setDeletingId(null)
     }
   }
 
-  const getProductName = (productId) => {
-    const product = products.find((p) => p.productId === Number(productId))
-    return product?.productName || product?.name || `Sản phẩm #${productId}`
-  }
-
-  const getMaterialName = (materialId) => {
-    if (!materialId) return 'N/A'
-
-    // Try to find in materials first
-    const material = materials.find((m) => m.productId === Number(materialId))
-    if (material) {
-      return material.productName || material.name || `Nguyên liệu #${materialId}`
-    }
-
-    // Try to find in products as fallback
-    const product = products.find((p) => p.productId === Number(materialId))
-    if (product) {
-      return product.productName || product.name || `Nguyên liệu #${materialId}`
-    }
-
-    // If not found anywhere, show ID with warning
-    return `Nguyên liệu #${materialId} (đã xóa?)`
-  }
-
-  const stats = {
-    total: allRecipes.length,
-    products: new Set(allRecipes.map(r => r.parentProductId)).size,
-    materials: new Set(allRecipes.map(r => r.materialId)).size,
-  }
+  useEffect(() => {
+    if (didInitialLoadRef.current) return
+    didInitialLoadRef.current = true
+    loadAllData()
+  }, [])
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <span className="material-symbols-outlined text-primary text-[24px]">menu_book</span>
-          <h2 className="text-lg font-bold leading-tight">Quản lý công thức</h2>
+          <h2 className="text-lg font-bold leading-tight">Quản lý công thức BOM</h2>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          Thêm công thức
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadAllData}
+            disabled={loading || submitting}
+            className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm"
+          >
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+          <button
+            onClick={openCreateModal}
+            disabled={submitting || products.length === 0}
+            className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+          >
+            + Tạo BOM
+          </button>
+        </div>
       </header>
 
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold">Công thức sản xuất</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý định mức nguyên liệu cho sản phẩm.</p>
+          <h1 className="text-2xl font-bold">Công thức BOM theo sản phẩm</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Mỗi sản phẩm có một BOM gồm nhiều dòng nguyên liệu.</p>
+        </div>
+
+        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+          Định mức là lượng nguyên liệu cần cho 1 đơn vị thành phẩm. Đơn vị là đơn vị gốc của nguyên liệu (kg, g, lít, cái...).
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: 'Tổng công thức', value: stats.total, icon: 'menu_book', color: 'text-blue-600 dark:text-blue-400' },
-            { label: 'Sản phẩm', value: stats.products, icon: 'inventory', color: 'text-green-600 dark:text-green-400' },
-            { label: 'Nguyên liệu', value: stats.materials, icon: 'nutrition', color: 'text-amber-600 dark:text-amber-400' },
-          ].map((card) => (
-            <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Tổng dòng BOM</p>
+            <p className="mt-1 text-2xl font-bold">{stats.totalLines}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Sản phẩm có BOM</p>
+            <p className="mt-1 text-2xl font-bold">{stats.parentProducts}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Nguyên liệu sử dụng</p>
+            <p className="mt-1 text-2xl font-bold">{stats.uniqueMaterials}</p>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo sản phẩm</span>
               <select
-                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
                 value={filterProductId}
                 onChange={(e) => setFilterProductId(e.target.value)}
               >
                 <option value="">-- Tất cả --</option>
                 {products.map((product) => (
-                  <option key={product.productId} value={product.productId}>
-                    {product.productName || product.name}
-                  </option>
+                  <option key={product.id} value={product.id}>{product.name}</option>
                 ))}
               </select>
             </label>
@@ -330,170 +799,194 @@ export default function RecipesPage() {
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Tìm kiếm</span>
               <input
-                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Nhập tên sản phẩm hoặc nguyên liệu..."
+                placeholder="Tên sản phẩm hoặc nguyên liệu"
               />
             </label>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+        {success ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{success}</p> : null}
+
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
           {loading ? (
-            <div className="px-4 py-3 text-sm text-slate-500">Đang tải...</div>
-          ) : filteredRecipes.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-500">
-              {searchText || filterProductId ? 'Không tìm thấy công thức' : 'Chưa có công thức'}
-            </div>
+            <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu BOM...</div>
+          ) : groupedRecipes.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-500">Chưa có dòng BOM phù hợp.</div>
           ) : (
             <table className="w-full table-fixed text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
-                  <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                  <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Nguyên liệu</th>
-                  <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Số lượng</th>
-                  <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Hao hụt</th>
-                  <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                  <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">STT</th>
+                  <th className="w-[36%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Nguyên liệu</th>
+                  <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Định mức cho 1 sản phẩm</th>
+                  <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Hao hụt tối đa (%)</th>
+                  <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
+                  <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredRecipes.map((recipe, index) => {
-                  const id = recipe.recipeId || recipe.bomId
-                  return (
-                    <tr key={id || `recipe-${index}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-3 text-sm font-semibold">#{id || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{getProductName(recipe.parentProductId)}</td>
-                      <td className="px-4 py-3 text-sm">{getMaterialName(recipe.materialId)}</td>
-                      <td className="px-4 py-3 text-sm">{recipe.quantityRequired}</td>
-                      <td className="px-4 py-3 text-sm">{recipe.wasteAllowancePercent}%</td>
+                {groupedRecipes.flatMap((group) => ([
+                  <tr key={`group-${group.parentProductId}`} className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700">
+                    <td colSpan={6} className="px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      BOM: {group.parentProductName}
+                      <span className="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400">({group.lines.length} nguyên liệu)</span>
+                    </td>
+                  </tr>,
+                  ...group.lines.map((row, index) => (
+                    <tr key={`line-${row.recipeId}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-3 text-sm font-semibold">{index + 1}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <p className="font-medium">{getProductName(row.materialId)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Dòng BOM #{row.recipeId}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{row.quantityRequired}</td>
+                      <td className="px-4 py-3 text-sm">{row.maxWastePercent ?? 0}%</td>
+                      <td className="px-4 py-3 text-sm">{getMaterialUnit(row.materialId)}</td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => openEditModal(recipe)}
+                            onClick={() => openEditModal(row)}
                             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title={`Sửa công thức #${id}`}
-                            disabled={!id}
+                            title={`Sửa dòng BOM #${row.recipeId}`}
                           >
                             <span className="material-symbols-outlined text-[18px]">edit</span>
                           </button>
                           <button
-                            onClick={() => id && handleDelete(id)}
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={`Xóa công thức #${id}`}
-                            disabled={!id}
+                            onClick={() => handleDeleteLine(row.recipeId)}
+                            disabled={deletingId === row.recipeId}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                            title={`Xóa dòng BOM #${row.recipeId}`}
                           >
                             <span className="material-symbols-outlined text-[18px]">delete</span>
                           </button>
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
+                  )),
+                ]))}
               </tbody>
             </table>
           )}
         </div>
       </div>
 
-      {showModal && (
+      {showCreateModal ? (
         <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+          <div className="w-full max-w-3xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {editingId ? 'Sửa công thức' : 'Thêm công thức'}
-              </h3>
+              <h3 className="text-lg font-bold">Tạo BOM theo nhiều nguyên liệu</h3>
               <button
-                onClick={closeModal}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
+                onClick={() => setShowCreateModal(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                disabled={submitting}
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={submitCreateBulkRecipe} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Sản phẩm
-                </label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sản phẩm thành phẩm</label>
                 <select
-                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  value={form.parentProductId}
-                  onChange={(e) => setForm({ ...form, parentProductId: e.target.value })}
+                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                  value={createParentProductId}
+                  onChange={(e) => setCreateParentProductId(e.target.value)}
                   required
                 >
                   <option value="">-- Chọn sản phẩm --</option>
                   {products.map((product) => (
-                    <option key={product.productId} value={product.productId}>
-                      {product.productName}
-                    </option>
+                    <option key={product.id} value={product.id}>{product.name}</option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Nguyên liệu
-                </label>
-                <select
-                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  value={form.materialId}
-                  onChange={(e) => setForm({ ...form, materialId: e.target.value })}
-                  required
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Danh sách nguyên liệu</p>
+                {createMaterials.map((line, index) => (
+                  <div key={`line-${index}`} className="grid grid-cols-12 gap-2 items-start">
+                    <div className="col-span-5">
+                      <label className="block h-5 text-xs text-slate-500 dark:text-slate-400 mb-1">Nguyên liệu</label>
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                        value={line.materialId}
+                        onChange={(e) => updateCreateMaterialLine(index, 'materialId', e.target.value)}
+                        required
+                      >
+                        <option value="">-- Chọn nguyên liệu --</option>
+                        {materials.map((material) => (
+                          <option key={`material-${material.id}`} value={material.id}>{material.name}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-transparent select-none">_</p>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block h-5 text-xs text-slate-500 dark:text-slate-400 mb-1">Định mức cho 1 sản phẩm</label>
+                      <input
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                        type="number"
+                        min="0.0001"
+                        step="0.0001"
+                        value={line.quantityRequired}
+                        onChange={(e) => updateCreateMaterialLine(index, 'quantityRequired', e.target.value)}
+                        required
+                      />
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Đơn vị: {getMaterialUnit(line.materialId)}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block h-5 text-xs text-slate-500 dark:text-slate-400 mb-1">Hao hụt tối đa (%)</label>
+                      <input
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                        type="number"
+                        min="0"
+                        max="99.99"
+                        step="0.01"
+                        value={line.maxWastePercent}
+                        onChange={(e) => updateCreateMaterialLine(index, 'maxWastePercent', e.target.value)}
+                        required
+                      />
+                      <p className="mt-1 text-xs text-transparent select-none">_</p>
+                    </div>
+                    <div className="col-span-1 flex justify-end pt-6">
+                      <button
+                        type="button"
+                        onClick={() => removeCreateMaterialLine(index)}
+                        disabled={createMaterials.length === 1}
+                        className="h-10 w-10 inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+                        title="Xóa dòng"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">remove</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addCreateMaterialLine}
+                  className="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
-                  <option value="">-- Chọn nguyên liệu --</option>
-                  {materials.map((material) => (
-                    <option key={material.productId} value={material.productId}>
-                      {material.productName || material.name}
-                    </option>
-                  ))}
-                </select>
+                  + Thêm dòng nguyên liệu
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Số lượng
-                </label>
-                <input
-                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  type="number"
-                  step="0.01"
-                  value={form.quantityRequired}
-                  onChange={(e) => setForm({ ...form, quantityRequired: e.target.value })}
-                  placeholder="0"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Hao hụt (%)
-                </label>
-                <input
-                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  type="number"
-                  step="0.1"
-                  value={form.wasteAllowancePercent}
-                  onChange={(e) => setForm({ ...form, wasteAllowancePercent: e.target.value })}
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                  disabled={loading}
+                  className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
+                  disabled={submitting}
                 >
-                  {editingId ? 'Cập nhật' : 'Thêm'}
+                  {submitting ? 'Đang lưu...' : 'Lưu BOM'}
                 </button>
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="flex-1 h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                  disabled={loading}
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+                  disabled={submitting}
                 >
                   Hủy
                 </button>
@@ -501,7 +994,87 @@ export default function RecipesPage() {
             </form>
           </div>
         </div>
-      )}
+      ) : null}
+
+      {showEditModal ? (
+        <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold">Sửa dòng BOM #{editRecipeId}</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                disabled={submitting}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={submitUpdateRecipeLine} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nguyên liệu</label>
+                <select
+                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                  value={editMaterialId}
+                  onChange={(e) => setEditMaterialId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Chọn nguyên liệu --</option>
+                  {materials.map((material) => (
+                    <option key={`edit-material-${material.id}`} value={material.id}>{material.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Định mức cho 1 sản phẩm</label>
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                  type="number"
+                  min="0.0001"
+                  step="0.0001"
+                  value={editQuantityRequired}
+                  onChange={(e) => setEditQuantityRequired(e.target.value)}
+                  required
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Đơn vị: {getMaterialUnit(editMaterialId)}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Hao hụt tối đa (%)</label>
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
+                  type="number"
+                  min="0"
+                  max="99.99"
+                  step="0.01"
+                  value={editMaxWastePercent}
+                  onChange={(e) => setEditMaxWastePercent(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Đang cập nhật...' : 'Lưu cập nhật'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+                  disabled={submitting}
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -17,12 +17,13 @@ export const navigationGroups = [
   {
     title: 'Tổng quan',
     items: [
-      { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/dashboard', key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: [roles.ADMIN, roles.MANAGER] },
     ],
   },
   {
     title: 'Quản lý',
     items: [
+      { to: '/categories', key: 'categories', label: 'Danh mục', icon: 'category', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/products', key: 'products', label: 'Sản phẩm', icon: 'inventory', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/ingredients', key: 'ingredients', label: 'Nguyên liệu', icon: 'nutrition', roles: [roles.ADMIN, roles.MANAGER] },
       { to: '/recipes', key: 'recipes', label: 'Công thức', icon: 'menu_book', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF] },
