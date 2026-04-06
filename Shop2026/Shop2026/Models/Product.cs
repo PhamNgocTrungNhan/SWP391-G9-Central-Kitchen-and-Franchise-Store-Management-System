@@ -27,10 +27,6 @@ public partial class Product
     {
         get; set;
     }
-    public decimal? DefaultWastePercent 
-    {
-        get; set; 
-    };
 
     public virtual ICollection<InternalOrderDetail> InternalOrderDetails { get; set; } = new List<InternalOrderDetail>();
 

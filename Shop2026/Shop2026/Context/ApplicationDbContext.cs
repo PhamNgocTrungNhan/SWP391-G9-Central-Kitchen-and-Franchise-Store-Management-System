@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.Models;
 
 namespace Shop2026.Context;
@@ -215,12 +213,6 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.InternalPrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("internal_price")
-                .HasDefaultValue(0m);
-
-            // ✅ THÊM CỘT HAO HỤT MẶC ĐỊNH
-            entity.Property(e => e.DefaultWastePercent)
-                .HasColumnType("decimal(5, 2)")
-                .HasColumnName("default_waste_percent")
                 .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)

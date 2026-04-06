@@ -29,4 +29,14 @@ namespace Shop2026.DTOs
         public string? SupplierName { get; set; }
         public DateTime? CreatedAt { get; set; }
     }
+
+    public class InventoryItemDTO
+    {
+        public int InventoryId { get; set; }
+        public int ProductId { get; set; }
+        public string ProductName { get; set; }
+        public string BaseUnit { get; set; }
+        public decimal CurrentQuantity { get; set; }
+        public DateTime? LastUpdated { get; set; }
+    }
 }

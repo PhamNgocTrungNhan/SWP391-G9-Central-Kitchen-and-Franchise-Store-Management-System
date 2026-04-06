@@ -4,6 +4,7 @@ using Shop2026.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Shop2026.DTOs;
 
 namespace Shop2026.DLL
 {
@@ -65,7 +66,7 @@ namespace Shop2026.DLL
 
             foreach (var recipe in recipes)
             {
-                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
+                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.MaxWastePercent ?? 0) / 100m);
                 CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }
@@ -291,6 +292,69 @@ namespace Shop2026.DLL
             catch (Exception)
             {
                 transaction.Rollback();
+                throw;
+            }
+        }
+        public async Task<List<InventoryItemDTO>> GetStoreInventoryAsync(int storeId)
+        {
+            var inventories = await _repo.GetInventoryByLocationAsync("STORE", storeId);
+
+            return inventories.Select(i => new InventoryItemDTO
+            {
+                InventoryId = i.InventoryId,
+                ProductId = i.ProductId ?? 0,
+                ProductName = i.Product?.ProductName ?? "N/A",
+                BaseUnit = i.Product?.BaseUnit ?? "N/A",
+                CurrentQuantity = i.CurrentQuantity ?? 0,
+                LastUpdated = i.LastUpdated
+            }).ToList();
+        }
+
+        public async Task<bool> ProcessStoreOutboundAsync(int storeId, OutboundRequestDTO request)
+        {
+            if (request.Quantity <= 0)
+                throw new ArgumentException("Số lượng xuất kho phải lớn hơn 0.");
+
+            var context = _repo.GetContext();
+
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var inventory = await _repo.GetStockAsync(request.ProductId, "STORE", storeId);
+
+                if (inventory == null || inventory.CurrentQuantity < request.Quantity)
+                {
+                    throw new InvalidOperationException("Số lượng tồn kho không đủ để thực hiện xuất/hủy.");
+                }
+
+                // 1. Trừ tồn kho
+                inventory.CurrentQuantity -= request.Quantity;
+                inventory.LastUpdated = DateTime.Now;
+                _repo.UpdateInventory(inventory);
+
+                // 2. Ghi nhận lịch sử (StockLog)
+                var stockLog = new StockLog
+                {
+                    ProductId = request.ProductId,
+                    LocationType = "STORE",
+                    LocationId = storeId,
+                    ChangeQuantity = -request.Quantity, // Lưu số âm cho xuất kho
+                    Reason = request.Reason,
+                    ReferenceType = request.Note,
+                    CreatedAt = DateTime.Now
+                };
+                _repo.AddStockLog(stockLog);
+
+                // 3. Lưu thay đổi và Commit Transaction
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return true;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
                 throw;
             }
         }
