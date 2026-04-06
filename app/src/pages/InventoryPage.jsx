@@ -431,13 +431,21 @@ export default function InventoryPage() {
       const batchData = await batchRes.json()
 
       // Fetch recipe/BOM
-      const recipeRes = await fetch(`${apiBase}/Recipes/product/${item.productId}`, {
+      const recipeRes = await fetch(`${apiBase}/Recipes/parent/${item.productId}`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
 
       let recipeData = null
       if (recipeRes.ok) {
-        recipeData = await recipeRes.json()
+        const recipeJson = await recipeRes.json().catch(() => [])
+        const recipeRows = parseArrayData(recipeJson)
+        const materials = recipeRows.map((row) => ({
+          materialId: row.materialId,
+          materialName: row.materialName || productMap[row.materialId] || `Material #${row.materialId}`,
+          quantityRequired: Number(row.quantityRequired || 0),
+          maxWastePercent: Number(row.maxWastePercent ?? row.wasteAllowancePercent ?? 0),
+        }))
+        recipeData = { materials }
       }
 
       // Enrich batch data
@@ -1229,12 +1237,12 @@ export default function InventoryPage() {
                         </thead>
                         <tbody>
                           {selectedExpiredItem.recipe.materials.map((mat, idx) => {
-                            const actualNeeded = mat.quantityRequired * (1 + (mat.wasteAllowancePercent || 0) / 100)
+                            const actualNeeded = mat.quantityRequired * (1 + (mat.maxWastePercent || mat.wasteAllowancePercent || 0) / 100)
                             return (
                               <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
                                 <td className="px-3 py-2 text-sm">{mat.materialName || `Material #${mat.materialId}`}</td>
                                 <td className="px-3 py-2 text-sm">{mat.quantityRequired}</td>
-                                <td className="px-3 py-2 text-sm">{mat.wasteAllowancePercent || 0}%</td>
+                                <td className="px-3 py-2 text-sm">{mat.maxWastePercent ?? mat.wasteAllowancePercent ?? 0}%</td>
                                 <td className="px-3 py-2 text-sm font-semibold">{actualNeeded.toFixed(2)}</td>
                               </tr>
                             )

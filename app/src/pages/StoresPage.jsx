@@ -1,11 +1,21 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getCurrentUserRole } from '../utils/auth'
 
+function parseArrayData(raw) {
+    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw?.items)) return raw.items
+    if (Array.isArray(raw?.data)) return raw.data
+    return []
+}
+
 function getToken() {
     const candidates = [
         localStorage.getItem('auth_token'),
         localStorage.getItem('token'),
         localStorage.getItem('access_token'),
+        sessionStorage.getItem('auth_token'),
+        sessionStorage.getItem('token'),
+        sessionStorage.getItem('access_token'),
     ]
     const first = candidates.find((item) => String(item || '').trim())
     return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
@@ -68,7 +78,7 @@ export default function StoresPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách cửa hàng.')
             }
 
-            let storesArray = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+            let storesArray = parseArrayData(data)
 
             // Nếu là STORE_STAFF, chỉ hiển thị cửa hàng của mình
             if (currentRole === 'STORE_STAFF') {

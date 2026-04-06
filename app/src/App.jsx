@@ -61,7 +61,7 @@ function LoginOrHome() {
 }
 
 const routeConfig = [
-  { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+  { path: '/dashboard', element: <DashboardPage />, roles: [roles.ADMIN, roles.MANAGER] },
 
   { path: '/inventory', element: <InventoryPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
   { path: '/inventory-logs', element: <InventoryLogsPage />, roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
@@ -81,6 +81,7 @@ const routeConfig = [
   { path: '/success', element: <PaymentResultPage variant="success" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/cancel', element: <PaymentResultPage variant="cancel" />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
   { path: '/system-config', element: <SystemConfigPage />, roles: [roles.ADMIN] },
+  { path: '/categories', element: <CategoriesPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/products', element: <ProductManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/ingredients', element: <IngredientManagementPage />, roles: [roles.ADMIN, roles.MANAGER] },
   { path: '/suppliers', element: <SuppliersPage />, roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF, roles.SUPPLY_COORDINATOR] },

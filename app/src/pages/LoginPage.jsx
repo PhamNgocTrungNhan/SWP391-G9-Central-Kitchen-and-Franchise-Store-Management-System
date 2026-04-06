@@ -146,6 +146,7 @@ export default function LoginPage() {
                                     placeholder="Nhập tên đăng nhập"
                                     value={username}
                                     onChange={e => setUsername(e.target.value)}
+                                    autoComplete="username"
                                     required
                                 />
                             </label>

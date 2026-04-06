@@ -461,7 +461,7 @@ export default function BatchTraceabilityPage() {
             let materials = []
             if (batchData.productId) {
                 try {
-                    const recipeRes = await fetch(`${apiBase}/Recipes/product/${batchData.productId}`, {
+                    const recipeRes = await fetch(`${apiBase}/Recipes/parent/${batchData.productId}`, {
                         method: 'GET',
                         headers,
                     })
@@ -472,7 +472,7 @@ export default function BatchTraceabilityPage() {
                             materialId: item.materialId,
                             materialName: productNameMap[item.materialId] || `Nguyên liệu #${item.materialId}`,
                             quantityRequired: item.quantityRequired || 0,
-                            wasteAllowance: item.wasteAllowancePercent || 0,
+                            wasteAllowance: item.maxWastePercent ?? item.wasteAllowancePercent ?? 0,
                         }))
                     }
                 } catch {

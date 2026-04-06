@@ -94,6 +94,7 @@ export default function OrderManagementPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
     const [orders, setOrders] = useState([])
     const [productNameMap, setProductNameMap] = useState({})
+    const [productPriceMap, setProductPriceMap] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
     const [expandedId, setExpandedId] = useState(null)
@@ -127,6 +128,77 @@ export default function OrderManagementPage() {
     const openNotice = (type, message) => setNotice({ open: true, type, message })
     const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
 
+    const toNumber = (value, fallback = 0) => {
+        const n = Number(value)
+        return Number.isFinite(n) ? n : fallback
+    }
+
+    const firstPositiveNumber = (...candidates) => {
+        for (const candidate of candidates) {
+            const value = toNumber(candidate, 0)
+            if (value > 0) return value
+        }
+        return 0
+    }
+
+    const getDetailQuantity = (row) => toNumber(
+        row?.quantityOrdered
+            ?? row?.quantity
+            ?? row?.qty
+            ?? row?.quantityConfirmed
+            ?? row?.quantityShipped,
+        0,
+    )
+
+    const getDetailUnitPrice = (row) => {
+        const explicitUnitPrice = firstPositiveNumber(
+            row?.unitPrice,
+            row?.price,
+            row?.internalPrice,
+            row?.unit_price,
+            row?.unitprice,
+            row?.product?.internalPrice,
+            row?.product?.price,
+            row?.product?.unitPrice,
+        )
+        if (explicitUnitPrice > 0) return explicitUnitPrice
+
+        const productId = toNumber(row?.productId, 0)
+        const priceFromProductMap = productId > 0 ? toNumber(productPriceMap[productId], 0) : 0
+        if (priceFromProductMap > 0) return priceFromProductMap
+
+        const lineAmount = firstPositiveNumber(
+            row?.lineTotal,
+            row?.lineAmount,
+            row?.subtotal,
+            row?.subTotal,
+            row?.totalAmount,
+            row?.totalPrice,
+            row?.amount,
+        )
+        const quantity = getDetailQuantity(row)
+        if (lineAmount > 0 && quantity > 0) {
+            return lineAmount / quantity
+        }
+
+        return 0
+    }
+
+    const getDetailSubtotal = (row) => {
+        const explicitLineAmount = firstPositiveNumber(
+            row?.lineTotal,
+            row?.lineAmount,
+            row?.subtotal,
+            row?.subTotal,
+            row?.totalAmount,
+            row?.totalPrice,
+            row?.amount,
+        )
+        if (explicitLineAmount > 0) return explicitLineAmount
+
+        return getDetailUnitPrice(row) * getDetailQuantity(row)
+    }
+
     useEffect(() => {
         if (!notice.open) return undefined
 
@@ -153,16 +225,12 @@ export default function OrderManagementPage() {
                         : []
 
                 const itemCount = details.length
-                const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
 
                 // Calculate totalAmount from details if not provided by backend
                 let totalAmount = item?.totalAmount || 0
                 if (!totalAmount && details.length > 0) {
-                    totalAmount = details.reduce((sum, row) => {
-                        const unitPrice = row?.unitPrice || row?.price || 0
-                        const quantity = Number(row?.quantityOrdered || 0)
-                        return sum + (unitPrice * quantity)
-                    }, 0)
+                    totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                 }
 
                 return {
@@ -198,16 +266,24 @@ export default function OrderManagementPage() {
 
             const records = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
             const map = {}
+            const priceMap = {}
             records.forEach((item) => {
                 const id = Number(item?.productId || item?.id)
                 if (!id) return
                 const name = item?.productName || item?.name
                 if (!name) return
                 map[id] = name
+
+                const internalPrice = firstPositiveNumber(item?.internalPrice, item?.price, item?.unitPrice)
+                if (internalPrice > 0) {
+                    priceMap[id] = internalPrice
+                }
             })
             setProductNameMap(map)
+            setProductPriceMap(priceMap)
         } catch {
             setProductNameMap({})
+            setProductPriceMap({})
         }
     }
 
@@ -260,16 +336,12 @@ export default function OrderManagementPage() {
                             ? data.orderDetails
                             : []
 
-                    const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                    const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
 
                     // Calculate totalAmount from details if not provided
                     let totalAmount = data?.totalAmount || 0
                     if (!totalAmount && details.length > 0) {
-                        totalAmount = details.reduce((sum, row) => {
-                            const unitPrice = row?.unitPrice || row?.price || 0
-                            const quantity = Number(row?.quantityOrdered || 0)
-                            return sum + (unitPrice * quantity)
-                        }, 0)
+                        totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                     }
 
                     return [order.orderId, { details, itemCount: details.length, totalQty, totalAmount }]
@@ -576,16 +648,12 @@ export default function OrderManagementPage() {
             setOrders((prev) => prev.map((order) => {
                 if (order.orderId !== orderId) return order
 
-                const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
 
                 // Calculate totalAmount from details if not provided
                 let totalAmount = data?.totalAmount || order.totalAmount || 0
                 if (!totalAmount && details.length > 0) {
-                    totalAmount = details.reduce((sum, row) => {
-                        const unitPrice = row?.unitPrice || row?.price || 0
-                        const quantity = Number(row?.quantityOrdered || 0)
-                        return sum + (unitPrice * quantity)
-                    }, 0)
+                    totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                 }
 
                 return {
@@ -804,9 +872,9 @@ export default function OrderManagementPage() {
                                                             </thead>
                                                             <tbody>
                                                                 {(order.details || []).map((item) => {
-                                                                    const unitPrice = item.unitPrice || item.price || 0
-                                                                    const quantity = Number(item?.quantityOrdered || 0)
-                                                                    const subtotal = unitPrice * quantity
+                                                                    const unitPrice = getDetailUnitPrice(item)
+                                                                    const quantity = getDetailQuantity(item)
+                                                                    const subtotal = getDetailSubtotal(item)
 
                                                                     return (
                                                                         <tr key={item?.detailId || `${order.orderId}-${item?.productId}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
