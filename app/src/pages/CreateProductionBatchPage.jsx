@@ -361,10 +361,38 @@ function buildDefaultMaterialUsageRows(materialLines, suggestedQuantity) {
         const netNeeded = qty > 0 ? parseSafeNumber((line.quantityRequired || 0) * qty, 0) : 0
         return {
             ...line,
-            actualUsed: netNeeded > 0 ? String(Number(netNeeded.toFixed(4))) : '',
+            expectedNet: Number(netNeeded.toFixed(4)),
             actualWasted: '0',
         }
     })
+}
+
+function buildAdditionalMaterialsFromUsages(materialUsages, actualQty) {
+    const qty = parseSafeNumber(actualQty, 0)
+    if (!Array.isArray(materialUsages) || qty <= 0) return []
+
+    const grouped = new Map()
+    materialUsages.forEach((usage) => {
+        const productId = parseSafeNumber(usage?.materialId, 0)
+        if (!productId) return
+
+        const quantityRequired = parseSafeNumber(usage?.quantityRequired, 0)
+        const expectedNet = quantityRequired * qty
+        // UI semantics: actualUsed is total consumed from inventory (already includes waste).
+        const reportedTotal = parseSafeNumber(usage?.totalUsed ?? usage?.actualUsed, 0)
+        const extraUsed = reportedTotal - expectedNet
+
+        if (extraUsed > 0) {
+            grouped.set(productId, (grouped.get(productId) || 0) + extraUsed)
+        }
+    })
+
+    return Array.from(grouped.entries())
+        .map(([productId, quantityUsed]) => ({
+            productId,
+            quantityUsed: Number(quantityUsed.toFixed(4)),
+        }))
+        .filter((item) => item.quantityUsed > 0)
 }
 
 export default function CreateProductionBatchPage() {
@@ -379,6 +407,7 @@ export default function CreateProductionBatchPage() {
     const [allBatches, setAllBatches] = useState([]) // Tất cả batches (để check sản phẩm nào đã có batch)
     const [orderBatchProgress, setOrderBatchProgress] = useState({}) // { orderId: { created: 2, total: 3 } }
     const [creatingRowKey, setCreatingRowKey] = useState('')
+    const [checkingBomRowKey, setCheckingBomRowKey] = useState('')
     const [showCreateBatchModal, setShowCreateBatchModal] = useState(false)
     const [selectedRowToCreate, setSelectedRowToCreate] = useState(null)
     const [createBatchForm, setCreateBatchForm] = useState(() => buildEmptyCreateBatchForm())
@@ -750,6 +779,26 @@ export default function CreateProductionBatchPage() {
         )
     }
 
+    const fetchRecipeMaterialsForProduct = async (productId, tk) => {
+        const response = await fetch(`${apiBase}/Recipes/parent/${productId}`, {
+            method: 'GET',
+            headers: {
+                accept: '*/*',
+                Authorization: `Bearer ${tk}`,
+            },
+        })
+
+        const data = await response.json().catch(() => [])
+        if (!response.ok) {
+            if (response.status === 404) return []
+            throw new Error(resolveApiErrorMessage(data, '', 'Không thể tải định mức nguyên liệu (BOM).'))
+        }
+
+        return parseArrayData(data)
+            .map((item) => normalizeRecipeMaterialLine(item))
+            .filter(Boolean)
+    }
+
     const openCompleteBatchModal = async (batch) => {
         setSelectedBatchToComplete(batch)
         setCompleteBatchForm({
@@ -775,22 +824,7 @@ export default function CreateProductionBatchPage() {
         }
 
         try {
-            const response = await fetch(`${apiBase}/Recipes/parent/${productId}`, {
-                method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                },
-            })
-
-            const data = await response.json().catch(() => [])
-            if (!response.ok) {
-                throw new Error(resolveApiErrorMessage(data, '', 'Không thể tải định mức nguyên liệu (BOM) cho mẻ này.'))
-            }
-
-            const materialLines = parseArrayData(data)
-                .map((item) => normalizeRecipeMaterialLine(item))
-                .filter(Boolean)
+            const materialLines = await fetchRecipeMaterialsForProduct(productId, tk)
 
             if (materialLines.length === 0) {
                 setCompleteMaterialUsages([])
@@ -848,15 +882,17 @@ export default function CreateProductionBatchPage() {
         for (let index = 0; index < completeMaterialUsages.length; index += 1) {
             const usage = completeMaterialUsages[index]
             const materialId = parseSafeNumber(usage.materialId, 0)
-            const rawUsed = String(usage.actualUsed ?? '').trim()
+            const quantityRequired = parseSafeNumber(usage.quantityRequired, 0)
+            const maxWastePercent = parseSafeNumber(usage.maxWastePercent, 0)
             const rawWasted = String(usage.actualWasted ?? '').trim()
+            const expectedNet = Number((quantityRequired * actualQty).toFixed(4))
+            const maxWasteQty = Number(((expectedNet * maxWastePercent) / 100).toFixed(4))
 
-            if (!rawUsed || !rawWasted) {
-                setError(`Dòng ${index + 1}: Vui lòng nhập actualUsed và actualWasted.`)
+            if (!rawWasted) {
+                setError(`Dòng ${index + 1}: Vui lòng nhập hao hụt thực tế (số lượng).`)
                 return
             }
 
-            const actualUsed = Number(usage.actualUsed)
             const actualWasted = Number(usage.actualWasted)
 
             if (!materialId) {
@@ -864,67 +900,155 @@ export default function CreateProductionBatchPage() {
                 return
             }
 
-            if (!Number.isFinite(actualUsed) || actualUsed < 0) {
-                setError(`Dòng ${index + 1}: actualUsed phải >= 0.`)
+            if (quantityRequired <= 0) {
+                setError(`Dòng ${index + 1}: Định mức nguyên liệu không hợp lệ (phải > 0).`)
                 return
             }
 
             if (!Number.isFinite(actualWasted) || actualWasted < 0) {
-                setError(`Dòng ${index + 1}: actualWasted phải >= 0.`)
+                setError(`Dòng ${index + 1}: Hao hụt thực tế phải >= 0.`)
                 return
             }
 
+            if (actualWasted > maxWasteQty + 0.000001) {
+                setError(`Dòng ${index + 1}: Hao hụt thực tế vượt mức cho phép (${maxWasteQty} theo max ${maxWastePercent}%).`)
+                return
+            }
+
+            const totalUsed = Number((expectedNet + actualWasted).toFixed(4))
+
             parsedMaterialUsages.push({
                 materialId,
-                actualUsed,
-                actualWasted,
+                quantityRequired,
+                // Base BOM deduction: always consume expected net from production quantity.
+                actualUsed: expectedNet,
+                actualWasted: Number(actualWasted.toFixed(4)),
+                // Preserve total consumed for FE-side additional material calculation.
+                totalUsed,
+                maxWastePercent,
             })
         }
 
         setCompletingBatchId(batch.id)
         try {
-            const completePayload = {
-                quantityActual: actualQty,
-                materialUsages: parsedMaterialUsages,
-            }
+            const additionalMaterials = buildAdditionalMaterialsFromUsages(parsedMaterialUsages, actualQty)
+            const materialUsagesForPayload = parsedMaterialUsages.map((usage) => ({
+                materialId: usage.materialId,
+                actualUsed: usage.actualUsed,
+                actualWasted: usage.actualWasted,
+            }))
+            const statusPayloadVariants = [
+                { status: 'COMPLETED', quantityActual: actualQty, additionalMaterials },
+                { status: 'COMPLETED', quantityActual: actualQty },
+                { Status: 'COMPLETED', QuantityActual: actualQty, AdditionalMaterials: additionalMaterials },
+                { Status: 'COMPLETED', QuantityActual: actualQty },
+                { request: { status: 'COMPLETED', quantityActual: actualQty, additionalMaterials } },
+                { request: { Status: 'COMPLETED', QuantityActual: actualQty, AdditionalMaterials: additionalMaterials } },
+            ]
 
-            let response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/complete`, {
-                method: 'POST',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${tk}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(completePayload),
-            })
+            let completedData = {}
+            let completedSuccessfully = false
+            let lastErrorMsg = ''
+            let shouldTryLegacyCompleteEndpoint = false
 
-            let data = await response.json().catch(() => ({}))
-
-            // Fallback for environments where /complete is not available yet.
-            if (!response.ok && (response.status === 404 || response.status === 405)) {
-                response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
+            for (let index = 0; index < statusPayloadVariants.length; index += 1) {
+                const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/status`, {
                     method: 'PUT',
                     headers: {
                         accept: '*/*',
                         Authorization: `Bearer ${tk}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        status: 'COMPLETED',
-                        quantityActual: actualQty,
-                    }),
+                    body: JSON.stringify(statusPayloadVariants[index]),
                 })
 
-                data = await response.json().catch(() => ({}))
+                const { json: data, text: rawText } = await readResponsePayload(response)
+                if (response.ok) {
+                    completedData = data
+                    completedSuccessfully = true
+                    break
+                }
+
+                lastErrorMsg = resolveApiErrorMessage(data, rawText, `Lỗi ${response.status}`)
+                const isLastVariant = index === statusPayloadVariants.length - 1
+                const isValidation400 = response.status === 400 && shouldRetryOnValidation400(lastErrorMsg)
+
+                if (response.status === 404 || response.status === 405) {
+                    shouldTryLegacyCompleteEndpoint = true
+                    break
+                }
+
+                if (isValidation400 && !isLastVariant) {
+                    continue
+                }
+
+                if (isValidation400 && isLastVariant) {
+                    shouldTryLegacyCompleteEndpoint = true
+                }
+
+                break
             }
 
-            if (!response.ok) {
-                const errorMsg = resolveApiErrorMessage(data, '', `Lỗi ${response.status}`)
-                console.error('❌ Failed to complete batch:', errorMsg, data)
-                throw new Error(errorMsg)
+            if (!completedSuccessfully && shouldTryLegacyCompleteEndpoint) {
+                const completePayloadVariants = [
+                    {
+                        quantityActual: actualQty,
+                        materialUsages: materialUsagesForPayload,
+                    },
+                    {
+                        QuantityActual: actualQty,
+                        MaterialUsages: materialUsagesForPayload,
+                    },
+                    {
+                        request: {
+                            quantityActual: actualQty,
+                            materialUsages: materialUsagesForPayload,
+                        },
+                    },
+                ]
+
+                for (let index = 0; index < completePayloadVariants.length; index += 1) {
+                    const response = await fetch(`${apiBase}/ProductionBatches/${batch.id}/complete`, {
+                        method: 'POST',
+                        headers: {
+                            accept: '*/*',
+                            Authorization: `Bearer ${tk}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(completePayloadVariants[index]),
+                    })
+
+                    const { json: data, text: rawText } = await readResponsePayload(response)
+                    if (response.ok) {
+                        completedData = data
+                        completedSuccessfully = true
+                        break
+                    }
+
+                    lastErrorMsg = resolveApiErrorMessage(data, rawText, `Lỗi ${response.status}`)
+                    const isLastVariant = index === completePayloadVariants.length - 1
+                    const shouldRetry = response.status === 400 && shouldRetryOnValidation400(lastErrorMsg)
+
+                    if (!shouldRetry || isLastVariant) {
+                        break
+                    }
+                }
             }
 
-            setSuccess(data?.message || `Mẻ #${batch.id} đã hoàn thành với SL thực tế: ${actualQty}.`)
+            if (!completedSuccessfully) {
+                const finalMessage = lastErrorMsg
+                    ? `${lastErrorMsg} (Gợi ý: kiểm tra trạng thái mẻ phải là IN_PROGRESS và tồn kho nguyên liệu có đủ trước khi complete.)`
+                    : 'Hoàn thành mẻ thất bại.'
+                console.error('❌ Failed to complete batch:', finalMessage, {
+                    batchId: batch.id,
+                    quantityActual: actualQty,
+                    materialUsages: materialUsagesForPayload,
+                    materialUsagesForCalc: parsedMaterialUsages,
+                })
+                throw new Error(finalMessage)
+            }
+
+            setSuccess(completedData?.message || `Mẻ #${batch.id} đã hoàn thành với SL thực tế: ${actualQty}.`)
 
             // Đóng modal và reset form
             setShowCompleteBatchModal(false)
@@ -1099,11 +1223,32 @@ export default function CreateProductionBatchPage() {
         await fetchInProgressBatches()
     }
 
-    const openCreateBatchModal = (row) => {
-        setSelectedRowToCreate(row)
-        setCreateBatchForm(buildDefaultCreateBatchForm())
-        setShowCreateBatchModal(true)
+    const openCreateBatchModal = async (row) => {
         setError('')
+        setSuccess('')
+
+        const tk = getToken()
+        if (!tk) {
+            setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        setCheckingBomRowKey(row.key)
+        try {
+            const materialLines = await fetchRecipeMaterialsForProduct(Number(row?.productId), tk)
+            if (!Array.isArray(materialLines) || materialLines.length === 0) {
+                setError(`Sản phẩm "${row.productName}" chưa có công thức BOM. Vui lòng tạo công thức trước khi tạo mẻ.`)
+                return
+            }
+
+            setSelectedRowToCreate(row)
+            setCreateBatchForm(buildDefaultCreateBatchForm())
+            setShowCreateBatchModal(true)
+        } catch (requestError) {
+            setError(requestError.message || 'Không thể kiểm tra BOM trước khi tạo mẻ.')
+        } finally {
+            setCheckingBomRowKey('')
+        }
     }
 
     const closeCreateBatchModal = () => {
@@ -1146,6 +1291,17 @@ export default function CreateProductionBatchPage() {
 
         if (String(row?.productType || '').toUpperCase() === 'RAW') {
             setError('Sản phẩm RAW không thể tạo mẻ theo BOM. Chỉ tạo mẻ cho thành phẩm hoặc bán thành phẩm.')
+            return
+        }
+
+        try {
+            const materialLines = await fetchRecipeMaterialsForProduct(pid, tk)
+            if (!Array.isArray(materialLines) || materialLines.length === 0) {
+                setError(`Sản phẩm "${row.productName}" chưa có công thức BOM. Vui lòng tạo công thức trước khi tạo mẻ.`)
+                return
+            }
+        } catch (requestError) {
+            setError(requestError.message || 'Không thể kiểm tra BOM trước khi tạo mẻ.')
             return
         }
 
@@ -1314,20 +1470,21 @@ export default function CreateProductionBatchPage() {
 
     const completeActualQty = Number(completeBatchForm.actualQuantity)
     const hasInvalidCompleteUsage = completeMaterialUsages.some((usage) => {
-        const rawUsed = String(usage.actualUsed ?? '').trim()
         const rawWasted = String(usage.actualWasted ?? '').trim()
-        if (!rawUsed || !rawWasted) return true
+        if (!rawWasted) return true
 
-        const actualUsed = Number(usage.actualUsed)
         const actualWasted = Number(usage.actualWasted)
-        return !Number.isFinite(actualUsed)
-            || actualUsed < 0
-            || !Number.isFinite(actualWasted)
+        const quantityRequired = parseSafeNumber(usage.quantityRequired, 0)
+        const maxWastePercent = parseSafeNumber(usage.maxWastePercent, 0)
+        const expectedNet = Number((quantityRequired * Math.max(completeActualQty, 0)).toFixed(4))
+        const maxWasteQty = Number(((expectedNet * maxWastePercent) / 100).toFixed(4))
+
+        return !Number.isFinite(actualWasted)
             || actualWasted < 0
+            || actualWasted > maxWasteQty + 0.000001
     })
     const canSubmitCompleteBatch = completeActualQty > 0
         && completeMaterialUsages.length > 0
-        && !hasInvalidCompleteUsage
         && !completeUsagesLoading
         && !completingBatchId
 
@@ -1471,6 +1628,7 @@ export default function CreateProductionBatchPage() {
                                 ) : null}
                                 {!ordersLoading && !productsLoading && approvedDemandRows.map((row) => {
                                     const isCreating = creatingRowKey === row.key
+                                    const isCheckingBom = checkingBomRowKey === row.key
                                     const isRaw = String(row.productType).toUpperCase() === 'RAW'
                                     const progress = orderBatchProgress[row.orderId] || { created: 0, total: 0 }
                                     const isComplete = progress.created >= progress.total && progress.total > 0
@@ -1502,11 +1660,11 @@ export default function CreateProductionBatchPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => openCreateBatchModal(row)}
-                                                    disabled={isCreating || !!creatingRowKey || isRaw}
+                                                    disabled={isCreating || isCheckingBom || !!creatingRowKey || !!checkingBomRowKey || isRaw}
                                                     className="h-9 px-3 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                                                     title={isRaw ? 'RAW không tạo mẻ theo BOM' : ''}
                                                 >
-                                                    {isCreating ? 'Đang tạo mẻ...' : 'Tạo mẻ'}
+                                                    {isCheckingBom ? 'Đang kiểm tra BOM...' : isCreating ? 'Đang tạo mẻ...' : 'Tạo mẻ'}
                                                 </button>
                                             </td>
                                         </tr>
@@ -1521,7 +1679,7 @@ export default function CreateProductionBatchPage() {
             {showCompleteBatchModal && selectedBatchToComplete ? (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4" onClick={closeCompleteBatchModal}>
                     <div
-                        className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+                        className="w-[min(96vw,72rem)] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-3 mb-4">
@@ -1558,7 +1716,10 @@ export default function CreateProductionBatchPage() {
                                     required
                                 />
                                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                    Endpoint mới sẽ validate hao hụt thực tế theo MaxWastePercent của từng dòng BOM.
+                                    Quy ước: hệ thống luôn trừ BOM gốc theo số lượng thực tế sản xuất. Bạn chỉ nhập phần hao hụt thực tế phát sinh thêm.
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    Mức hao hụt nhập thêm phải nằm trong khoảng từ 0 đến mức tối đa theo Max waste (%).
                                 </p>
                             </div>
 
@@ -1580,19 +1741,25 @@ export default function CreateProductionBatchPage() {
                                 ) : null}
 
                                 {!completeUsagesLoading && completeMaterialUsages.length > 0 ? (
-                                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                                        <table className="w-full min-w-[760px] text-left border-collapse">
+                                    <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <table className="w-full table-fixed text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
-                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Nguyên liệu</th>
-                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Định mức</th>
-                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Max waste (%)</th>
-                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Actual used</th>
-                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Actual wasted</th>
+                                                    <th className="w-[30%] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Nguyên liệu</th>
+                                                    <th className="w-[10%] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Định mức</th>
+                                                    <th className="w-[12%] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Max waste (%)</th>
+                                                    <th className="w-[24%] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tiêu hao BOM (tự tính)</th>
+                                                    <th className="w-[24%] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Hao hụt thực tế (SL)</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                {completeMaterialUsages.map((usage, index) => (
+                                                {completeMaterialUsages.map((usage, index) => {
+                                                    const expectedNet = Number((parseSafeNumber(usage.quantityRequired, 0) * Math.max(completeActualQty, 0)).toFixed(4))
+                                                    const maxWasteQty = Number(((expectedNet * parseSafeNumber(usage.maxWastePercent, 0)) / 100).toFixed(4))
+                                                    const enteredWasted = Number(usage.actualWasted)
+                                                    const rowInvalid = Number.isFinite(enteredWasted) && enteredWasted > maxWasteQty + 0.000001
+
+                                                    return (
                                                     <tr key={`${usage.materialId}-${index}`}>
                                                         <td className="px-3 py-2 text-sm">
                                                             <p className="font-medium">{usage.materialName}</p>
@@ -1600,35 +1767,38 @@ export default function CreateProductionBatchPage() {
                                                         </td>
                                                         <td className="px-3 py-2 text-sm">{usage.quantityRequired}</td>
                                                         <td className="px-3 py-2 text-sm">{usage.maxWastePercent}%</td>
-                                                        <td className="px-3 py-2">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.0001"
-                                                                value={usage.actualUsed}
-                                                                onChange={(e) => updateCompleteMaterialUsage(index, 'actualUsed', e.target.value)}
-                                                                className="w-full h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm outline-none focus:border-primary"
-                                                                required
-                                                            />
+                                                        <td className="px-3 py-2 text-sm">
+                                                            <p className="font-semibold">{expectedNet}</p>
+                                                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">= Định mức × SL thực tế</p>
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             <input
                                                                 type="number"
                                                                 min="0"
+                                                                max={maxWasteQty}
                                                                 step="0.0001"
                                                                 value={usage.actualWasted}
                                                                 onChange={(e) => updateCompleteMaterialUsage(index, 'actualWasted', e.target.value)}
-                                                                className="w-full h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm outline-none focus:border-primary"
+                                                                className={`w-full h-9 rounded-lg border bg-white dark:bg-slate-800 px-2 text-sm outline-none focus:border-primary ${rowInvalid ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}
                                                                 required
                                                             />
+                                                            <p className={`mt-1 text-[11px] ${rowInvalid ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                                Tối đa {maxWasteQty} (theo {usage.maxWastePercent}%)
+                                                            </p>
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                )})}
                                             </tbody>
                                         </table>
                                     </div>
                                 ) : null}
                             </div>
+
+                            {hasInvalidCompleteUsage ? (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
+                                    Dữ liệu chưa hợp lệ: hao hụt thực tế phải nằm trong khoảng 0 đến mức tối đa theo Max waste (%).
+                                </div>
+                            ) : null}
 
                             {error && showCompleteBatchModal ? (
                                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
