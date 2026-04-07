@@ -443,4 +443,3 @@ C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-St
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\obj\Debug\net8.0\Shop2026.pdb
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\obj\Debug\net8.0\Shop2026.genruntimeconfig.cache
 C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\obj\Debug\net8.0\ref\Shop2026.dll
-C:\Users\truon\OneDrive\文档\GitHub\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\Shop2026\Shop2026\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

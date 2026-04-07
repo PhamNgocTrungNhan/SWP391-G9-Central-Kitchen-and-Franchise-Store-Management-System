@@ -3,12 +3,8 @@
   "WorkspaceRootPath": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dal\\internalorderrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -19,8 +15,12 @@
       "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dal\\inventoryrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\dll\\inventoryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|solutionrelative:shop2026\\controllers\\internalordercontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{874FDD79-3C6B-4C08-9AAA-DC354333E005}|Shop2026\\Shop2026.csproj|c:\\users\\truon\\onedrive\\\u6587\u6863\\github\\swp391-g9-central-kitchen-and-franchise-store-management-system\\shop2026\\shop2026\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
@@ -54,28 +54,27 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 2,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "InventoryService.cs",
-              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
-              "RelativeDocumentMoniker": "Shop2026\\DLL\\InventoryService.cs",
-              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
-              "RelativeToolTip": "Shop2026\\DLL\\InventoryService.cs",
-              "ViewState": "AgIAAG0AAAAAAAAAAAAewHkAAABUAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-07T09:06:03.259Z",
-              "EditorCaption": ""
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 3,
+              "Title": "InventoryService.cs",
+              "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeDocumentMoniker": "Shop2026\\DLL\\InventoryService.cs",
+              "ToolTip": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DLL\\InventoryService.cs",
+              "RelativeToolTip": "Shop2026\\DLL\\InventoryService.cs",
+              "ViewState": "AgIAALoAAAAAAAAAAADgv74AAAAnAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-07T09:06:03.259Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
               "Title": "AuthController.cs",
               "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\AuthController.cs",
               "RelativeDocumentMoniker": "Shop2026\\Controllers\\AuthController.cs",
@@ -88,7 +87,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "InventoryRepository.cs",
               "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InventoryRepository.cs",
               "RelativeDocumentMoniker": "Shop2026\\DAL\\InventoryRepository.cs",
@@ -96,12 +95,11 @@
               "RelativeToolTip": "Shop2026\\DAL\\InventoryRepository.cs",
               "ViewState": "AgIAAC4AAAAAAAAAAADwvwAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-05T06:43:08.175Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-05T06:43:08.175Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "InternalOrderRepository.cs",
               "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\DAL\\InternalOrderRepository.cs",
               "RelativeDocumentMoniker": "Shop2026\\DAL\\InternalOrderRepository.cs",
@@ -109,12 +107,11 @@
               "RelativeToolTip": "Shop2026\\DAL\\InternalOrderRepository.cs",
               "ViewState": "AgIAALEAAAAAAAAAAAAuwMYAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-05T06:42:58.587Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-05T06:42:58.587Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "InternalOrderController.cs",
               "DocumentMoniker": "C:\\Users\\truon\\OneDrive\\\u6587\u6863\\GitHub\\SWP391-G9-Central-Kitchen-and-Franchise-Store-Management-System\\Shop2026\\Shop2026\\Controllers\\InternalOrderController.cs",
               "RelativeDocumentMoniker": "Shop2026\\Controllers\\InternalOrderController.cs",
@@ -122,8 +119,7 @@
               "RelativeToolTip": "Shop2026\\Controllers\\InternalOrderController.cs",
               "ViewState": "AgIAAM8BAAAAAAAAAAAuwPIBAAATAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-05T06:42:58.676Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-05T06:42:58.676Z"
             },
             {
               "$type": "Document",
