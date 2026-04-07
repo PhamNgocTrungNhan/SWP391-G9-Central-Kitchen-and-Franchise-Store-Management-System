@@ -18,6 +18,7 @@ const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg
 const orderStatusStyle = {
     'Hoàn thành': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Đang giao': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'Giao một phần': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     'Đã hoàn tiền': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     'Đã sản xuất': 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
     'Đã duyệt': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
@@ -48,6 +49,7 @@ const apiStatusToUi = {
     CONFIRMED: 'Đã xác nhận',
     PROCESSING: 'Đang xử lý',
     PRODUCED: 'Đã sản xuất',
+    PARTIAL_SHIPPING: 'Giao một phần',
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
     REFUNDED: 'Đã hoàn tiền',
@@ -476,7 +478,10 @@ export default function StoreOrderPage() {
         // Check both raw status and normalized status
         return status === 'SHIPPED' ||
             status === 'SHIPPING' ||
+            status === 'PARTIAL_SHIPPING' ||
             status === 'ĐANG GIAO' ||
+            status === 'GIAO MỘT PHẦN' ||
+            status.includes('MOT_PHAN') ||
             status.includes('GIAO')
     }
 
@@ -490,6 +495,9 @@ export default function StoreOrderPage() {
             'ĐANG XỬ LÝ': 'PROCESSING',
             'ĐÃ SẢN XUẤT': 'PRODUCED',
             'ĐANG GIAO': 'SHIPPING',
+            'GIAO MỘT PHẦN': 'PARTIAL_SHIPPING',
+            'GIAO_MOT_PHAN': 'PARTIAL_SHIPPING',
+            PARTIAL_SHIPPING: 'PARTIAL_SHIPPING',
             SHIPPED: 'SHIPPING',
             'ĐÃ XÁC NHẬN': 'CONFIRMED',
             'HOÀN THÀNH': 'COMPLETED',
@@ -504,7 +512,7 @@ export default function StoreOrderPage() {
     const canPayOrder = (rawStatus, rawPaymentStatus) => {
         const normalizedStatus = normalizeApiOrderStatus(rawStatus)
         const normalizedPayment = normalizePaymentStatus(rawPaymentStatus)
-        const payableStatuses = ['APPROVED', 'PROCESSING', 'PRODUCED', 'SHIPPING']
+        const payableStatuses = ['APPROVED', 'PROCESSING', 'PRODUCED', 'PARTIAL_SHIPPING', 'SHIPPING']
         return normalizedPayment === 'UNPAID' && payableStatuses.includes(normalizedStatus)
     }
 
@@ -1545,6 +1553,7 @@ export default function StoreOrderPage() {
                                         <option value="APPROVED">Đã duyệt</option>
                                         <option value="PROCESSING">Đang sản xuất</option>
                                         <option value="PRODUCED">Đã sản xuất</option>
+                                        <option value="PARTIAL_SHIPPING">Giao một phần</option>
                                         <option value="SHIPPING">Đang giao</option>
                                         <option value="COMPLETED">Hoàn thành</option>
                                         <option value="REJECTED">Đã từ chối</option>
@@ -1637,10 +1646,10 @@ export default function StoreOrderPage() {
                                                         {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
                                                     </td>
                                                     <td className="px-3 py-2 text-center">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${order.statusStyle}`}>{order.status}</span>
                                                     </td>
                                                     <td className="px-3 py-2 text-center">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
                                                             {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
                                                         </span>
                                                     </td>
@@ -1734,10 +1743,10 @@ export default function StoreOrderPage() {
                                     <div className="p-6 overflow-y-auto min-h-0">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
+                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
                                                 {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
                                             </span>
-                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
+                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
                                                 {paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}
                                             </span>
                                         </div>

@@ -135,6 +135,7 @@ const orderStatusStyle = {
   APPROVED: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   PROCESSING: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
   PRODUCED: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  PARTIAL_SHIPPING: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
   SHIPPING: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   COMPLETED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   CANCELLED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -147,6 +148,7 @@ const orderStatusLabel = {
   APPROVED: 'Đã duyệt',
   PROCESSING: 'Đang xử lý',
   PRODUCED: 'Đã sản xuất',
+  PARTIAL_SHIPPING: 'Giao một phần',
   SHIPPING: 'Đang giao',
   COMPLETED: 'Hoàn thành',
   CANCELLED: 'Đã hủy',
@@ -161,12 +163,14 @@ function normalizeOrderStatus(rawStatus, fallback = 'PENDING') {
   const aliases = {
     SHIPPED: 'SHIPPING',
     DELIVERED: 'COMPLETED',
+    PARTIALSHIPPING: 'PARTIAL_SHIPPING',
     CHO_DUYET: 'PENDING',
     DUYET: 'APPROVED',
     DA_DUYET: 'APPROVED',
     DANG_XU_LY: 'PROCESSING',
     DA_SAN_XUAT: 'PRODUCED',
     DANG_GIAO: 'SHIPPING',
+    GIAO_MOT_PHAN: 'PARTIAL_SHIPPING',
     DA_HUY: 'CANCELLED',
     DA_TU_CHOI: 'REJECTED',
     DA_HOAN_TIEN: 'REFUNDED',
@@ -194,6 +198,13 @@ function canRefundOrder(order) {
   if (refundableRemaining <= 0) return false
 
   return true
+}
+
+const PAYABLE_ORDER_STATUSES = ['APPROVED', 'PROCESSING', 'PRODUCED', 'PARTIAL_SHIPPING', 'SHIPPING']
+
+function canPayByOrderStatus(rawStatus) {
+  const normalized = normalizeOrderStatus(rawStatus, '')
+  return PAYABLE_ORDER_STATUSES.includes(normalized)
 }
 
 function refundDebug(step, details) {
@@ -452,6 +463,12 @@ export default function PaymentsPage() {
 
   const openPaymentMethodModal = (order) => {
     if (isAdminView) return
+
+    if (!canPayByOrderStatus(order?.orderStatus)) {
+      setMessage({ type: 'error', text: 'Đơn hiện không ở trạng thái cho phép thanh toán.' })
+      return
+    }
+
     setSelectedPaymentOrder(order)
     setShowPaymentMethodModal(true)
   }
@@ -1110,7 +1127,7 @@ export default function PaymentsPage() {
                         >
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </button>
-                        {!isAdminView && order.paymentStatus === 'UNPAID' && (
+                        {!isAdminView && order.paymentStatus === 'UNPAID' && canPayByOrderStatus(order.orderStatus) && (
                           <button
                             onClick={() => openPaymentMethodModal(order)}
                             disabled={actionLoading === order.orderId}
@@ -1240,7 +1257,7 @@ export default function PaymentsPage() {
                 </div>
               </div>
 
-              {!isAdminView && selectedListOrder.paymentStatus === 'UNPAID' && (
+              {!isAdminView && selectedListOrder.paymentStatus === 'UNPAID' && canPayByOrderStatus(selectedListOrder.orderStatus) && (
                 <div className="pt-2 flex justify-end">
                   <button
                     type="button"

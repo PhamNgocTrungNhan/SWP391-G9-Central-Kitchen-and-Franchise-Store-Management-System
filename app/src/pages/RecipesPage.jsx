@@ -64,8 +64,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = API_TIMEOUT_MS) {
     return await fetch(url, { ...options, signal: controller.signal })
   } catch (error) {
     if (error?.name === 'AbortError') {
-      const method = options?.method || 'GET'
-      throw new Error(`Yeu cau bi timeout sau ${Math.round(timeoutMs / 1000)}s (${method} ${url}).`)
+      throw new Error('Hệ thống phản hồi chậm. Vui lòng thử lại.')
     }
     throw error
   } finally {
@@ -127,6 +126,53 @@ function isEntitySaveError(message) {
     || normalized.includes('saving the entity changes')
 }
 
+function isRecipesSchemaMismatch(message) {
+  const normalized = String(message || '').toLowerCase()
+  return normalized.includes('invalid column name')
+    && normalized.includes('waste_allowance_percent')
+}
+
+function toUiNoticeMessage(rawMessage, fallbackMessage) {
+  const message = String(rawMessage || '').trim()
+  if (!message) return fallbackMessage
+
+  const normalized = message.toLowerCase()
+
+  if (normalized.includes('thiếu token') || normalized.includes('đăng nhập')) {
+    return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+  }
+
+  if (normalized.includes('đã tồn tại trong công thức')) {
+    return message
+  }
+
+  if (normalized.includes('không tồn tại')) {
+    return message
+  }
+
+  if (
+    normalized.includes('invalid column name')
+    || normalized.includes('waste_allowance_percent')
+    || normalized.includes('entity')
+    || normalized.includes('sql')
+    || normalized.includes('exception')
+    || normalized.includes('schema')
+    || normalized.includes('backend')
+    || normalized.includes('http ')
+    || normalized.includes('/api/')
+    || normalized.includes('/recipes')
+    || normalized.includes('method not allowed')
+    || normalized.includes('bad request')
+    || normalized.includes('unauthorized')
+    || normalized.includes('forbidden')
+    || normalized.includes('timeout')
+  ) {
+    return fallbackMessage
+  }
+
+  return message
+}
+
 async function createBulkRecipesWithRetry(apiBase, token, parentProductId, materials) {
   const requestUrl = `${apiBase}/Recipes`
   const payload = {
@@ -180,6 +226,7 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [recipesReadUnavailable, setRecipesReadUnavailable] = useState(false)
 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -249,8 +296,7 @@ export default function RecipesPage() {
     })
 
     if (!response.ok) {
-      const statusHint = response.status ? ` (HTTP ${response.status})` : ''
-      throw new Error(resolveApiErrorMessage(data, `Không thể tải danh sách thành phẩm từ /Products/manufactured${statusHint}.`))
+      throw new Error(resolveApiErrorMessage(data, 'Không thể tải danh sách thành phẩm.'))
     }
 
     return parseArrayData(data).map(normalizeProduct).filter(Boolean)
@@ -277,97 +323,78 @@ export default function RecipesPage() {
     })
 
     if (!response.ok) {
-      const statusHint = response.status ? ` (HTTP ${response.status})` : ''
-      throw new Error(resolveApiErrorMessage(data, `Không thể tải danh sách nguyên liệu từ /Products/raw${statusHint}.`))
+      throw new Error(resolveApiErrorMessage(data, 'Không thể tải danh sách nguyên liệu.'))
     }
 
     return parseArrayData(data).map(normalizeProduct).filter(Boolean)
   }
 
-  const fetchRecipesByParents = async (tk, parentProducts) => {
-    if (!Array.isArray(parentProducts) || parentProducts.length === 0) return []
+  const fetchRecipesByParentsResilient = async (tk, parentProducts) => {
+    if (!Array.isArray(parentProducts) || parentProducts.length === 0) {
+      return { rows: [], failedParents: [] }
+    }
 
     const requests = parentProducts.map(async (product) => {
-      const requestUrl = `${apiBase}/Recipes/parent/${product.id}`
-      const response = await fetchWithTimeout(requestUrl, {
-        method: 'GET',
-        headers: {
-          accept: '*/*',
-          Authorization: `Bearer ${tk}`,
-        },
-      })
+      const parentId = Number(product?.id)
+      const requestUrl = `${apiBase}/Recipes/parent/${parentId}`
 
-      const { json: data, text: rawText } = await readResponsePayload(response)
-      logRecipesApi({
-        stage: 'load-recipes-parent',
-        method: 'GET',
-        url: requestUrl,
-        status: response.status,
-        data,
-        rawText,
-      })
+      try {
+        const response = await fetchWithTimeout(requestUrl, {
+          method: 'GET',
+          headers: {
+            accept: '*/*',
+            Authorization: `Bearer ${tk}`,
+          },
+        })
 
-      if (!response.ok) {
-        if (response.status === 404) return []
+        const { json: data, text: rawText } = await readResponsePayload(response)
+        logRecipesApi({
+          stage: 'load-recipes-parent-fallback',
+          method: 'GET',
+          url: requestUrl,
+          status: response.status,
+          data,
+          rawText,
+        })
 
-        const requestError = new Error(resolveApiErrorMessage(data, `Không thể tải BOM cho sản phẩm #${product.id}.`))
-        requestError.status = response.status
-        throw requestError
+        if (!response.ok) {
+          if (response.status === 404) {
+            return { rows: [], failed: null }
+          }
+
+          return {
+            rows: [],
+            failed: {
+              parentId,
+              status: response.status,
+              message: resolveApiErrorMessage(data, `Không thể tải BOM cho thành phẩm #${parentId}.`),
+            },
+          }
+        }
+
+        return {
+          rows: parseArrayData(data).map(normalizeRecipe).filter(Boolean),
+          failed: null,
+        }
+      } catch (requestError) {
+        return {
+          rows: [],
+          failed: {
+            parentId,
+            status: 0,
+            message: requestError?.message || `Không thể tải BOM cho thành phẩm #${parentId}.`,
+          },
+        }
       }
-
-      return parseArrayData(data)
     })
 
-    const results = await Promise.all(requests)
-    return results.flat().map(normalizeRecipe).filter(Boolean)
-  }
+    const settled = await Promise.all(requests)
+    const rows = settled.flatMap((item) => item.rows)
+    const failedParents = settled
+      .filter((item) => item.failed)
+      .map((item) => item.failed)
 
-  const fetchRecipesByParentId = async (tk, parentProductId) => {
-    const requestUrl = `${apiBase}/Recipes/parent/${parentProductId}`
-    const response = await fetchWithTimeout(requestUrl, {
-      method: 'GET',
-      headers: {
-        accept: '*/*',
-        Authorization: `Bearer ${tk}`,
-      },
-    })
-
-    const { json: data, text: rawText } = await readResponsePayload(response)
-    logRecipesApi({
-      stage: 'precheck-parent-recipes',
-      method: 'GET',
-      url: requestUrl,
-      status: response.status,
-      data,
-      rawText,
-    })
-
-    if (!response.ok) {
-      const requestError = new Error(resolveApiErrorMessage(data, `Không thể kiểm tra BOM hiện có cho sản phẩm #${parentProductId}.`))
-      requestError.status = response.status
-      throw requestError
-    }
-
-    return parseArrayData(data).map(normalizeRecipe).filter(Boolean)
-  }
-
-  const refreshRecipesForParent = async (tk, parentProductId) => {
-    const normalizedParentId = Number(parentProductId)
-    if (!normalizedParentId) return
-
-    try {
-      const rows = await fetchRecipesByParentId(tk, normalizedParentId)
-      setRecipes((current) => {
-        const withoutParent = current.filter((row) => Number(row.parentProductId) !== normalizedParentId)
-        return [...withoutParent, ...rows]
-      })
-    } catch (requestError) {
-      if (requestError?.status === 404) {
-        setRecipes((current) => current.filter((row) => Number(row.parentProductId) !== normalizedParentId))
-        return
-      }
-      throw requestError
-    }
+    return { rows, failedParents }
   }
 
   const loadAllData = async () => {
@@ -391,10 +418,35 @@ export default function RecipesPage() {
       setProducts(fetchedProducts)
       setMaterials(fetchedMaterials)
 
-      const fetchedRecipes = await fetchRecipesByParents(tk, fetchedProducts)
-      setRecipes(fetchedRecipes)
+      const fallbackResult = await fetchRecipesByParentsResilient(tk, fetchedProducts)
+      if (fallbackResult.rows.length > 0) {
+        setRecipes(fallbackResult.rows)
+        setRecipesReadUnavailable(false)
+      } else {
+        setRecipes([])
+      }
+
+      if (fallbackResult.failedParents.length > 0) {
+        const sample = fallbackResult.failedParents.slice(0, 3).map((item) => `#${item.parentId}`).join(', ')
+        const firstMessage = fallbackResult.failedParents[0]?.message || ''
+
+        if (fallbackResult.rows.length === 0 && isRecipesSchemaMismatch(firstMessage)) {
+          setRecipesReadUnavailable(true)
+          setError('Danh sách công thức đang tạm gián đoạn. Vui lòng thử lại sau.')
+        } else if (fallbackResult.rows.length === 0) {
+          setRecipesReadUnavailable(true)
+          setError('Hiện chưa thể tải danh sách công thức. Vui lòng thử lại sau.')
+        } else {
+          setRecipesReadUnavailable(false)
+          setError('Đã tải được một phần công thức. Bạn có thể làm mới lại để đồng bộ thêm dữ liệu.')
+        }
+      } else if (fallbackResult.rows.length === 0) {
+        setRecipesReadUnavailable(false)
+      } else {
+        setRecipesReadUnavailable(false)
+      }
     } catch (requestError) {
-      setError(requestError.message || 'Không thể tải dữ liệu công thức.')
+      setError(toUiNoticeMessage(requestError.message, 'Không thể tải dữ liệu công thức.'))
     } finally {
       setLoading(false)
     }
@@ -534,21 +586,13 @@ export default function RecipesPage() {
       duplicateSet.add(key)
     }
 
-    let serverExistingMaterialSet = new Set()
-    try {
-      const latestRows = await fetchRecipesByParentId(tk, parentProductId)
-      serverExistingMaterialSet = new Set(latestRows.map((row) => Number(row.materialId)))
-    } catch (precheckError) {
-      console.warn('[RecipesAPI] precheck-parent-recipes failed:', precheckError?.message || precheckError)
-    }
-
     const localExistingMaterialSet = new Set(
       recipes
         .filter((row) => Number(row.parentProductId) === parentProductId)
         .map((row) => Number(row.materialId)),
     )
 
-    const existingMaterialSet = new Set([...localExistingMaterialSet, ...serverExistingMaterialSet])
+    const existingMaterialSet = new Set([...localExistingMaterialSet])
     const duplicatedExisting = materialsPayload.find((line) => existingMaterialSet.has(Number(line.materialId)))
     if (duplicatedExisting) {
       setError(`Nguyên liệu ${getProductName(duplicatedExisting.materialId)} đã tồn tại trong BOM của thành phẩm này.`)
@@ -570,8 +614,16 @@ export default function RecipesPage() {
           if (conflictNames.length > 0) {
             finalError = `BOM đã có sẵn nguyên liệu: ${conflictNames.join(', ')}. Vui lòng sửa dòng cũ thay vì thêm mới.`
           } else {
-            finalError = 'Backend báo lỗi khi lưu DB (Entity save). Có thể do ràng buộc dữ liệu (trùng BOM, khóa ngoại, kiểu dữ liệu). Vui lòng kiểm tra log BE để xem inner exception chi tiết.'
+            finalError = 'Không thể lưu công thức lúc này. Vui lòng kiểm tra dữ liệu và thử lại.'
           }
+        }
+
+        if (recipesReadUnavailable && isRecipesSchemaMismatch(finalError)) {
+          finalError = 'Không thể tạo công thức lúc này. Vui lòng thử lại sau.'
+        }
+
+        if (recipesReadUnavailable && /đã tồn tại trong công thức/i.test(finalError)) {
+          finalError = `${finalError} Vui lòng làm mới danh sách công thức để kiểm tra lại dữ liệu.`
         }
 
         throw new Error(finalError)
@@ -580,9 +632,9 @@ export default function RecipesPage() {
       const successMessage = createResult.data?.message || `Lưu BOM thành công (${materialsPayload.length} dòng).`
       setSuccess(successMessage)
       setShowCreateModal(false)
-      await refreshRecipesForParent(tk, parentProductId)
+      await loadAllData()
     } catch (requestError) {
-      setError(requestError.message || 'Tạo BOM thất bại.')
+      setError(toUiNoticeMessage(requestError.message, 'Tạo công thức thất bại.'))
     } finally {
       setSubmitting(false)
     }
@@ -607,7 +659,6 @@ export default function RecipesPage() {
     }
 
     const recipeId = Number(editRecipeId)
-    const currentParentProductId = Number(recipes.find((row) => Number(row.recipeId) === recipeId)?.parentProductId || 0)
     const materialId = Number(editMaterialId)
     const quantityRequired = Number(editQuantityRequired)
     const maxWastePercent = Number(editMaxWastePercent)
@@ -662,13 +713,9 @@ export default function RecipesPage() {
 
       setSuccess(data?.message || 'Cập nhật dòng BOM thành công.')
       setShowEditModal(false)
-      if (currentParentProductId > 0) {
-        await refreshRecipesForParent(tk, currentParentProductId)
-      } else {
-        await loadAllData()
-      }
+      await loadAllData()
     } catch (requestError) {
-      setError(requestError.message || 'Cập nhật BOM thất bại.')
+      setError(toUiNoticeMessage(requestError.message, 'Cập nhật công thức thất bại.'))
     } finally {
       setSubmitting(false)
     }
@@ -682,8 +729,6 @@ export default function RecipesPage() {
       setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
       return
     }
-
-    const currentParentProductId = Number(recipes.find((row) => Number(row.recipeId) === Number(recipeId))?.parentProductId || 0)
 
     setDeletingId(recipeId)
     clearNotice()
@@ -712,13 +757,9 @@ export default function RecipesPage() {
       }
 
       setSuccess(data?.message || `Đã xóa dòng BOM #${recipeId}.`)
-      if (currentParentProductId > 0) {
-        await refreshRecipesForParent(tk, currentParentProductId)
-      } else {
-        await loadAllData()
-      }
+      await loadAllData()
     } catch (requestError) {
-      setError(requestError.message || 'Xóa dòng BOM thất bại.')
+      setError(toUiNoticeMessage(requestError.message, 'Xóa dòng công thức thất bại.'))
     } finally {
       setDeletingId(null)
     }

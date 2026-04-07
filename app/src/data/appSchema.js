@@ -130,12 +130,13 @@ export const pageCatalog = {
   internalOrders: {
     controller: 'InternalOrderController',
     title: 'Đơn hàng nội bộ',
-    description: 'Không gian này bao gồm tạo đơn, lọc danh sách theo storeId và trạng thái, xem chi tiết, cùng các thao tác hủy, duyệt, từ chối, xác nhận hoàn tất và cập nhật trạng thái.',
+    description: 'Không gian này bao gồm tạo đơn, lọc danh sách theo storeId và trạng thái, xem chi tiết, giao từng phần, cùng các thao tác hủy, duyệt, từ chối, xác nhận hoàn tất và cập nhật trạng thái. Trạng thái PARTIAL_SHIPPING cho phép giao nhiều lần trước khi lên SHIPPING.',
     authorize: 'No [Authorize] attribute on controller/actions',
     endpoints: [
       { method: 'POST', path: '/api/internal-orders', body: 'CreateInternalOrderRequest' },
       { method: 'GET', path: '/api/internal-orders', params: 'storeId, status?' },
       { method: 'GET', path: '/api/internal-orders/{orderId}' },
+      { method: 'POST', path: '/api/internal-orders/{orderId}/ship-partial', body: 'Array<{ productId, quantityToShip }>' },
       { method: 'PUT', path: '/api/internal-orders/{orderId}/cancel' },
       { method: 'PUT', path: '/api/internal-orders/{orderId}/confirm-completed' },
       { method: 'PUT', path: '/api/internal-orders/{orderId}/approve', note: 'approvedBy hardcoded = 1' },
