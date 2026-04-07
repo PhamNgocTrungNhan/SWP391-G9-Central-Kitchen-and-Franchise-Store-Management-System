@@ -1,5 +1,6 @@
 ﻿using Shop2026.Models;
 using Shop2026.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace Shop2026.DAL
 {
@@ -62,6 +63,14 @@ namespace Shop2026.DAL
                 })
                 .FirstOrDefault();
         }
+
+            // Use tracked entities for write flows (e.g. partial shipping) so SaveChanges persists detail/status updates.
+            public InternalOrder? GetOrderDetailForUpdate(int orderId)
+            {
+                return _context.InternalOrders
+                .Include(o => o.InternalOrderDetails)
+                .FirstOrDefault(o => o.OrderId == orderId);
+            }
 
         public InternalOrder? GetOrderById(int orderId)
         {

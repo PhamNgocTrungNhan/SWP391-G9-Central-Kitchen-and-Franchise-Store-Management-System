@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Shop2026.DLL;
 using Shop2026.DTOs;
 using System;
@@ -12,7 +14,13 @@ namespace Shop2026.Controllers
     public class InventoryController : ControllerBase
     {
         private readonly InventoryService _service;
-        public InventoryController(InventoryService service) => _service = service;
+        private readonly ILogger<InventoryController> _logger;
+
+        public InventoryController(InventoryService service, ILogger<InventoryController> logger)
+        {
+            _service = service;
+            _logger = logger;
+        }
 
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
@@ -51,7 +59,20 @@ namespace Shop2026.Controllers
         {
             try
             {
+                _logger.LogInformation(
+                    "[InventoryImport] request received. ProductId={ProductId}, Quantity={Quantity}, SupplierId={SupplierId}, User={User}",
+                    request.ProductId,
+                    request.Quantity,
+                    request.SupplierId,
+                    User?.Identity?.Name ?? "anonymous");
+
                 _service.ImportRawMaterial(request.ProductId, request.Quantity, 1, request.SupplierId);
+
+                _logger.LogInformation(
+                    "[InventoryImport] success. ProductId={ProductId}, Quantity={Quantity}, SupplierId={SupplierId}",
+                    request.ProductId,
+                    request.Quantity,
+                    request.SupplierId);
 
                 return Ok(new
                 {
@@ -60,11 +81,105 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
+                var rootCause = GetInnermostMessage(ex);
+
+                _logger.LogWarning(
+                    ex,
+                    "[InventoryImport] failed. ProductId={ProductId}, Quantity={Quantity}, SupplierId={SupplierId}, RootCause={RootCause}",
+                    request?.ProductId,
+                    request?.Quantity,
+                    request?.SupplierId,
+                    rootCause);
+
                 return BadRequest(new
                 {
-                    message = ex.Message
+                    message = ToClientImportMessage(ex),
+                    errorCode = ToClientImportErrorCode(ex),
+                    traceId = HttpContext.TraceIdentifier,
+                    debugPayload = new
+                    {
+                        request?.ProductId,
+                        request?.Quantity,
+                        request?.SupplierId,
+                        rootCause
+                    }
                 });
             }
+        }
+
+        private static string ToClientImportMessage(Exception ex)
+        {
+            if (IsStringTruncationError(ex))
+            {
+                return "Không thể ghi log nhập kho vì dữ liệu vượt độ dài cho phép của hệ thống.";
+            }
+
+            if (IsSaveChangesError(ex))
+            {
+                return "Không thể nhập kho lúc này. Vui lòng kiểm tra lại nguyên liệu, nhà cung cấp hoặc thử lại sau.";
+            }
+
+            return ex.Message;
+        }
+
+        private static string ToClientImportErrorCode(Exception ex)
+        {
+            if (!IsSaveChangesError(ex))
+            {
+                return "INV_IMPORT_BUSINESS_ERROR";
+            }
+
+            var root = GetInnermostMessage(ex);
+            if (root.Contains("UQ_Inventory", StringComparison.OrdinalIgnoreCase))
+            {
+                return "INV_IMPORT_DUPLICATE_INVENTORY";
+            }
+
+            if (root.Contains("FK_Stock_Logs_Suppliers", StringComparison.OrdinalIgnoreCase))
+            {
+                return "INV_IMPORT_SUPPLIER_FK_FAILED";
+            }
+
+            if (root.Contains("FK__Stock_Log__produ", StringComparison.OrdinalIgnoreCase))
+            {
+                return "INV_IMPORT_PRODUCT_FK_FAILED";
+            }
+
+            if (root.Contains("String or binary data would be truncated", StringComparison.OrdinalIgnoreCase))
+            {
+                return "INV_IMPORT_LOG_FIELD_TOO_LONG";
+            }
+
+            return "INV_IMPORT_SAVE_FAILED";
+        }
+
+        private static bool IsSaveChangesError(Exception ex)
+        {
+            if (ex is DbUpdateException)
+            {
+                return true;
+            }
+
+            var message = ex.Message ?? string.Empty;
+            return message.Contains("An error occurred while saving the entity changes", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("inner exception", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetInnermostMessage(Exception ex)
+        {
+            var current = ex;
+            while (current.InnerException != null)
+            {
+                current = current.InnerException;
+            }
+
+            return current.Message ?? ex.Message ?? "Unknown error";
+        }
+
+        private static bool IsStringTruncationError(Exception ex)
+        {
+            var root = GetInnermostMessage(ex);
+            return root.Contains("String or binary data would be truncated", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -125,6 +125,9 @@ namespace Shop2026.DLL
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
+                    UpdateStockAndLog(detail.ProductId ?? 0, "STORE", order.StoreId, quantityToShip,
+                                      "Nhận giao từ bếp", order.OrderId, "INTERNAL_ORDER");
+
                     var trackedDetail = _repo.GetContext().InternalOrderDetails.Find(detail.DetailId);
                     if (trackedDetail != null)
                     {
@@ -174,7 +177,7 @@ namespace Shop2026.DLL
                 throw new Exception("Số lượng nhập kho phải lớn hơn 0.");
 
             var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
-            if (product.ProductType != "RAW")
+            if (!string.Equals(product.ProductType?.Trim(), "RAW", StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Lỗi: Chỉ được nhập Nguyên liệu thô (RAW).");
 
             var supplier = _repo.GetContext().Suppliers.Find(supplierId) ?? throw new Exception("Không tìm thấy nhà cung cấp.");
@@ -184,8 +187,9 @@ namespace Shop2026.DLL
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
-                string logReason = $"Nhập nguyên liệu từ NCC: {supplier.SupplierName}";
-                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, 0, "IMPORT_SUPPLIER", supplierId);
+                string logReason = BuildImportReason(supplier.SupplierName);
+                // Use supplierId as a meaningful reference for import logs instead of sentinel 0.
+                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, supplierId, "IMPORT_SUPPLIER", supplierId);
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -198,7 +202,11 @@ namespace Shop2026.DLL
 
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
-            var stock = _repo.GetStock(productId, locationType, locationId);
+            var safeLocationType = TrimToMaxLength(locationType, 20);
+            var safeReason = TrimToMaxLength(reason, 50);
+            var safeRefType = TrimToMaxLength(refType, 20);
+
+            var stock = _repo.GetStock(productId, safeLocationType, locationId);
 
             if (stock == null)
             {
@@ -208,7 +216,7 @@ namespace Shop2026.DLL
                 stock = new Inventory
                 {
                     ProductId = productId,
-                    LocationType = locationType,
+                    LocationType = safeLocationType,
                     LocationId = locationId,
                     CurrentQuantity = changeQty,
                     LastUpdated = DateTime.Now
@@ -229,16 +237,40 @@ namespace Shop2026.DLL
             var log = new StockLog
             {
                 ProductId = productId,
-                LocationType = locationType,
+                LocationType = safeLocationType,
                 LocationId = locationId,
                 ChangeQuantity = changeQty,
-                Reason = reason,
+                Reason = safeReason,
                 ReferenceId = refId,
-                ReferenceType = refType,
+                ReferenceType = safeRefType,
                 SupplierId = supplierId,
                 CreatedAt = DateTime.Now
             };
             _repo.AddStockLog(log);
+        }
+
+        private static string BuildImportReason(string? supplierName)
+        {
+            var normalizedSupplierName = (supplierName ?? string.Empty).Trim();
+            var baseReason = "Nhập nguyên liệu từ NCC";
+
+            if (string.IsNullOrWhiteSpace(normalizedSupplierName))
+            {
+                return baseReason;
+            }
+
+            return TrimToMaxLength($"{baseReason}: {normalizedSupplierName}", 50);
+        }
+
+        private static string TrimToMaxLength(string? value, int maxLength)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            if (normalized.Length <= maxLength)
+            {
+                return normalized;
+            }
+
+            return normalized.Substring(0, maxLength);
         }
 
         public void ScanAndRemoveExpiredStock()

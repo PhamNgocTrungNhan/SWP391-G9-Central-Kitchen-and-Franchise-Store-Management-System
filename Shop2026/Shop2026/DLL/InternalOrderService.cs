@@ -381,10 +381,33 @@ namespace Shop2026.DLL
         // ==========================================
         public InternalOrder? ShipItemsPartial(int orderId, List<ShipItemRequest> items)
         {
-            var order = _orderRepository.GetOrderDetail(orderId) ?? throw new Exception("Không tìm thấy đơn hàng");
+            var order = _orderRepository.GetOrderDetailForUpdate(orderId) ?? throw new Exception("Không tìm thấy đơn hàng");
+
+            if (items == null || items.Count == 0)
+                throw new Exception("Danh sách sản phẩm giao không được để trống.");
+
+            var requestByProduct = items
+                .Where(x => x.QuantityToShip > 0)
+                .GroupBy(x => x.ProductId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.QuantityToShip));
+
+            if (requestByProduct.Count == 0)
+                throw new Exception("Cần ít nhất 1 sản phẩm có số lượng giao > 0.");
+
+            var orderProductIds = order.InternalOrderDetails
+                .Where(d => d.ProductId.HasValue)
+                .Select(d => d.ProductId!.Value)
+                .ToHashSet();
+
+            var invalidProductId = requestByProduct.Keys.FirstOrDefault(pid => !orderProductIds.Contains(pid));
+            if (invalidProductId != 0)
+                throw new Exception($"Sản phẩm mã {invalidProductId} không thuộc đơn hàng này.");
 
             // ✅ Cho phép giao thêm khi đơn đang ở PARTIAL_SHIPPING
-            if (order.OrderStatus != "APPROVED" && order.OrderStatus != "PROCESSING" && order.OrderStatus != "PRODUCED" && order.OrderStatus != "PARTIAL_SHIPPING")
+            if (!string.Equals(order.OrderStatus, "APPROVED", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.OrderStatus, "PROCESSING", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.OrderStatus, "PRODUCED", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(order.OrderStatus, "PARTIAL_SHIPPING", StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Không thể xuất giao ở trạng thái {order.OrderStatus}.");
 
             using var transaction = _orderRepository.GetContext().Database.BeginTransaction();
@@ -394,29 +417,39 @@ namespace Shop2026.DLL
 
                 foreach (var detail in order.InternalOrderDetails)
                 {
-                    var reqItem = items.FirstOrDefault(x => x.ProductId == detail.ProductId);
-                    decimal qtyToShip = reqItem?.QuantityToShip ?? 0;
+                    int productId = detail.ProductId ?? 0;
+                    decimal qtyToShip = requestByProduct.TryGetValue(productId, out var groupedQty)
+                        ? groupedQty
+                        : 0;
 
                     if (qtyToShip > 0)
                     {
                         decimal targetQtyForDetail = detail.QuantityConfirmed > 0 ? detail.QuantityConfirmed.Value : (detail.QuantityOrdered ?? 0);
+                        decimal currentShipped = detail.QuantityShipped ?? 0;
 
-                        if ((detail.QuantityShipped + qtyToShip) > targetQtyForDetail)
+                        if ((currentShipped + qtyToShip) > targetQtyForDetail)
                             throw new Exception($"Sản phẩm mã {detail.ProductId} xuất giao vượt quá số lượng yêu cầu!");
 
                         // Cập nhật số lượng đã giao
-                        detail.QuantityShipped += qtyToShip;
+                        detail.QuantityShipped = currentShipped + qtyToShip;
 
                         // Trừ kho KITCHEN ngay lập tức cho số lượng vừa giao
                         _inventoryService.UpdateStockAndLog(
-                            detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -qtyToShip,
+                            productId, "KITCHEN", order.KitchenId ?? 1, -qtyToShip,
                             "Xuất giao từng phần cho cửa hàng", order.OrderId, "INTERNAL_ORDER", null
+                        );
+
+                        // Cộng kho STORE tương ứng để cửa hàng thấy thay đổi tồn kho ngay sau khi giao.
+                        _inventoryService.UpdateStockAndLog(
+                            productId, "STORE", order.StoreId, qtyToShip,
+                            "Nhận giao từng phần từ bếp", order.OrderId, "INTERNAL_ORDER", null
                         );
                     }
 
                     // Kiểm tra lại xem dòng này đã giao đủ tổng chưa
                     decimal finalTargetQty = detail.QuantityConfirmed > 0 ? detail.QuantityConfirmed.Value : (detail.QuantityOrdered ?? 0);
-                    if (detail.QuantityShipped < finalTargetQty)
+                    decimal finalShipped = detail.QuantityShipped ?? 0;
+                    if (finalShipped < finalTargetQty)
                     {
                         isFullyShipped = false;
                     }
@@ -437,7 +470,7 @@ namespace Shop2026.DLL
                 _orderRepository.GetContext().SaveChanges();
                 transaction.Commit();
 
-                return order;
+                return _orderRepository.GetOrderDetail(orderId);
             }
             catch (Exception)
             {
