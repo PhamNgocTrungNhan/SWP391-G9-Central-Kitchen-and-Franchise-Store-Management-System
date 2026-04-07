@@ -228,7 +228,7 @@ export default function StoresPage() {
     }
 
     const deleteStore = async (storeId, storeName) => {
-        if (!window.confirm(`Bạn có chắc muốn vô hiệu hóa cửa hàng "${storeName}"?\n\nCảnh báo: Thao tác này sẽ set isActive = false!`)) {
+        if (!window.confirm(`Bạn có chắc muốn vô hiệu hóa cửa hàng "${storeName}"?\n\nCảnh báo: thao tác này sẽ chuyển trạng thái cửa hàng sang ngừng hoạt động.`)) {
             return
         }
 
@@ -438,11 +438,11 @@ export default function StoresPage() {
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                     <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
-                                    <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
-                                    <th className="w-[30%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
+                                    <th className="w-[24%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
+                                    <th className="w-[27%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
                                     <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Điện thoại</th>
                                     <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái</th>
-                                    {isAdmin && <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
+                                    {isAdmin && <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -458,8 +458,8 @@ export default function StoresPage() {
                                             </span>
                                         </td>
                                         {isAdmin && (
-                                            <td className="px-4 py-3 whitespace-normal">
-                                                <div className="flex gap-2">
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         className="h-8 px-3 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
                                                         onClick={() => openEditModal(store)}

@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
 
-const fallbackStoreOptions = [{ id: 1, name: 'Cửa hàng chưa có tên' }]
-const fallbackProductOptions = [
-    { id: 1, name: 'Bột mì đa dụng' },
-    { id: 2, name: 'Lá húng tươi' },
-    { id: 3, name: 'Đế bánh pizza' },
-    { id: 4, name: 'Sốt burger' },
-    { id: 5, name: 'Phô mai Mozzarella' },
-    { id: 6, name: 'Sốt cà chua nền' },
-]
+const fallbackStoreOptions = []
+const fallbackProductOptions = []
 
 const supplierInactiveLabel = 'Ngừng hoạt động'
 
@@ -156,7 +149,7 @@ function normalizeLocationType(locationType) {
     const raw = String(locationType || '').toUpperCase()
     if (raw === 'KITCHEN') return 'Bếp trung tâm'
     if (raw === 'STORE') return 'Cửa hàng'
-    return locationType || 'N/A'
+    return locationType || 'Không có'
 }
 
 function resolveInventoryStatus(row) {
@@ -199,7 +192,7 @@ function toInventoryLogRow(item, productNameById) {
         || item?.type
         || item?.action
         || item?.reason
-        || 'N/A'
+        || 'Không có'
 
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
@@ -213,7 +206,7 @@ function toInventoryLogRow(item, productNameById) {
         quantityChange: parseSafeNumber(item?.quantityChanged ?? item?.changeQuantity ?? item?.quantity ?? item?.amount, 0),
         note: item?.note || item?.reason || item?.description || '',
         reason: item?.reason || '',
-        referenceType: referenceType || 'N/A',
+        referenceType: referenceType || 'Không có',
         referenceId: item?.referenceId,
         createdAt: item?.createdAt || item?.transactionDate || item?.timestamp || null,
     }
@@ -298,7 +291,10 @@ export default function StoreOrderPage() {
     const [submitSuccess, setSubmitSuccess] = useState('')
     const [lastCreatedOrderId, setLastCreatedOrderId] = useState(null)
     const [orderDetailRows, setOrderDetailRows] = useState([])
-    const [formStoreId, setFormStoreId] = useState(localStorage.getItem('store_id') || '1')
+    const [formStoreId, setFormStoreId] = useState(() => {
+        const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+        return scopedStoreId > 0 ? String(scopedStoreId) : ''
+    })
     const [storeOptions, setStoreOptions] = useState(fallbackStoreOptions)
     const [productOptions, setProductOptions] = useState(fallbackProductOptions)
     const [supplierOptions, setSupplierOptions] = useState([])
@@ -317,11 +313,12 @@ export default function StoreOrderPage() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
     const [paymentLoading, setPaymentLoading] = useState(false)
+    const [storeNameById, setStoreNameById] = useState({})
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
-    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Cửa hàng chưa có tên`
+    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || ''
     const getProductIdFromItem = (item) => Number(item?.productId ?? item?.id)
-    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Sản phẩm chưa có tên`
+    const getProductNameFromItem = (item, id) => item?.productName || item?.name || ''
 
     const toOptionList = (rawData, getId, getName) => {
         const records = Array.isArray(rawData)
@@ -345,6 +342,42 @@ export default function StoreOrderPage() {
             .filter(Boolean)
     }
 
+    const buildStoreNameMapFromOptions = (stores) => {
+        return (Array.isArray(stores) ? stores : []).reduce((acc, item) => {
+            const id = Number(item?.id ?? item?.storeId)
+            const name = String(item?.name ?? item?.storeName ?? '').trim()
+            if (id > 0 && name) acc[id] = name
+            return acc
+        }, {})
+    }
+
+    const fetchStoreNameMap = async () => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        if (!token) return {}
+
+        try {
+            const response = await fetch(`${apiBase}/Organization/stores`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) return {}
+
+            const normalizedStores = toOptionList(data, getStoreIdFromItem, getStoreNameFromItem)
+            const nextMap = buildStoreNameMapFromOptions(normalizedStores)
+            if (Object.keys(nextMap).length) {
+                setStoreNameById((prev) => ({ ...prev, ...nextMap }))
+            }
+            return nextMap
+        } catch {
+            return {}
+        }
+    }
+
     const fetchDropdownOptions = async () => {
         setOrdersError('')
         setOptionsLoading(true)
@@ -360,18 +393,18 @@ export default function StoreOrderPage() {
             }
 
             const scopedStoreId = resolveStoreIdFromTokenOrStorage()
-            const scopedStoreName = resolveStoreNameFromTokenOrStorage()
-            let stores = []
+            const storeRes = await fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers })
+            const storesJson = await storeRes.json().catch(() => ({}))
+            if (!storeRes.ok) {
+                throw new Error(extractErrorMessage(storesJson, 'Không thể tải danh sách cửa hàng.'))
+            }
 
+            let stores = toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem)
             if (scopedStoreId > 0) {
-                stores = [{ id: scopedStoreId, name: scopedStoreName || 'Cửa hàng chưa có tên' }]
-            } else {
-                const storeRes = await fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers })
-                const storesJson = await storeRes.json().catch(() => ({}))
-                if (!storeRes.ok) {
-                    throw new Error(extractErrorMessage(storesJson, 'Không thể tải danh sách cửa hàng.'))
-                }
-                stores = toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem)
+                stores = stores.filter((item) => Number(item.id) === scopedStoreId)
+            }
+            if (!stores.length) {
+                throw new Error('Không tìm thấy dữ liệu cửa hàng phù hợp tài khoản hiện tại.')
             }
 
             const productRes = await fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers })
@@ -396,13 +429,13 @@ export default function StoreOrderPage() {
                 throw new Error('Không có sản phẩm FINISHED để tạo đơn.')
             }
 
-            setStoreOptions(stores.length ? stores : fallbackStoreOptions)
+            setStoreOptions(stores)
+            setStoreNameById((prev) => ({ ...prev, ...buildStoreNameMapFromOptions(stores) }))
             setProductOptions(products)
             setSupplierOptions([])
         } catch (error) {
-            const scopedStoreId = resolveStoreIdFromTokenOrStorage()
-            const scopedStoreName = resolveStoreNameFromTokenOrStorage()
-            setStoreOptions(scopedStoreId > 0 ? [{ id: scopedStoreId, name: scopedStoreName || 'Cửa hàng chưa có tên' }] : fallbackStoreOptions)
+            setStoreOptions([])
+            setStoreNameById({})
             setProductOptions([])
             setSupplierOptions([])
             setOrdersError(error.message || 'Tải danh mục cửa hàng/sản phẩm thất bại.')
@@ -417,10 +450,16 @@ export default function StoreOrderPage() {
     })
 
     const toReadableDate = (dateString) => {
-        if (!dateString) return 'N/A'
+        if (!dateString) return 'Không có'
         const d = new Date(dateString)
         if (Number.isNaN(d.getTime())) return dateString
-        return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        return d.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
     }
 
     const fetchInventory = async () => {
@@ -441,7 +480,7 @@ export default function StoreOrderPage() {
             setInventoryRows([])
             setInventoryLogs([])
             setInventoryInfo('')
-            setInventoryError('Store ID không hợp lệ để tải tồn kho theo cửa hàng.')
+            setInventoryError('Mã cửa hàng không hợp lệ để tải tồn kho theo cửa hàng.')
             return
         }
 
@@ -670,14 +709,14 @@ export default function StoreOrderPage() {
 
     const getStoreNameById = (storeId) => {
         const id = Number(storeId)
-        if (!id || id < 1) return 'N/A'
-        return storeOptions.find((s) => Number(s.id) === id)?.name || `Cửa hàng chưa có tên`
+        if (!id || id < 1) return 'Không có'
+        return storeNameById[id] || storeOptions.find((s) => Number(s.id) === id)?.name || 'Không có'
     }
 
     const getProductNameById = (productId) => {
         const id = Number(productId)
-        if (!id || id < 1) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === id)?.name || `Sản phẩm chưa có tên`
+        if (!id || id < 1) return 'Không có'
+        return productOptions.find((p) => Number(p.id) === id)?.name || 'Không có'
     }
 
     const getProductPriceById = (productId) => {
@@ -686,7 +725,47 @@ export default function StoreOrderPage() {
         return productOptions.find((p) => Number(p.id) === id)?.internalPrice || 0
     }
 
-    const normalizeOrders = (rawOrders) => {
+    const buildDetailRowsWithPrice = (rows, totalAmount) => {
+        const safeRows = Array.isArray(rows) ? rows : []
+        const mapped = safeRows.map((row) => {
+            const quantity = getDetailOrderedQty(row)
+            const unitPrice = getDetailUnitPrice(row)
+            return {
+                row,
+                quantity,
+                unitPrice,
+            }
+        })
+
+        const unknownRows = mapped.filter((item) => item.quantity > 0 && item.unitPrice <= 0)
+        const safeTotalAmount = parseSafeNumber(totalAmount, 0)
+
+        let derivedUnitPrice = 0
+        if (safeTotalAmount > 0 && unknownRows.length > 0) {
+            const knownAmount = mapped.reduce((sum, item) => (
+                item.unitPrice > 0 ? sum + (item.unitPrice * item.quantity) : sum
+            ), 0)
+            const unknownQuantity = unknownRows.reduce((sum, item) => sum + item.quantity, 0)
+            const remainingAmount = Math.max(0, safeTotalAmount - knownAmount)
+            derivedUnitPrice = unknownQuantity > 0 ? remainingAmount / unknownQuantity : 0
+        }
+
+        return mapped.map((item) => {
+            const resolvedUnitPrice = item.unitPrice > 0 ? item.unitPrice : derivedUnitPrice
+            return {
+                ...item.row,
+                _quantity: item.quantity,
+                _unitPrice: resolvedUnitPrice,
+                _subtotal: resolvedUnitPrice * item.quantity,
+            }
+        })
+    }
+
+    const normalizeOrders = (rawOrders, storeMapOverride = null) => {
+        const effectiveStoreMap = storeMapOverride && typeof storeMapOverride === 'object'
+            ? storeMapOverride
+            : storeNameById
+
         if (!Array.isArray(rawOrders)) return []
         return rawOrders.map((item) => {
             const numericId = Number(item?.id || item?.internalOrderId || item?.orderId)
@@ -730,7 +809,7 @@ export default function StoreOrderPage() {
             }, 0)
 
             const productLabel = orderDetails.length === 0
-                ? 'Click xem chi tiết'
+                ? 'Nhấn xem chi tiết'
                 : productNames.length === 0
                     ? 'Đang tải...'
                     : productNames.length === 1
@@ -738,13 +817,18 @@ export default function StoreOrderPage() {
                         : `${productNames[0]} +${productNames.length - 1}`
 
             const allProductNames = productNames.join('\n') // For tooltip
+            const resolvedStoreId = Number(item?.storeId ?? item?.store?.storeId ?? item?.store?.id)
             return {
                 id: `#${numericId}`,
                 orderId: numericId,
                 date: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
                 items: orderDetails.length,
                 totalQuantity,
-                storeName: item?.store?.storeName || item?.store?.name || getStoreNameById(item?.storeId),
+                storeName: item?.store?.storeName
+                    || item?.store?.name
+                    || item?.storeName
+                    || effectiveStoreMap[resolvedStoreId]
+                    || getStoreNameById(resolvedStoreId),
                 productLabel,
                 allProductNames, // Add this for tooltip
                 hasMultipleProducts: productNames.length > 1,
@@ -768,7 +852,10 @@ export default function StoreOrderPage() {
 
             const params = new URLSearchParams()
             const parsedStoreId = Number(formStoreId)
-            const effectiveStoreId = parsedStoreId > 0 ? parsedStoreId : 1
+            if (!(parsedStoreId > 0)) {
+                throw new Error('Không xác định được cửa hàng hiện tại để tải đơn hàng.')
+            }
+            const effectiveStoreId = parsedStoreId
             params.set('storeId', String(effectiveStoreId))
             if (ordersStatusFilter) {
                 params.set('status', String(ordersStatusFilter).toLowerCase())
@@ -824,7 +911,17 @@ export default function StoreOrderPage() {
                 records = await Promise.all(detailPromises)
             }
 
-            setOrders(normalizeOrders(records))
+            const hasMissingStoreName = records.some((item) => {
+                const id = Number(item?.storeId ?? item?.store?.storeId ?? item?.store?.id)
+                const name = String(item?.store?.storeName || item?.store?.name || item?.storeName || '').trim()
+                return id > 0 && !name
+            })
+            let latestStoreMap = storeNameById
+            if (hasMissingStoreName && !Object.keys(storeNameById).length) {
+                latestStoreMap = await fetchStoreNameMap()
+            }
+
+            setOrders(normalizeOrders(records, latestStoreMap))
         } catch (error) {
             setOrders([])
             setOrdersError(error.message || 'Tải đơn hàng thất bại.')
@@ -876,8 +973,21 @@ export default function StoreOrderPage() {
                 data,
             )
 
+            const resolvedStoreId = Number(data?.storeId ?? data?.store?.storeId ?? data?.store?.id)
+            let resolvedStoreName = String(data?.store?.storeName || data?.store?.name || data?.storeName || '').trim()
+
+            if (!resolvedStoreName && resolvedStoreId > 0) {
+                let latestStoreMap = storeNameById
+                if (!Object.keys(storeNameById).length) {
+                    latestStoreMap = await fetchStoreNameMap()
+                }
+                resolvedStoreName = latestStoreMap[resolvedStoreId] || getStoreNameById(resolvedStoreId)
+            }
+
             setDetailOrder({
                 ...data,
+                storeId: resolvedStoreId > 0 ? resolvedStoreId : data?.storeId,
+                storeName: resolvedStoreName || 'Không có',
                 backendStatus,
                 orderStatus: displayStatus,
                 paymentStatus: normalizePaymentStatus(data?.paymentStatus),
@@ -1448,7 +1558,7 @@ export default function StoreOrderPage() {
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <p className="text-sm font-semibold">Tạo đơn hàng theo biểu mẫu</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Chỉ còn một form duy nhất: Store ID, ngày giao dự kiến và danh sách sản phẩm theo Product ID.</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Chỉ còn một form duy nhất: mã cửa hàng, ngày giao dự kiến và danh sách sản phẩm theo mã sản phẩm.</p>
                             </div>
                             <button
                                 onClick={() => {
@@ -1676,7 +1786,7 @@ export default function StoreOrderPage() {
 
                                     {optionsLoading && (
                                         <div className="mb-3 text-xs">
-                                            <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách Store/Product...</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách cửa hàng/sản phẩm...</p>
                                         </div>
                                     )}
 
@@ -1941,7 +2051,7 @@ export default function StoreOrderPage() {
                                                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cửa hàng</p>
                                                 </div>
                                                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                                    {detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}
+                                                    {detailOrder?.storeName || detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}
                                                 </p>
                                             </div>
                                             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
@@ -1987,11 +2097,11 @@ export default function StoreOrderPage() {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                        {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
-                                                            (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row, idx) => {
-                                                                const unitPrice = getDetailUnitPrice(row)
-                                                                const quantity = getDetailOrderedQty(row)
-                                                                const subtotal = unitPrice * quantity
+                                                        {buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).length > 0 ? (
+                                                            buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).map((row, idx) => {
+                                                                const unitPrice = row._unitPrice || 0
+                                                                const quantity = row._quantity || 0
+                                                                const subtotal = row._subtotal || 0
 
                                                                 return (
                                                                     <tr key={row.detailId || `${row.productId}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -2200,11 +2310,11 @@ export default function StoreOrderPage() {
                                                     <span className="material-symbols-outlined text-slate-400">inventory_2</span>
                                                     <div>
                                                         <p className="font-medium text-sm">{item.productName}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Product #{item.productId}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã sản phẩm: #{item.productId}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} #{item.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} #{item.locationId || 'Không có'}</td>
                                             <td className="px-5 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`font-bold text-sm ${item.status === 'critical' ? 'text-red-600 dark:text-red-400' : item.status === 'low' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.currentQuantity}</span>
@@ -2264,7 +2374,7 @@ export default function StoreOrderPage() {
                                         <tr key={`${log.id}-${log.inventoryId}-${log.createdAt || 'no-date'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-5 py-3 text-sm font-semibold">#{log.id || log.inventoryId}</td>
                                             <td className="px-5 py-3 text-sm">{log.productName}</td>
-                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} #{log.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} #{log.locationId || 'Không có'}</td>
                                             <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
                                                 <p>{log.action}</p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Reason: {log.reason || '-'}</p>
@@ -2273,7 +2383,7 @@ export default function StoreOrderPage() {
                                                 {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
                                             </td>
                                             <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                <p>{log.referenceType || 'N/A'}</p>
+                                                <p>{log.referenceType || 'Không có'}</p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Ref ID: {log.referenceId ?? '-'}</p>
                                             </td>
                                             <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(log.createdAt)}</td>
