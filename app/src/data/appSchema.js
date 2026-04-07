@@ -35,6 +35,7 @@ export const navigationGroups = [
     items: [
       { to: '/inventory', key: 'inventory', label: 'Quản lý kho', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
       { to: '/inventory-logs', key: 'inventoryLogs', label: 'Lịch sử tồn kho', icon: 'history', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
+      { to: '/store-inventory', key: 'storeInventory', label: 'Kho cửa hàng', icon: 'inventory_2', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },
       { to: '/store-orders', key: 'storeOrders', label: 'Quản lý đặt hàng', icon: 'shopping_cart', roles: [roles.MANAGER, roles.STORE_STAFF] },
       { to: '/order-management', key: 'orderManagement', label: 'Quản lý đơn', icon: 'assignment', roles: [roles.ADMIN, roles.MANAGER, roles.KITCHEN_STAFF, roles.SUPPLY_COORDINATOR] },
       { to: '/payments', key: 'payments', label: 'Thanh toán', icon: 'payments', roles: [roles.ADMIN, roles.MANAGER, roles.STORE_STAFF] },

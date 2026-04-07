@@ -103,6 +103,8 @@ namespace Shop2026.DLL
                 var trackedOrder = _repo.GetContext().InternalOrders.Find(order.OrderId);
                 if (trackedOrder == null)
                     throw new Exception("Không tìm thấy đơn hàng");
+                if (order.StoreId <= 0)
+                    throw new Exception("Đơn hàng thiếu StoreId hợp lệ để cộng tồn kho cửa hàng.");
 
                 foreach (var detail in details)
                 {
@@ -115,6 +117,10 @@ namespace Shop2026.DLL
 
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
+
+                    // Đồng thời cộng vào kho STORE để cửa hàng thấy tồn tăng sau khi bếp xuất giao.
+                    UpdateStockAndLog(detail.ProductId ?? 0, "STORE", order.StoreId, quantityToShip,
+                                      "Nhập từ bếp trung tâm", order.OrderId, "INTERNAL_ORDER");
 
                     var trackedDetail = _repo.GetContext().InternalOrderDetails.Find(detail.DetailId);
                     if (trackedDetail != null)

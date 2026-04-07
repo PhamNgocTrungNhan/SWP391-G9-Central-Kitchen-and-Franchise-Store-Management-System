@@ -34,7 +34,13 @@ public partial class ApplicationDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=Kitchen2026;User Id=sa;Password=12345;TrustServerCertificate=True;");
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlServer(
+                "Server=localhost;Database=Kitchen2026;User Id=sa;Password=12345;TrustServerCertificate=True;");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -286,6 +292,10 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.QuantityRequired)
                 .HasColumnType("decimal(12, 4)")
                 .HasColumnName("quantity_required");
+
+            entity.Property(e => e.MaxWastePercent)
+                .HasPrecision(5, 2)
+                .HasColumnName("max_waste_percent");
 
             // ❌ ĐÃ XÓA CỘT WasteAllowancePercent TẠI ĐÂY
 
