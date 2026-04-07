@@ -53,7 +53,7 @@
 
 @layer components {
   .app-card {
-    @apply rounded-[1.55rem] border border-[#d8cebf] bg-[#fbf7ef]/95 p-4 shadow-[0_18px_40px_rgba(94,77,52,0.10)] backdrop-blur-sm sm:p-5 lg:p-6;
+    @apply rounded-[1.55rem] border border-[#d8cebf] bg-[#fbf7ef]/95 p-4 shadow-[0_18px_40px_rgba(94, 77, 52, 0.10)] backdrop-blur-sm sm:p-5 lg:p-6;
   }
 
   .app-subcard {
@@ -98,6 +98,7 @@
 }
 
 @layer utilities {
+
   .list-nowrap th,
   .list-nowrap td {
     white-space: nowrap;
@@ -109,13 +110,16 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     scrollbar-width: none;
   }
