@@ -345,7 +345,7 @@ export default function InventoryPage() {
         } else if (item.referenceType === 'INTERNAL_ORDER' && item.referenceId) {
           actor = `Đơn hàng #${item.referenceId}`
         } else if (item.supplierId) {
-          actor = `NCC #${item.supplierId}`
+          actor = 'Nhà cung cấp'
         }
 
         return {
@@ -591,7 +591,7 @@ export default function InventoryPage() {
         const recipeRows = parseArrayData(recipeJson)
         const materials = recipeRows.map((row) => ({
           materialId: row.materialId,
-          materialName: row.materialName || productMap[row.materialId] || `Material #${row.materialId}`,
+          materialName: row.materialName || productMap[row.materialId] || 'Nguyên liệu chưa có tên',
           quantityRequired: Number(row.quantityRequired || 0),
           maxWastePercent: Number(row.maxWastePercent ?? row.wasteAllowancePercent ?? 0),
         }))
@@ -691,7 +691,7 @@ export default function InventoryPage() {
         const normalized = parseArrayData(data)
           .map((s) => ({
             id: s.supplierId || s.id,
-            name: s.supplierName || s.name || `NCC #${s.supplierId || s.id}`,
+            name: s.supplierName || s.name || 'Nhà cung cấp chưa có tên',
             isActive: normalizeSupplierActive(s.isActive ?? s.active ?? s.is_active ?? s.status),
           }))
           .filter((s) => Number(s.id) > 0)
@@ -951,7 +951,7 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-4 py-3 text-sm">{item.unit}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                             {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
                           </span>
                         </td>
@@ -1016,7 +1016,7 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-4 py-3 text-xs">{log.date}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                             {String(log.quantity).startsWith('+') ? 'Nhập' : 'Xuất'}
                           </span>
                         </td>
@@ -1080,7 +1080,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-xs">{toShortDate(item.createdAt || item.mfgDate)}</td>
                         <td className="px-4 py-3 text-xs font-medium">{toShortDate(item.expDate)}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
                             item.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
                               item.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
                                 'bg-emerald-100 text-emerald-700'
@@ -1266,7 +1266,7 @@ export default function InventoryPage() {
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Trạng thái</label>
                       <p className="text-sm font-medium mt-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
                           selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
                             selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
                               'bg-emerald-100 text-emerald-700'
@@ -1429,7 +1429,7 @@ export default function InventoryPage() {
                             const actualNeeded = mat.quantityRequired * (1 + (mat.maxWastePercent || mat.wasteAllowancePercent || 0) / 100)
                             return (
                               <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
-                                <td className="px-3 py-2 text-sm">{mat.materialName || `Material #${mat.materialId}`}</td>
+                                <td className="px-3 py-2 text-sm">{mat.materialName || 'Nguyên liệu chưa có tên'}</td>
                                 <td className="px-3 py-2 text-sm">{mat.quantityRequired}</td>
                                 <td className="px-3 py-2 text-sm">{mat.maxWastePercent ?? mat.wasteAllowancePercent ?? 0}%</td>
                                 <td className="px-3 py-2 text-sm font-semibold">{actualNeeded.toFixed(2)}</td>

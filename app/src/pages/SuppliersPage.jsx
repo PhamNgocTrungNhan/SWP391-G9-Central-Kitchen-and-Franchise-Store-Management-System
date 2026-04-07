@@ -27,7 +27,7 @@ function normalizeSuppliers(raw) {
             if (!supplierId) return null
             return {
                 supplierId,
-                supplierName: item?.supplierName || item?.name || `Nhà cung cấp #${supplierId}`,
+                supplierName: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
                 contactInfo: item?.contactInfo || 'Chưa có thông tin liên hệ',
                 address: item?.address || 'Chưa có địa chỉ',
                 isActive: item?.isActive !== false,

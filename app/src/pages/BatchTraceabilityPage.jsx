@@ -445,7 +445,7 @@ export default function BatchTraceabilityPage() {
                         if (!id) return null
                         return {
                             id,
-                            name: item?.supplierName || item?.name || `Nhà cung cấp #${id}`,
+                            name: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
                             isActive: normalizeSupplierActive(item?.isActive ?? item?.active ?? item?.is_active ?? item?.status),
                         }
                     })
@@ -606,7 +606,7 @@ export default function BatchTraceabilityPage() {
                         const recipeData = await recipeRes.json()
                         materials = parseArrayData(recipeData).map((item) => ({
                             materialId: item.materialId,
-                            materialName: productNameMap[item.materialId] || `Nguyên liệu #${item.materialId}`,
+                            materialName: productNameMap[item.materialId] || 'Nguyên liệu chưa có tên',
                             quantityRequired: item.quantityRequired || 0,
                             wasteAllowance: item.maxWastePercent ?? item.wasteAllowancePercent ?? 0,
                         }))

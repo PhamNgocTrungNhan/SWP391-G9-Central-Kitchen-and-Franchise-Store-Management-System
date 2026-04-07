@@ -441,8 +441,8 @@ export default function StoresPage() {
                                     <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
                                     <th className="w-[30%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
                                     <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Điện thoại</th>
-                                    <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                                    {isAdmin && <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
+                                    <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái</th>
+                                    {isAdmin && <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -452,9 +452,9 @@ export default function StoresPage() {
                                         <td className="px-4 py-3 text-sm font-medium">{store.storeName}</td>
                                         <td className="px-4 py-3 text-sm">{store.address}</td>
                                         <td className="px-4 py-3 text-sm">{store.phone}</td>
-                                        <td className="px-4 py-3 text-sm">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                                {store.isActive ? 'Hoạt động' : 'Ngừng'}
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                                {store.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
                                             </span>
                                         </td>
                                         {isAdmin && (

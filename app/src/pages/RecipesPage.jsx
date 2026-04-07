@@ -48,6 +48,8 @@ function normalizeRecipe(item) {
     recipeId,
     parentProductId,
     materialId,
+    parentProductName: String(item?.parentProduct?.productName || item?.parentProduct?.name || item?.parentProductName || '').trim(),
+    materialName: String(item?.material?.productName || item?.material?.name || item?.materialName || '').trim(),
     quantityRequired: Number(item?.quantityRequired ?? 0),
     maxWastePercent: Number(item?.maxWastePercent ?? item?.max_waste_percent ?? item?.wasteAllowancePercent ?? item?.waste_allowance_percent ?? 0),
   }
@@ -249,6 +251,20 @@ export default function RecipesPage() {
     setSuccess('')
   }
 
+  const recipeNameById = useMemo(() => {
+    const map = {}
+    recipes.forEach((row) => {
+      const parentId = Number(row?.parentProductId)
+      const materialId = Number(row?.materialId)
+      const parentName = String(row?.parentProductName || '').trim()
+      const materialName = String(row?.materialName || '').trim()
+
+      if (parentId > 0 && parentName) map[parentId] = parentName
+      if (materialId > 0 && materialName) map[materialId] = materialName
+    })
+    return map
+  }, [recipes])
+
   const getProductName = (id) => {
     const numberId = Number(id)
     if (!numberId) return 'N/A'
@@ -259,7 +275,10 @@ export default function RecipesPage() {
     const fromMaterials = materials.find((m) => m.id === numberId)
     if (fromMaterials) return fromMaterials.name
 
-    return `#${numberId}`
+    const fromRecipe = recipeNameById[numberId]
+    if (fromRecipe) return fromRecipe
+
+    return 'Sản phẩm chưa có tên'
   }
 
   const getMaterialUnit = (materialId) => {
@@ -722,7 +741,7 @@ export default function RecipesPage() {
   }
 
   const handleDeleteLine = async (recipeId) => {
-    if (!window.confirm(`Xóa dòng BOM #${recipeId}?`)) return
+    if (!window.confirm('Xóa dòng BOM này?')) return
 
     const tk = getToken()
     if (!tk) {
@@ -756,7 +775,7 @@ export default function RecipesPage() {
         throw new Error(data?.message || data?.title || 'Không thể xóa dòng BOM.')
       }
 
-      setSuccess(data?.message || `Đã xóa dòng BOM #${recipeId}.`)
+      setSuccess(data?.message || 'Đã xóa dòng BOM thành công.')
       await loadAllData()
     } catch (requestError) {
       setError(toUiNoticeMessage(requestError.message, 'Xóa dòng công thức thất bại.'))
@@ -883,7 +902,6 @@ export default function RecipesPage() {
                       <td className="px-4 py-3 text-sm font-semibold">{index + 1}</td>
                       <td className="px-4 py-3 text-sm">
                         <p className="font-medium">{getProductName(row.materialId)}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Dòng BOM #{row.recipeId}</p>
                       </td>
                       <td className="px-4 py-3 text-sm">{row.quantityRequired}</td>
                       <td className="px-4 py-3 text-sm">{row.maxWastePercent ?? 0}%</td>
@@ -893,7 +911,7 @@ export default function RecipesPage() {
                           <button
                             onClick={() => openEditModal(row)}
                             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title={`Sửa dòng BOM #${row.recipeId}`}
+                            title="Sửa dòng BOM"
                           >
                             <span className="material-symbols-outlined text-[18px]">edit</span>
                           </button>
@@ -901,7 +919,7 @@ export default function RecipesPage() {
                             onClick={() => handleDeleteLine(row.recipeId)}
                             disabled={deletingId === row.recipeId}
                             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                            title={`Xóa dòng BOM #${row.recipeId}`}
+                            title="Xóa dòng BOM"
                           >
                             <span className="material-symbols-outlined text-[18px]">delete</span>
                           </button>
@@ -1041,7 +1059,7 @@ export default function RecipesPage() {
         <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold">Sửa dòng BOM #{editRecipeId}</h3>
+              <h3 className="text-lg font-bold">Sửa dòng BOM</h3>
               <button
                 onClick={() => setShowEditModal(false)}
                 className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"

@@ -197,7 +197,7 @@ export default function OrderManagementPage() {
         }
 
         if (storeId > 0) {
-            return { storeId, storeName: `Cửa hàng (ID: ${storeId})` }
+            return { storeId, storeName: 'Cửa hàng chưa có tên' }
         }
 
         return { storeId: 0, storeName: 'Cửa hàng chưa có tên' }

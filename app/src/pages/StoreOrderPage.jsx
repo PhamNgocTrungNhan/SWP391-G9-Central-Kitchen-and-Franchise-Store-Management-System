@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
 
-const fallbackStoreOptions = [{ id: 1, name: 'Cửa hàng #1' }]
+const fallbackStoreOptions = [{ id: 1, name: 'Cửa hàng chưa có tên' }]
 const fallbackProductOptions = [
     { id: 1, name: 'Bột mì đa dụng' },
     { id: 2, name: 'Lá húng tươi' },
@@ -241,6 +241,22 @@ function resolveStoreIdFromTokenOrStorage() {
     return 0
 }
 
+function resolveStoreNameFromTokenOrStorage() {
+    const payload = decodeJwtPayload(getStoredToken()) || {}
+    const claimName = String(payload?.storeName || payload?.StoreName || payload?.store_name || '').trim()
+    if (claimName) return claimName
+
+    const userRaw = localStorage.getItem('user')
+    if (!userRaw) return ''
+
+    try {
+        const user = JSON.parse(userRaw)
+        return String(user?.storeName || user?.StoreName || '').trim()
+    } catch {
+        return ''
+    }
+}
+
 function normalizeSupplierList(raw) {
     const records = parseArrayData(raw)
     return records
@@ -249,7 +265,7 @@ function normalizeSupplierList(raw) {
             if (!supplierId) return null
             return {
                 supplierId,
-                supplierName: item?.supplierName || item?.name || `Nhà cung cấp #${supplierId}`,
+                supplierName: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
                 contactInfo: item?.contactInfo || 'Chưa có thông tin',
                 address: item?.address || 'Chưa có địa chỉ',
                 isActive: item?.isActive !== false,
@@ -344,10 +360,11 @@ export default function StoreOrderPage() {
             }
 
             const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+            const scopedStoreName = resolveStoreNameFromTokenOrStorage()
             let stores = []
 
             if (scopedStoreId > 0) {
-                stores = [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }]
+                stores = [{ id: scopedStoreId, name: scopedStoreName || 'Cửa hàng chưa có tên' }]
             } else {
                 const storeRes = await fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers })
                 const storesJson = await storeRes.json().catch(() => ({}))
@@ -384,7 +401,8 @@ export default function StoreOrderPage() {
             setSupplierOptions([])
         } catch (error) {
             const scopedStoreId = resolveStoreIdFromTokenOrStorage()
-            setStoreOptions(scopedStoreId > 0 ? [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }] : fallbackStoreOptions)
+            const scopedStoreName = resolveStoreNameFromTokenOrStorage()
+            setStoreOptions(scopedStoreId > 0 ? [{ id: scopedStoreId, name: scopedStoreName || 'Cửa hàng chưa có tên' }] : fallbackStoreOptions)
             setProductOptions([])
             setSupplierOptions([])
             setOrdersError(error.message || 'Tải danh mục cửa hàng/sản phẩm thất bại.')
@@ -461,7 +479,7 @@ export default function StoreOrderPage() {
             let inventoryRecords = parseArrayData(inventoryJson)
 
             if (inventoryFilter === 'store' && inventoryRecords.length === 0) {
-                setInventoryInfo('Store #' + parsedStoreId + ' hiện chưa có bản ghi tồn kho trong hệ thống.')
+                setInventoryInfo('Cửa hàng hiện tại chưa có bản ghi tồn kho trong hệ thống.')
             }
 
             const normalizedInventory = inventoryRecords
@@ -481,7 +499,7 @@ export default function StoreOrderPage() {
                 : []
 
             if (inventoryFilter === 'store' && normalizedLogs.length === 0 && !inventoryInfo) {
-                setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho Store #' + parsedStoreId + '.')
+                setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho cửa hàng hiện tại.')
             }
 
             setInventoryRows(normalizedInventory)
@@ -2198,7 +2216,7 @@ export default function StoreOrderPage() {
                                             <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{item.minQuantity || '-'}</td>
                                             <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(item.lastUpdated)}</td>
                                             <td className="px-5 py-4">
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${item.status === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : item.status === 'low' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${item.status === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : item.status === 'low' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
                                                     <span className={`size-1.5 rounded-full ${statusColors[item.status]}`} />
                                                     {item.status === 'critical' ? 'Cần đặt ngay' : item.status === 'low' ? 'Sắp hết' : 'Đủ hàng'}
                                                 </span>

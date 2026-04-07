@@ -348,7 +348,7 @@ function normalizeRecipeMaterialLine(item) {
 
     return {
         materialId,
-        materialName: item?.materialName || item?.material?.productName || item?.material?.name || `Nguyên liệu #${materialId}`,
+        materialName: item?.materialName || item?.material?.productName || item?.material?.name || 'Nguyên liệu chưa có tên',
         materialUnit: item?.materialUnit || item?.material?.baseUnit || '',
         quantityRequired: parseSafeNumber(item?.quantityRequired, 0),
         maxWastePercent: parseSafeNumber(item?.maxWastePercent ?? item?.max_waste_percent ?? item?.wasteAllowancePercent ?? item?.waste_allowance_percent, 0),
@@ -520,7 +520,7 @@ export default function CreateProductionBatchPage() {
                     if (!id) return null
                     return {
                         id,
-                        name: item?.productName || item?.name || `Product #${id}`,
+                        name: item?.productName || item?.name || 'Sản phẩm chưa có tên',
                         productType: normalizeProductType(item?.productType),
                     }
                 })
@@ -577,7 +577,7 @@ export default function CreateProductionBatchPage() {
             setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
         }
-
+                            name: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
         setOrdersLoading(true)
         try {
             const productMap = products.reduce((acc, product) => {

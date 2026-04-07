@@ -61,7 +61,7 @@ export default function RecipeBOMPage() {
         const materialProductId = Number(item?.materialId || item?.material?.productId || item?.material?.id || 0)
         return {
             id: id || Date.now(),
-            name: item?.recipeName || item?.product?.productName || item?.product?.name || `Recipe #${id || 'N/A'}`,
+            name: item?.recipeName || item?.product?.productName || item?.product?.name || 'Công thức chưa có tên',
             type: item?.recipeType || item?.type || 'Recipe',
             yield: item?.yieldAmount ? String(item.yieldAmount) : 'N/A',
             cost: item?.estimatedCost ? `$${Number(item.estimatedCost).toFixed(2)}` : '$0.00',
@@ -72,14 +72,24 @@ export default function RecipeBOMPage() {
             quantityRequired: Number(item?.quantityRequired || 0),
             wasteAllowancePercent: Number(item?.wasteAllowancePercent || 0),
             parentProductName: item?.parentProduct?.productName || item?.parentProduct?.name || `Sản phẩm chưa có tên`,
-            materialName: item?.material?.productName || item?.material?.name || `Nguyên liệu #${materialProductId || 'N/A'}`,
+            materialName: item?.material?.productName || item?.material?.name || 'Nguyên liệu chưa có tên',
         }
     }
 
     const getProductNameById = (id) => {
         const numberId = Number(id)
         if (!numberId) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === numberId)?.name || `Product #${numberId}`
+
+        const fromOptions = productOptions.find((p) => Number(p.id) === numberId)?.name
+        if (fromOptions) return fromOptions
+
+        const fromParentRows = recipeRows.find((row) => Number(row?.parentProductId) === numberId)?.parentProductName
+        if (fromParentRows) return fromParentRows
+
+        const fromMaterialRows = recipeRows.find((row) => Number(row?.materialId) === numberId)?.materialName
+        if (fromMaterialRows) return fromMaterialRows
+
+        return 'Sản phẩm chưa có tên'
     }
 
     const fetchParentRecipes = async () => {
@@ -146,7 +156,7 @@ export default function RecipeBOMPage() {
                     if (!id) return null
                     return {
                         id,
-                        name: item?.productName || item?.name || `Product #${id}`,
+                        name: item?.productName || item?.name || 'Sản phẩm chưa có tên',
                     }
                 })
                 .filter(Boolean)
@@ -397,7 +407,7 @@ export default function RecipeBOMPage() {
                                 onChange={(e) => setParentId(e.target.value)}
                                 className="h-10 w-56 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
                             >
-                                {productOptions.length === 0 ? <option value="1">Product #1</option> : null}
+                                {productOptions.length === 0 ? <option value="1">Sản phẩm chưa có tên</option> : null}
                                 {productOptions.map((p) => (
                                     <option key={p.id} value={String(p.id)}>{p.name}</option>
                                 ))}
