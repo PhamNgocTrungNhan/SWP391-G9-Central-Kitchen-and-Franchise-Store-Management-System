@@ -9,6 +9,7 @@ const supplierInactiveLabel = 'Ngừng hoạt động'
 const statusColors = { ok: 'bg-emerald-500', low: 'bg-amber-500', critical: 'bg-red-500' }
 const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg-red-50 dark:bg-red-900/10' }
 const orderStatusStyle = {
+    'Đã nhận hàng': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Hoàn thành': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Đang giao': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'Giao một phần': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
@@ -46,8 +47,8 @@ const apiStatusToUi = {
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
     REFUNDED: 'Đã hoàn tiền',
-    DELIVERED: 'Hoàn thành',
-    COMPLETED: 'Hoàn thành',
+    DELIVERED: 'Đã nhận hàng',
+    COMPLETED: 'Đã nhận hàng',
     CANCELLED: 'Đã hủy',
     REJECTED: 'Đã từ chối',
     RETURNED: 'Đã trả hàng',
@@ -575,7 +576,7 @@ export default function StoreOrderPage() {
             0,
         )
 
-        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng' || normalizedBase === 'Đã hoàn tiền') {
+        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Đã nhận hàng' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng' || normalizedBase === 'Đã hoàn tiền') {
             return normalizedBase
         }
 
@@ -647,6 +648,7 @@ export default function StoreOrderPage() {
             PARTIALSHIPPING: 'PARTIAL_SHIPPING',
             SHIPPED: 'SHIPPING',
             'ĐÃ XÁC NHẬN': 'CONFIRMED',
+            'ĐÃ NHẬN HÀNG': 'COMPLETED',
             'HOÀN THÀNH': 'COMPLETED',
             'ĐÃ HỦY': 'CANCELLED',
             'ĐÃ TỪ CHỐI': 'REJECTED',
@@ -1847,7 +1849,7 @@ export default function StoreOrderPage() {
                                         <option value="PRODUCED">Đã sản xuất</option>
                                         <option value="PARTIAL_SHIPPING">Giao một phần</option>
                                         <option value="SHIPPING">Đang giao</option>
-                                        <option value="COMPLETED">Hoàn thành</option>
+                                        <option value="COMPLETED">Đã nhận hàng</option>
                                         <option value="REJECTED">Đã từ chối</option>
                                         <option value="CANCELLED">Đã hủy</option>
                                     </select>
@@ -2035,11 +2037,13 @@ export default function StoreOrderPage() {
                                     <div className="p-6 overflow-y-auto min-h-0">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>
-                                                {detailDisplayStatus}
+                                            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>
+                                                <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                                                <span>{detailDisplayStatus}</span>
                                             </span>
-                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
-                                                {paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}
+                                            <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
+                                                <span className="material-symbols-outlined text-[14px]">payments</span>
+                                                <span>{paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}</span>
                                             </span>
                                         </div>
 
@@ -2091,7 +2095,6 @@ export default function StoreOrderPage() {
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Sản phẩm</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đơn giá</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đặt</th>
-                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Xác nhận</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đã giao</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">Thành tiền</th>
                                                         </tr>
@@ -2117,7 +2120,6 @@ export default function StoreOrderPage() {
                                                                             {unitPrice.toLocaleString('vi-VN')} đ
                                                                         </td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-slate-900 dark:text-slate-100">{quantity}</td>
-                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-blue-600 dark:text-blue-400">{getDetailConfirmedQty(row)}</td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{getDetailShippedQty(row)}</td>
                                                                         <td className="px-4 py-3 text-sm text-right font-bold text-slate-900 dark:text-slate-100">
                                                                             {subtotal.toLocaleString('vi-VN')} đ
@@ -2127,7 +2129,7 @@ export default function StoreOrderPage() {
                                                             })
                                                         ) : (
                                                             <tr>
-                                                                <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
+                                                                <td colSpan={5} className="px-4 py-6 text-sm text-center text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
                                                             </tr>
                                                         )}
                                                     </tbody>
@@ -2203,7 +2205,7 @@ export default function StoreOrderPage() {
 
                                                 {normalizeApiOrderStatus(detailBackendStatus) === 'PARTIAL_SHIPPING' && (
                                                     <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-                                                        Đơn đang giao một phần. Chỉ khi giao đủ và lên SHIPPING mới xác nhận hoàn thành.
+                                                        Đơn đang giao một phần. Chỉ khi giao đủ và lên SHIPPING mới xác nhận đã nhận hàng.
                                                     </div>
                                                 )}
 
