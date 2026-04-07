@@ -199,18 +199,23 @@ namespace Shop2026.DLL
 
             if (stock == null)
             {
-                if (changeQty < 0)
-                    throw new Exception($"Sản phẩm ID {productId} không tồn tại trong kho {locationType}. Không thể xuất kho.");
-
+                // Nếu chưa có dòng tồn kho thì xem như tồn = 0.
+                // Với nghiệp vụ xuất kho (changeQty < 0) thì báo thiếu tồn kho thay vì "không tồn tại".
                 stock = new Inventory
                 {
                     ProductId = productId,
                     LocationType = locationType,
                     LocationId = locationId,
-                    CurrentQuantity = changeQty,
+                    CurrentQuantity = 0,
                     LastUpdated = DateTime.Now
                 };
                 _repo.AddInventory(stock);
+
+                var newQuantityWhenMissing = stock.CurrentQuantity + changeQty;
+                if (newQuantityWhenMissing < 0)
+                    throw new Exception($"Không đủ tồn kho. Hiện tại: 0, Cần xuất: {Math.Abs(changeQty)}");
+
+                stock.CurrentQuantity = newQuantityWhenMissing;
             }
             else
             {
