@@ -49,7 +49,7 @@ const apiStatusToUi = {
     CONFIRMED: 'Đã xác nhận',
     PROCESSING: 'Đang xử lý',
     PRODUCED: 'Đã sản xuất',
-    PARTIAL_SHIPPING: 'Đang giao',
+    PARTIAL_SHIPPING: 'Giao một phần',
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
     REFUNDED: 'Đã hoàn tiền',
@@ -177,7 +177,7 @@ function toInventoryRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.inventoryId ?? item?.id, productId),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         currentQuantity: parseSafeNumber(item?.currentQuantity, 0),
@@ -205,7 +205,7 @@ function toInventoryLogRow(item, productNameById) {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         inventoryId: parseSafeNumber(item?.inventoryId, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationTypeRaw: String(item?.locationType || '').toUpperCase(),
         locationId: parseSafeNumber(item?.locationId, 0),
@@ -303,9 +303,9 @@ export default function StoreOrderPage() {
     const [paymentLoading, setPaymentLoading] = useState(false)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
-    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Store #${id}`
+    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Cửa hàng chưa có tên`
     const getProductIdFromItem = (item) => Number(item?.productId ?? item?.id)
-    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Sản phẩm #${id}`
+    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Sản phẩm chưa có tên`
 
     const toOptionList = (rawData, getId, getName) => {
         const records = Array.isArray(rawData)
@@ -330,31 +330,40 @@ export default function StoreOrderPage() {
     }
 
     const fetchDropdownOptions = async () => {
+        setOrdersError('')
         setOptionsLoading(true)
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
             const headers = {
                 accept: '*/*',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                Authorization: `Bearer ${token}`,
             }
 
-            const [storeRes, productRes] = await Promise.all([
-                fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers }),
-                fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers }),
-            ])
+            const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+            let stores = []
 
-            const storesJson = await storeRes.json().catch(() => [])
-            const productsJson = await productRes.json().catch(() => [])
-
-            let stores = storeRes.ok ? toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem) : []
-            if (!stores.length) {
-                const scopedStoreId = resolveStoreIdFromTokenOrStorage()
-                if (scopedStoreId > 0) {
-                    stores = [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }]
+            if (scopedStoreId > 0) {
+                stores = [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }]
+            } else {
+                const storeRes = await fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers })
+                const storesJson = await storeRes.json().catch(() => ({}))
+                if (!storeRes.ok) {
+                    throw new Error(extractErrorMessage(storesJson, 'Không thể tải danh sách cửa hàng.'))
                 }
+                stores = toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem)
             }
 
-            let products = productRes.ok ? toOptionList(productsJson, getProductIdFromItem, getProductNameFromItem) : []
+            const productRes = await fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers })
+            const productsJson = await productRes.json().catch(() => ({}))
+            if (!productRes.ok) {
+                throw new Error(extractErrorMessage(productsJson, 'Không thể tải danh sách sản phẩm sản xuất.'))
+            }
+
+            let products = toOptionList(productsJson, getProductIdFromItem, getProductNameFromItem)
 
             // Filter only FINISHED products
             if (products.length > 0) {
@@ -367,27 +376,18 @@ export default function StoreOrderPage() {
             }
 
             if (!products.length) {
-                const inventoryRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
-                const inventoryJson = await inventoryRes.json().catch(() => [])
-                if (inventoryRes.ok) {
-                    const inventoryProductMap = new Map()
-                    parseArrayData(inventoryJson).forEach((item) => {
-                        const id = parseSafeNumber(item?.productId, 0)
-                        if (!id || inventoryProductMap.has(id)) return
-                        const name = item?.product?.productName || item?.product?.name || `Sản phẩm #${id}`
-                        inventoryProductMap.set(id, { id, name })
-                    })
-                    products = Array.from(inventoryProductMap.values())
-                }
+                throw new Error('Không có sản phẩm FINISHED để tạo đơn.')
             }
 
             setStoreOptions(stores.length ? stores : fallbackStoreOptions)
-            setProductOptions(products.length ? products : fallbackProductOptions)
+            setProductOptions(products)
             setSupplierOptions([])
-        } catch {
-            setStoreOptions(fallbackStoreOptions)
-            setProductOptions(fallbackProductOptions)
+        } catch (error) {
+            const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+            setStoreOptions(scopedStoreId > 0 ? [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }] : fallbackStoreOptions)
+            setProductOptions([])
             setSupplierOptions([])
+            setOrdersError(error.message || 'Tải danh mục cửa hàng/sản phẩm thất bại.')
         } finally {
             setOptionsLoading(false)
         }
@@ -454,31 +454,14 @@ export default function StoreOrderPage() {
 
             const productNameById = productOptions.reduce((acc, item) => {
                 const id = Number(item?.id)
-                if (id > 0) acc[id] = item?.name || `Sản phẩm #${id}`
+                if (id > 0) acc[id] = item?.name || `Sản phẩm chưa có tên`
                 return acc
             }, {})
 
             let inventoryRecords = parseArrayData(inventoryJson)
 
             if (inventoryFilter === 'store' && inventoryRecords.length === 0) {
-                const stockRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
-                const stockJson = await stockRes.json().catch(() => [])
-
-                if (stockRes.ok) {
-                    const stockRecords = parseArrayData(stockJson)
-                    const storeScopedFromStock = stockRecords.filter((row) => {
-                        const rowLocationType = String(row?.locationType || '').toUpperCase()
-                        const rowLocationId = Number(row?.locationId)
-                        return rowLocationType === 'STORE' && rowLocationId === parsedStoreId
-                    })
-
-                    inventoryRecords = storeScopedFromStock
-                    if (storeScopedFromStock.length > 0) {
-                        setInventoryInfo('API /Inventory/store/' + parsedStoreId + ' đang trả rỗng, đã tự fallback từ /Inventory/stock để hiển thị dữ liệu store.')
-                    } else {
-                        setInventoryInfo('Store #' + parsedStoreId + ' hiện chưa có bản ghi tồn kho trong hệ thống.')
-                    }
-                }
+                setInventoryInfo('Store #' + parsedStoreId + ' hiện chưa có bản ghi tồn kho trong hệ thống.')
             }
 
             const normalizedInventory = inventoryRecords
@@ -535,7 +518,7 @@ export default function StoreOrderPage() {
             0,
         )
 
-        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng') {
+        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng' || normalizedBase === 'Đã hoàn tiền') {
             return normalizedBase
         }
 
@@ -555,7 +538,7 @@ export default function StoreOrderPage() {
             return shipped >= target
         })
 
-        return allReached ? 'Đang giao' : 'Đang giao'
+        return allReached ? 'Đang giao' : 'Giao một phần'
     }
 
     const normalizePaymentStatus = (rawPaymentStatus) => {
@@ -582,19 +565,12 @@ export default function StoreOrderPage() {
 
     const canCancelOrderInList = (rawStatus) => {
         const normalized = normalizeApiOrderStatus(rawStatus)
-        return normalized !== 'CANCELLED' && normalized !== 'COMPLETED' && normalized !== 'RETURNED' && normalized !== 'REFUNDED'
+        return normalized === 'PENDING'
     }
 
     const isShippedLikeStatus = (rawStatus) => {
-        const status = String(rawStatus || '').toUpperCase()
-        // Check both raw status and normalized status
-        return status === 'SHIPPED' ||
-            status === 'SHIPPING' ||
-            status === 'PARTIAL_SHIPPING' ||
-            status === 'ĐANG GIAO' ||
-            status === 'GIAO MỘT PHẦN' ||
-            status.includes('MOT_PHAN') ||
-            status.includes('GIAO')
+        const normalized = normalizeApiOrderStatus(rawStatus)
+        return normalized === 'SHIPPING' || normalized === 'PARTIAL_SHIPPING'
     }
 
     const normalizeApiOrderStatus = (rawStatus) => {
@@ -605,6 +581,7 @@ export default function StoreOrderPage() {
             'CHỜ DUYỆT': 'PENDING',
             'ĐÃ DUYỆT': 'APPROVED',
             'ĐANG XỬ LÝ': 'PROCESSING',
+            'ĐANG SẢN XUẤT': 'PROCESSING',
             'ĐÃ SẢN XUẤT': 'PRODUCED',
             'ĐANG GIAO': 'SHIPPING',
             'GIAO MỘT PHẦN': 'PARTIAL_SHIPPING',
@@ -622,6 +599,17 @@ export default function StoreOrderPage() {
         return statusAliases[raw] || raw
     }
 
+    const getBackendOrderStatus = (order) => {
+        return normalizeApiOrderStatus(
+            order?.backendStatus
+            || order?.rawOrderStatus
+            || order?.statusApi
+            || order?.statusCode
+            || order?.orderStatus
+            || order?.status,
+        )
+    }
+
     const canPayOrder = (rawStatus, rawPaymentStatus) => {
         const normalizedStatus = normalizeApiOrderStatus(rawStatus)
         const normalizedPayment = normalizePaymentStatus(rawPaymentStatus)
@@ -634,11 +622,15 @@ export default function StoreOrderPage() {
     }
 
     const canReceiveOrder = (rawStatus, rawPaymentStatus) => {
-        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'PAID'
+        return normalizeApiOrderStatus(rawStatus) === 'SHIPPING' && normalizePaymentStatus(rawPaymentStatus) === 'PAID'
+    }
+
+    const canReturnOrder = (rawStatus) => {
+        return isShippedLikeStatus(rawStatus)
     }
 
     const isShippingUnpaidOrder = (rawStatus, rawPaymentStatus) => {
-        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'UNPAID'
+        return normalizeApiOrderStatus(rawStatus) === 'SHIPPING' && normalizePaymentStatus(rawPaymentStatus) === 'UNPAID'
     }
 
     const extractErrorMessage = (data, fallback) => {
@@ -661,13 +653,13 @@ export default function StoreOrderPage() {
     const getStoreNameById = (storeId) => {
         const id = Number(storeId)
         if (!id || id < 1) return 'N/A'
-        return storeOptions.find((s) => Number(s.id) === id)?.name || `Store #${id}`
+        return storeOptions.find((s) => Number(s.id) === id)?.name || `Cửa hàng chưa có tên`
     }
 
     const getProductNameById = (productId) => {
         const id = Number(productId)
         if (!id || id < 1) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === id)?.name || `Sản phẩm #${id}`
+        return productOptions.find((p) => Number(p.id) === id)?.name || `Sản phẩm chưa có tên`
     }
 
     const getProductPriceById = (productId) => {
@@ -682,6 +674,7 @@ export default function StoreOrderPage() {
             const numericId = Number(item?.id || item?.internalOrderId || item?.orderId)
             if (!numericId || numericId < 1) return null
 
+            const backendStatus = normalizeApiOrderStatus(item?.orderStatus || item?.status)
             const baseStatus = normalizeStatus(item?.status || item?.orderStatus)
 
             // Try multiple possible field names for order details
@@ -707,7 +700,7 @@ export default function StoreOrderPage() {
                     if (productId > 0) {
                         const found = productOptions.find(p => Number(p.id) === productId)
                         if (found) return found.name
-                        return `Sản phẩm #${productId}`
+                        return `Sản phẩm chưa có tên`
                     }
                     return null
                 }).filter(Boolean)
@@ -737,6 +730,7 @@ export default function StoreOrderPage() {
                 productLabel,
                 allProductNames, // Add this for tooltip
                 hasMultipleProducts: productNames.length > 1,
+                backendStatus,
                 status,
                 statusStyle: orderStatusStyle[status] || orderStatusStyle['Chờ duyệt'],
                 paymentStatus: normalizePaymentStatus(item?.paymentStatus),
@@ -856,13 +850,18 @@ export default function StoreOrderPage() {
                 throw new Error(extractErrorMessage(data, 'Không thể tải chi tiết đơn hàng.'))
             }
 
+            const detailRows = data?.internalOrderDetails || data?.orderDetails || []
+            const backendStatus = normalizeApiOrderStatus(data?.orderStatus || data?.status)
+            const displayStatus = deriveStatusFromDetails(
+                normalizeStatus(data?.orderStatus || data?.status),
+                detailRows,
+                data,
+            )
+
             setDetailOrder({
                 ...data,
-                orderStatus: deriveStatusFromDetails(
-                    normalizeStatus(data?.orderStatus || data?.status),
-                    data?.internalOrderDetails || data?.orderDetails || [],
-                    data,
-                ),
+                backendStatus,
+                orderStatus: displayStatus,
                 paymentStatus: normalizePaymentStatus(data?.paymentStatus),
             })
         } catch (error) {
@@ -907,7 +906,7 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('CANCELLED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'CANCELLED', orderStatus: updatedStatus, status: updatedStatus } : prev)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Hủy đơn thất bại.')
@@ -920,9 +919,15 @@ export default function StoreOrderPage() {
         setDetailError('')
         setUiWarning('')
 
+        const currentBackendStatus = getBackendOrderStatus(detailOrder)
+        if (normalizeApiOrderStatus(currentBackendStatus) !== 'SHIPPING') {
+            setDetailError('Chỉ đơn ở trạng thái SHIPPING mới có thể xác nhận nhận hàng.')
+            return
+        }
+
         const currentPaymentStatus = normalizePaymentStatus(detailOrder?.paymentStatus)
         if (currentPaymentStatus !== 'PAID') {
-            setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+            setUiWarning('Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.')
             return
         }
 
@@ -930,22 +935,6 @@ export default function StoreOrderPage() {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             if (!token) {
                 throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
-            }
-
-            const precheckRes = await fetch(`${apiBase}/internal-orders/${orderId}`, {
-                method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${token}`,
-                },
-            })
-            const precheckData = await precheckRes.json().catch(() => ({}))
-            if (precheckRes.ok) {
-                const backendStatus = normalizeApiOrderStatus(precheckData?.orderStatus || precheckData?.status)
-                if (backendStatus !== 'SHIPPING' && backendStatus !== 'PARTIAL_SHIPPING') {
-                    setUiWarning('Đơn đã có số lượng giao nhưng backend chưa chuyển sang trạng thái giao. Vui lòng tải lại sau vài giây.')
-                    return
-                }
             }
 
             setReceiveLoading(true)
@@ -971,7 +960,7 @@ export default function StoreOrderPage() {
 
                 const backendMessage = extractErrorMessage(data, 'Không thể xác nhận đã nhận hàng.')
                 if (/chưa\s*thanh\s*toán|not\s*paid/i.test(backendMessage)) {
-                    setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+                    setUiWarning('Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.')
                     return
                 }
 
@@ -979,7 +968,7 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('DELIVERED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'COMPLETED', orderStatus: updatedStatus, status: updatedStatus } : prev)
             setSubmitSuccess(data?.message || `Đơn #${orderId} đã được xác nhận nhận hàng.`)
             fetchMyOrders()
         } catch (error) {
@@ -991,26 +980,18 @@ export default function StoreOrderPage() {
 
     const returnOrderById = async (orderId) => {
         setDetailError('')
+        setUiWarning('')
+
+        const currentBackendStatus = getBackendOrderStatus(detailOrder)
+        if (!isShippedLikeStatus(currentBackendStatus)) {
+            setDetailError('Chỉ đơn đang giao SHIPPING hoặc PARTIAL_SHIPPING mới có thể trả hàng.')
+            return
+        }
+
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             if (!token) {
                 throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
-            }
-
-            const precheckRes = await fetch(`${apiBase}/internal-orders/${orderId}`, {
-                method: 'GET',
-                headers: {
-                    accept: '*/*',
-                    Authorization: `Bearer ${token}`,
-                },
-            })
-            const precheckData = await precheckRes.json().catch(() => ({}))
-            if (precheckRes.ok) {
-                const backendStatus = normalizeApiOrderStatus(precheckData?.orderStatus || precheckData?.status)
-                if (backendStatus !== 'SHIPPING' && backendStatus !== 'PARTIAL_SHIPPING') {
-                    setDetailError('Đơn chưa ở trạng thái giao trên backend nên chưa thể trả hàng.')
-                    return
-                }
             }
 
             const reason = window.prompt('Nhập lý do trả hàng (bắt buộc):', '')
@@ -1037,7 +1018,7 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('RETURNED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'RETURNED', orderStatus: updatedStatus, status: updatedStatus } : prev)
             setSubmitSuccess(data?.message || `Đã trả hàng thành công. Kho Kitchen đã được hoàn trả.`)
             fetchMyOrders()
         } catch (error) {
@@ -1076,11 +1057,23 @@ export default function StoreOrderPage() {
             const updatedOrder = data?.order
             if (updatedOrder && Number(updatedOrder?.orderId || updatedOrder?.id) === Number(orderId)) {
                 setDetailOrder((prev) => (prev
-                    ? { ...prev, ...updatedOrder, paymentStatus: normalizePaymentStatus(updatedOrder?.paymentStatus ?? prev?.paymentStatus) }
+                    ? {
+                        ...prev,
+                        ...updatedOrder,
+                        backendStatus: normalizeApiOrderStatus(updatedOrder?.orderStatus || updatedOrder?.status || prev?.backendStatus),
+                        paymentStatus: normalizePaymentStatus(updatedOrder?.paymentStatus ?? prev?.paymentStatus),
+                    }
                     : prev))
             } else {
                 const updatedStatus = normalizeStatus(nextStatus)
-                setDetailOrder((prev) => (prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev))
+                setDetailOrder((prev) => (prev
+                    ? {
+                        ...prev,
+                        backendStatus: normalizeApiOrderStatus(nextStatus),
+                        orderStatus: updatedStatus,
+                        status: updatedStatus,
+                    }
+                    : prev))
             }
 
             setSubmitSuccess(data?.message || `Đơn #${orderId} đã chuyển sang ${nextStatus}.`)
@@ -1093,8 +1086,9 @@ export default function StoreOrderPage() {
     }
 
     const openPaymentModal = (order) => {
-        if (!canPayOrder(order?.orderStatus || order?.status, order?.paymentStatus)) {
-            if (isPendingOrder(order?.orderStatus || order?.status)) {
+        const orderBackendStatus = normalizeApiOrderStatus(order?.backendStatus || order?.orderStatus || order?.status)
+        if (!canPayOrder(orderBackendStatus, order?.paymentStatus)) {
+            if (isPendingOrder(orderBackendStatus)) {
                 setUiWarning('Đơn chưa duyệt, chưa thể thanh toán.')
             } else {
                 setUiWarning('Đơn hiện không ở trạng thái cho phép thanh toán.')
@@ -1109,8 +1103,16 @@ export default function StoreOrderPage() {
     const handlePaymentMethod = async (method) => {
         if (!selectedPaymentOrder) return
 
-        if (!canPayOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status, selectedPaymentOrder?.paymentStatus || detailOrder?.paymentStatus)) {
-            if (isPendingOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status)) {
+        const selectedBackendStatus = normalizeApiOrderStatus(
+            selectedPaymentOrder?.backendStatus
+            || selectedPaymentOrder?.orderStatus
+            || detailOrder?.backendStatus
+            || detailOrder?.orderStatus
+            || detailOrder?.status,
+        )
+
+        if (!canPayOrder(selectedBackendStatus, selectedPaymentOrder?.paymentStatus || detailOrder?.paymentStatus)) {
+            if (isPendingOrder(selectedBackendStatus)) {
                 setDetailError('Đơn chưa duyệt, chưa thể thanh toán.')
             } else {
                 setDetailError('Đơn hiện không ở trạng thái cho phép thanh toán.')
@@ -1360,6 +1362,10 @@ export default function StoreOrderPage() {
 
         return () => window.clearTimeout(timer)
     }, [toastMessage])
+
+    const detailBackendStatus = getBackendOrderStatus(detailOrder)
+    const detailDisplayStatus = normalizeStatus(detailOrder?.orderStatus || detailOrder?.status)
+    const detailShippingLike = isShippedLikeStatus(detailDisplayStatus) || isShippedLikeStatus(detailBackendStatus)
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -1711,7 +1717,7 @@ export default function StoreOrderPage() {
                                         <option value="APPROVED">Đã duyệt</option>
                                         <option value="PROCESSING">Đang sản xuất</option>
                                         <option value="PRODUCED">Đã sản xuất</option>
-                                        <option value="PARTIAL_SHIPPING">Đang giao (1 phần)</option>
+                                        <option value="PARTIAL_SHIPPING">Giao một phần</option>
                                         <option value="SHIPPING">Đang giao</option>
                                         <option value="COMPLETED">Hoàn thành</option>
                                         <option value="REJECTED">Đã từ chối</option>
@@ -1756,7 +1762,7 @@ export default function StoreOrderPage() {
                                 <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
                                     Nhấn vào từng dòng để xem chi tiết và thao tác.
                                 </div>
-                                <table className="w-full text-left border-collapse table-fixed">
+                                <table className="list-nowrap w-full text-left border-collapse table-fixed">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
@@ -1784,7 +1790,7 @@ export default function StoreOrderPage() {
                                                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
                                                     <td className="px-3 py-2 text-xs max-w-[180px]">
                                                         <div className="flex items-center gap-1">
-                                                            <span className="truncate">{order.productLabel}</span>
+                                                            <span className="whitespace-nowrap">{order.productLabel}</span>
                                                             {order.hasMultipleProducts && (
                                                                 <div className="relative group flex-shrink-0">
                                                                     <span className="material-symbols-outlined text-[14px] text-slate-400 hover:text-primary cursor-help">
@@ -1826,7 +1832,7 @@ export default function StoreOrderPage() {
                                                                 <span className="material-symbols-outlined text-[16px]">visibility</span>
                                                             </button>
 
-                                                            {canCancelOrderInList(order.status) && (
+                                                            {canCancelOrderInList(order.backendStatus || order.status) && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={async (e) => {
@@ -1901,8 +1907,8 @@ export default function StoreOrderPage() {
                                     <div className="p-6 overflow-y-auto min-h-0">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
-                                                {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
+                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>
+                                                {detailDisplayStatus}
                                             </span>
                                             <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
                                                 {paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}
@@ -2012,14 +2018,15 @@ export default function StoreOrderPage() {
                                         )}
 
                                         {/* Action Buttons */}
-                                        {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Đã hủy' && (
+                                        {detailBackendStatus !== 'CANCELLED' && (
                                             <div className="flex items-center gap-3 flex-wrap">
-                                                {canPayOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                {canPayOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                     <button
                                                         onClick={() => openPaymentModal({
                                                             orderId: detailOrder.orderId || detailOrder.id,
                                                             totalAmount: detailOrder.totalAmount || 0,
-                                                            orderStatus: detailOrder.orderStatus || detailOrder.status,
+                                                            orderStatus: detailBackendStatus,
+                                                            backendStatus: detailBackendStatus,
                                                             paymentStatus: detailOrder.paymentStatus,
                                                         })}
                                                         className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
@@ -2029,21 +2036,21 @@ export default function StoreOrderPage() {
                                                     </button>
                                                 )}
 
-                                                {isPendingOrder(detailOrder.orderStatus || detailOrder.status) && (
+                                                {isPendingOrder(detailBackendStatus) && (
                                                     <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                                                         Đơn chưa duyệt, chưa thể thanh toán.
                                                     </div>
                                                 )}
 
-                                                {isShippingUnpaidOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                {isShippingUnpaidOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                     <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                                                         Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.
                                                     </div>
                                                 )}
 
-                                                {isShippedLikeStatus(detailOrder.orderStatus || detailOrder.status) && (
+                                                {detailShippingLike && (
                                                     <>
-                                                        {canReceiveOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                        {canReceiveOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                             <button
                                                                 onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
                                                                 disabled={receiveLoading || returnLoading}
@@ -2053,17 +2060,26 @@ export default function StoreOrderPage() {
                                                                 {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
                                                             </button>
                                                         )}
-                                                        <button
-                                                            onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
-                                                            disabled={receiveLoading || returnLoading}
-                                                            className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
-                                                            {returnLoading ? 'Đang gửi...' : 'Trả hàng'}
-                                                        </button>
+                                                        {canReturnOrder(detailBackendStatus) && (
+                                                            <button
+                                                                onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
+                                                                disabled={receiveLoading || returnLoading}
+                                                                className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
+                                                                {returnLoading ? 'Đang gửi...' : 'Trả hàng'}
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
-                                                {getOrderStatusActions(detailOrder.orderStatus || detailOrder.status).map((action) => (
+
+                                                {normalizeApiOrderStatus(detailBackendStatus) === 'PARTIAL_SHIPPING' && (
+                                                    <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                                                        Đơn đang giao một phần. Chỉ khi giao đủ và lên SHIPPING mới xác nhận hoàn thành.
+                                                    </div>
+                                                )}
+
+                                                {getOrderStatusActions(detailBackendStatus).map((action) => (
                                                     <button
                                                         key={`detail-${detailOrder.orderId || detailOrder.id}-${action.status}`}
                                                         onClick={() => updateOrderStatusById(detailOrder.orderId || detailOrder.id, action.status)}
@@ -2073,14 +2089,17 @@ export default function StoreOrderPage() {
                                                         {statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` ? 'Đang cập nhật...' : action.label}
                                                     </button>
                                                 ))}
-                                                <button
-                                                    onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
-                                                    disabled={cancelLoading || receiveLoading || returnLoading}
-                                                    className="h-11 px-4 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">cancel</span>
-                                                    {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
-                                                </button>
+                                                {isPendingOrder(detailBackendStatus) && (
+                                                    <button
+                                                        onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
+                                                        disabled={cancelLoading || receiveLoading || returnLoading}
+                                                        className="h-11 px-4 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">cancel</span>
+                                                        {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
+                                                    </button>
+                                                )}
+
                                             </div>
                                         )}
                                     </div>

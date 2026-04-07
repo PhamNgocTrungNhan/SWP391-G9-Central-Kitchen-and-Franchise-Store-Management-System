@@ -251,7 +251,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -272,7 +272,7 @@ export default function InventoryPage() {
       }
 
       const normalized = data.map((item) => {
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
+        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
         const location = item.location || item.locationName || 'Bếp trung tâm #1'
         const quantity = Number(item.currentQuantity || item.quantity || 0)
 
@@ -309,7 +309,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -331,7 +331,7 @@ export default function InventoryPage() {
 
       const normalized = data.map((item) => {
         const qty = Number(item.changeQuantity || 0)
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
+        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
 
         let action = item.reason || 'Unknown'
         if (action.includes('SẢN XUẤT')) action = 'Trừ nguyên liệu sản xuất'
@@ -382,7 +382,7 @@ export default function InventoryPage() {
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
           productMap[p.productId] = {
-            name: p.productName || p.name || `Sản phẩm #${p.productId}`,
+            name: p.productName || p.name || `Sản phẩm chưa có tên`,
             sku: p.sku || 'N/A'
           }
         })
@@ -417,7 +417,7 @@ export default function InventoryPage() {
 
       // Hiển thị TẤT CẢ mẻ COMPLETED có expDate, không cần phân bổ tồn kho
       const result = completedBatches.map((batch) => {
-        const productInfo = productMap[batch.productId] || { name: `Sản phẩm #${batch.productId}`, sku: 'N/A' }
+        const productInfo = productMap[batch.productId] || { name: `Sản phẩm chưa có tên`, sku: 'N/A' }
         const now = new Date()
         const expDate = batch.expDate ? new Date(batch.expDate) : null
         let expiryStatus = 'N/A'
@@ -484,7 +484,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -519,7 +519,7 @@ export default function InventoryPage() {
       for (const batch of completedBatches) {
         const expDate = new Date(batch.expDate)
         if (expDate < now) {
-          const productName = productMap[batch.productId] || `Sản phẩm #${batch.productId}`
+          const productName = productMap[batch.productId] || `Sản phẩm chưa có tên`
           expired.push({
             batchId: batch.batchId,
             batchCode: batch.batchCode,
@@ -564,7 +564,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -601,7 +601,7 @@ export default function InventoryPage() {
       // Enrich batch data
       const enrichedBatch = {
         ...batchData,
-        productName: productMap[batchData.productId] || `Sản phẩm #${batchData.productId}`,
+        productName: productMap[batchData.productId] || `Sản phẩm chưa có tên`,
         recipe: recipeData,
       }
 
@@ -672,7 +672,7 @@ export default function InventoryPage() {
         const normalized = parseArrayData(data)
           .map((p) => ({
             id: p.productId || p.id,
-            name: p.productName || p.name || `Sản phẩm #${p.productId || p.id}`,
+            name: p.productName || p.name || `Sản phẩm chưa có tên`,
             productType: String(p.productType || '').toUpperCase(),
           }))
           .filter((item) => Number(item.id) > 0)

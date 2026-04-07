@@ -71,7 +71,7 @@ export default function RecipeBOMPage() {
             materialId: materialProductId,
             quantityRequired: Number(item?.quantityRequired || 0),
             wasteAllowancePercent: Number(item?.wasteAllowancePercent || 0),
-            parentProductName: item?.parentProduct?.productName || item?.parentProduct?.name || `Sản phẩm #${parentProductId || 'N/A'}`,
+            parentProductName: item?.parentProduct?.productName || item?.parentProduct?.name || `Sản phẩm chưa có tên`,
             materialName: item?.material?.productName || item?.material?.name || `Nguyên liệu #${materialProductId || 'N/A'}`,
         }
     }

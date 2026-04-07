@@ -56,7 +56,7 @@ function toInventoryLogRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         action,

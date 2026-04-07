@@ -130,7 +130,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 return {
                     id,
                     sku: item?.sku || 'N/A',
-                    name: item?.productName || item?.name || `Sản phẩm #${id}`,
+                    name: item?.productName || item?.name || `Sản phẩm chưa có tên`,
                     categoryId: Number(item?.categoryId ?? 0),
                     categoryName: item?.category?.name || 'N/A',
                     productType: normalizeProductType(item?.productType),

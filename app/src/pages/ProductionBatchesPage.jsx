@@ -380,7 +380,7 @@ export default function ProductionBatchesPage() {
                   {recentBatches.map((batch) => (
                     <tr key={batch.batchId || batch.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
                       <td className="px-4 py-3 text-sm font-medium">#{batch.batchId || batch.id}</td>
-                      <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm #${batch.productId}`}</td>
+                      <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm chưa có tên`}</td>
                       <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{batch.quantityActual || 0}</td>
                       <td className="px-4 py-3 text-sm">

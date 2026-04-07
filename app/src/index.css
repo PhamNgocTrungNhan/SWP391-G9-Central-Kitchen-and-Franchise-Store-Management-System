@@ -98,6 +98,14 @@
 }
 
 @layer utilities {
+  .list-nowrap th,
+  .list-nowrap td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    vertical-align: middle;
+  }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }

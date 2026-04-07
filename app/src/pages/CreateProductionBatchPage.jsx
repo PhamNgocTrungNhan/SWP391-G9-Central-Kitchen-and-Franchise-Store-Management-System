@@ -554,7 +554,7 @@ export default function CreateProductionBatchPage() {
                     key: `${orderId}-${detailProductId}-${idx}`,
                     orderId, // Add orderId to each detail
                     productId: detailProductId,
-                    productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Sản phẩm #${detailProductId}`,
+                    productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Sản phẩm chưa có tên`,
                     quantityOrdered: detailQty,
                 }
             })
@@ -565,7 +565,7 @@ export default function CreateProductionBatchPage() {
             orderCode: item?.orderCode || `#${orderId}`,
             status: normalizeOrderStatus(item?.orderStatus || item?.status),
             storeId: parseSafeNumber(item?.storeId ?? item?.store?.storeId ?? item?.store?.id, 0),
-            storeName: item?.store?.storeName || item?.store?.name || `Store #${item?.storeId || 'N/A'}`,
+            storeName: item?.store?.storeName || item?.store?.name || `Cửa hàng chưa có tên`,
             details,
         }
     }
@@ -684,7 +684,7 @@ export default function CreateProductionBatchPage() {
                         id,
                         status: status,
                         productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
-                        productName: item?.product?.productName || item?.product?.name || `Sản phẩm #${item?.productId || 'N/A'}`,
+                        productName: item?.product?.productName || item?.product?.name || `Sản phẩm chưa có tên`,
                         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
                         quantityActual: parseSafeNumber(item?.quantityActual, 0),
                         orderId: parseSafeNumber(item?.orderId ?? item?.internalOrderId, 0) || null,
@@ -1110,7 +1110,7 @@ export default function CreateProductionBatchPage() {
                         if (!id) return null
                         return {
                             id,
-                            name: item?.productName || item?.name || `Sản phẩm #${id}`,
+                            name: item?.productName || item?.name || `Sản phẩm chưa có tên`,
                         }
                     })
                     .filter(Boolean)

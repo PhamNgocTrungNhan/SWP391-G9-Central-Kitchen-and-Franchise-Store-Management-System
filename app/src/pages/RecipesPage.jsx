@@ -31,7 +31,7 @@ function normalizeProduct(item) {
 
   return {
     id,
-    name: String(item?.productName || item?.name || `Sản phẩm #${id}`),
+    name: String(item?.productName || item?.name || `Sản phẩm chưa có tên`),
     baseUnit: String(item?.baseUnit || '').trim(),
     productType,
   }

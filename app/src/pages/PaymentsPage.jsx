@@ -325,7 +325,7 @@ export default function PaymentsPage() {
         return {
           orderId,
           orderCode: item.orderCode || item.code || (orderId ? `ORD${orderId}` : 'N/A'),
-          storeName: item.store?.storeName || item.store?.name || `Store #${item.storeId || 'N/A'}`,
+          storeName: item.store?.storeName || item.store?.name || `Cửa hàng chưa có tên`,
           createdAt: item.createdAt,
           paymentDate: item.paidAt || item.paymentDate || item.lastPaidAt || (paymentStatus === 'UNPAID' ? null : item.updatedAt),
           orderStatus,
