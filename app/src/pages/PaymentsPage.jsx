@@ -254,7 +254,7 @@ export default function PaymentsPage() {
 
   const fetchOrders = async () => {
     const tk = getToken()
-    if (!tk && !isAdminView) {
+    if (!tk) {
       setMessage({ type: 'error', text: 'Vui lòng đăng nhập' })
       return
     }
@@ -270,18 +270,11 @@ export default function PaymentsPage() {
       let response = await fetch(ordersUrl, {
         headers: {
           accept: '*/*',
-          ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+          Authorization: `Bearer ${tk}`,
         },
       })
 
       let data = await response.json().catch(() => ([]))
-
-      if (!response.ok && isAdminView && (response.status === 401 || response.status === 403)) {
-        response = await fetch(ordersUrl, {
-          headers: { accept: '*/*' },
-        })
-        data = await response.json().catch(() => ([]))
-      }
 
       if (!response.ok) {
         throw new Error(extractApiErrorMessage(data, 'Không thể tải danh sách đơn hàng'))

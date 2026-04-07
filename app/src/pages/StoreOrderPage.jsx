@@ -49,7 +49,7 @@ const apiStatusToUi = {
     CONFIRMED: 'Đã xác nhận',
     PROCESSING: 'Đang xử lý',
     PRODUCED: 'Đã sản xuất',
-    PARTIAL_SHIPPING: 'Giao một phần',
+    PARTIAL_SHIPPING: 'Đang giao',
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
     REFUNDED: 'Đã hoàn tiền',
@@ -76,8 +76,80 @@ function parseArrayData(raw) {
 }
 
 function parseSafeNumber(value, fallback = 0) {
+    if (typeof value === 'string') {
+        const raw = value.trim()
+        if (!raw) return fallback
+
+        let normalized = raw.replace(/\s/g, '')
+        if (normalized.includes(',') && !normalized.includes('.')) {
+            normalized = normalized.replace(',', '.')
+        }
+
+        const n = Number(normalized)
+        return Number.isFinite(n) ? n : fallback
+    }
+
     const n = Number(value)
     return Number.isFinite(n) ? n : fallback
+}
+
+function getDetailOrderedQty(row) {
+    return parseSafeNumber(
+        row?.quantityOrdered
+        ?? row?.orderedQuantity
+        ?? row?.quantity
+        ?? row?.qty
+        ?? row?.quantity_ordered,
+        0,
+    )
+}
+
+function getDetailConfirmedQty(row) {
+    return parseSafeNumber(
+        row?.quantityConfirmed
+        ?? row?.confirmedQuantity
+        ?? row?.quantity_confirmed,
+        0,
+    )
+}
+
+function getDetailShippedQty(row) {
+    return parseSafeNumber(
+        row?.quantityShipped
+        ?? row?.shippedQuantity
+        ?? row?.quantity_shipped
+        ?? row?.shippedQty
+        ?? row?.deliveredQuantity,
+        0,
+    )
+}
+
+function getDetailUnitPrice(row) {
+    const direct = parseSafeNumber(
+        row?.unitPrice
+        ?? row?.price
+        ?? row?.internalPrice
+        ?? row?.unit_price
+        ?? row?.product?.internalPrice
+        ?? row?.product?.price,
+        0,
+    )
+    if (direct > 0) return direct
+
+    const lineAmount = parseSafeNumber(
+        row?.lineTotal
+        ?? row?.lineAmount
+        ?? row?.subtotal
+        ?? row?.subTotal
+        ?? row?.totalAmount
+        ?? row?.totalPrice
+        ?? row?.amount,
+        0,
+    )
+
+    const qty = getDetailOrderedQty(row)
+    if (lineAmount > 0 && qty > 0) return lineAmount / qty
+    return 0
 }
 
 function normalizeLocationType(locationType) {
@@ -443,7 +515,47 @@ export default function StoreOrderPage() {
 
     const normalizeStatus = (rawStatus) => {
         if (!rawStatus) return 'Pending'
-        return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
+        const raw = String(rawStatus).trim().toUpperCase()
+        const aliases = {
+            PARTIALSHIPPING: 'PARTIAL_SHIPPING',
+            GIAO_MOT_PHAN: 'PARTIAL_SHIPPING',
+        }
+        const normalized = aliases[raw] || raw
+        return apiStatusToUi[normalized] || rawStatus
+    }
+
+    const deriveStatusFromDetails = (baseStatus, details, sourceOrder = null) => {
+        const normalizedBase = String(baseStatus || '')
+        const rows = Array.isArray(details) ? details : []
+        const topLevelShipped = parseSafeNumber(
+            sourceOrder?.totalShippedQuantity
+            ?? sourceOrder?.shippedQuantity
+            ?? sourceOrder?.quantityShipped
+            ?? sourceOrder?.totalQuantityShipped,
+            0,
+        )
+
+        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng') {
+            return normalizedBase
+        }
+
+        if (!rows.length) {
+            return topLevelShipped > 0 ? 'Giao một phần' : normalizedBase
+        }
+
+        const anyShipped = rows.some((row) => getDetailShippedQty(row) > 0) || topLevelShipped > 0
+        if (!anyShipped) return normalizedBase
+
+        const allReached = rows.every((row) => {
+            const ordered = getDetailOrderedQty(row)
+            const confirmed = getDetailConfirmedQty(row)
+            const shipped = getDetailShippedQty(row)
+            const target = confirmed > 0 ? confirmed : ordered
+            if (target <= 0) return true
+            return shipped >= target
+        })
+
+        return allReached ? 'Đang giao' : 'Đang giao'
     }
 
     const normalizePaymentStatus = (rawPaymentStatus) => {
@@ -498,6 +610,7 @@ export default function StoreOrderPage() {
             'GIAO MỘT PHẦN': 'PARTIAL_SHIPPING',
             'GIAO_MOT_PHAN': 'PARTIAL_SHIPPING',
             PARTIAL_SHIPPING: 'PARTIAL_SHIPPING',
+            PARTIALSHIPPING: 'PARTIAL_SHIPPING',
             SHIPPED: 'SHIPPING',
             'ĐÃ XÁC NHẬN': 'CONFIRMED',
             'HOÀN THÀNH': 'COMPLETED',
@@ -569,7 +682,7 @@ export default function StoreOrderPage() {
             const numericId = Number(item?.id || item?.internalOrderId || item?.orderId)
             if (!numericId || numericId < 1) return null
 
-            const status = normalizeStatus(item?.status || item?.orderStatus)
+            const baseStatus = normalizeStatus(item?.status || item?.orderStatus)
 
             // Try multiple possible field names for order details
             const orderDetails = Array.isArray(item?.orderDetails)
@@ -579,6 +692,8 @@ export default function StoreOrderPage() {
                     : Array.isArray(item?.details)
                         ? item.details
                         : []
+
+            const status = deriveStatusFromDetails(baseStatus, orderDetails, item)
 
             // Improved product name extraction - prioritize nested product object
             const productNames = Array.from(new Set(
@@ -599,7 +714,7 @@ export default function StoreOrderPage() {
             ))
 
             const totalQuantity = orderDetails.reduce((sum, row) => {
-                const qty = Number(row?.quantityOrdered || row?.quantity || row?.quantityConfirmed || 0)
+                const qty = getDetailOrderedQty(row)
                 return sum + qty
             }, 0)
 
@@ -635,6 +750,9 @@ export default function StoreOrderPage() {
         setOrdersLoading(true)
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
 
             const params = new URLSearchParams()
             const parsedStoreId = Number(formStoreId)
@@ -649,7 +767,7 @@ export default function StoreOrderPage() {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
             })
 
@@ -671,7 +789,7 @@ export default function StoreOrderPage() {
                             method: 'GET',
                             headers: {
                                 accept: '*/*',
-                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                Authorization: `Bearer ${token}`,
                             },
                         })
 
@@ -716,13 +834,16 @@ export default function StoreOrderPage() {
 
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
 
             setDetailLoading(true)
             const response = await fetch(`${apiBase}/internal-orders/${orderId}`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
             })
 
@@ -737,6 +858,11 @@ export default function StoreOrderPage() {
 
             setDetailOrder({
                 ...data,
+                orderStatus: deriveStatusFromDetails(
+                    normalizeStatus(data?.orderStatus || data?.status),
+                    data?.internalOrderDetails || data?.orderDetails || [],
+                    data,
+                ),
                 paymentStatus: normalizePaymentStatus(data?.paymentStatus),
             })
         } catch (error) {
@@ -806,6 +932,22 @@ export default function StoreOrderPage() {
                 throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
             }
 
+            const precheckRes = await fetch(`${apiBase}/internal-orders/${orderId}`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+            const precheckData = await precheckRes.json().catch(() => ({}))
+            if (precheckRes.ok) {
+                const backendStatus = normalizeApiOrderStatus(precheckData?.orderStatus || precheckData?.status)
+                if (backendStatus !== 'SHIPPING' && backendStatus !== 'PARTIAL_SHIPPING') {
+                    setUiWarning('Đơn đã có số lượng giao nhưng backend chưa chuyển sang trạng thái giao. Vui lòng tải lại sau vài giây.')
+                    return
+                }
+            }
+
             setReceiveLoading(true)
             const response = await fetch(`${apiBase}/internal-orders/${orderId}/confirm-completed`, {
                 method: 'PUT',
@@ -853,6 +995,22 @@ export default function StoreOrderPage() {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             if (!token) {
                 throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            const precheckRes = await fetch(`${apiBase}/internal-orders/${orderId}`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+            const precheckData = await precheckRes.json().catch(() => ({}))
+            if (precheckRes.ok) {
+                const backendStatus = normalizeApiOrderStatus(precheckData?.orderStatus || precheckData?.status)
+                if (backendStatus !== 'SHIPPING' && backendStatus !== 'PARTIAL_SHIPPING') {
+                    setDetailError('Đơn chưa ở trạng thái giao trên backend nên chưa thể trả hàng.')
+                    return
+                }
             }
 
             const reason = window.prompt('Nhập lý do trả hàng (bắt buộc):', '')
@@ -1553,7 +1711,7 @@ export default function StoreOrderPage() {
                                         <option value="APPROVED">Đã duyệt</option>
                                         <option value="PROCESSING">Đang sản xuất</option>
                                         <option value="PRODUCED">Đã sản xuất</option>
-                                        <option value="PARTIAL_SHIPPING">Giao một phần</option>
+                                        <option value="PARTIAL_SHIPPING">Đang giao (1 phần)</option>
                                         <option value="SHIPPING">Đang giao</option>
                                         <option value="COMPLETED">Hoàn thành</option>
                                         <option value="REJECTED">Đã từ chối</option>
@@ -1807,8 +1965,8 @@ export default function StoreOrderPage() {
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                                         {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
                                                             (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row, idx) => {
-                                                                const unitPrice = row.unitPrice || row.price || 0
-                                                                const quantity = row.quantityOrdered || 0
+                                                                const unitPrice = getDetailUnitPrice(row)
+                                                                const quantity = getDetailOrderedQty(row)
                                                                 const subtotal = unitPrice * quantity
 
                                                                 return (
@@ -1825,8 +1983,8 @@ export default function StoreOrderPage() {
                                                                             {unitPrice.toLocaleString('vi-VN')} đ
                                                                         </td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-slate-900 dark:text-slate-100">{quantity}</td>
-                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-blue-600 dark:text-blue-400">{row.quantityConfirmed}</td>
-                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{row.quantityShipped}</td>
+                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-blue-600 dark:text-blue-400">{getDetailConfirmedQty(row)}</td>
+                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{getDetailShippedQty(row)}</td>
                                                                         <td className="px-4 py-3 text-sm text-right font-bold text-slate-900 dark:text-slate-100">
                                                                             {subtotal.toLocaleString('vi-VN')} đ
                                                                         </td>

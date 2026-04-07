@@ -1,5 +1,155 @@
 import { useEffect, useState } from 'react'
 
+function parseArrayData(raw) {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.items)) return raw.items
+  if (Array.isArray(raw?.data)) return raw.data
+  return []
+}
+
+function readApiErrorMessage(data, fallback) {
+  if (typeof data === 'string' && data.trim()) return data.trim()
+  if (!data || typeof data !== 'object') return fallback
+
+  if (typeof data.message === 'string' && data.message.trim()) return data.message
+  if (typeof data.title === 'string' && data.title.trim()) return data.title
+  if (typeof data.detail === 'string' && data.detail.trim()) return data.detail
+
+  const firstError = Object.values(data.errors || {}).find((value) => Array.isArray(value) && value.length)
+  if (firstError && firstError[0]) return String(firstError[0])
+
+  return fallback
+}
+
+function normalizeSupplierActive(value) {
+  if (value === undefined || value === null || value === '') return true
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+
+  const normalized = String(value).trim().toUpperCase()
+  if (['FALSE', '0', 'INACTIVE', 'DISABLED', 'BLACKLIST', 'BANNED', 'BLOCKED', 'NGUNG_HOAT_DONG', 'NGỪNG_HOẠT_ĐỘNG'].includes(normalized)) return false
+  if (['TRUE', '1', 'ACTIVE', 'ENABLED', 'HOAT_DONG', 'HOẠT_ĐỘNG'].includes(normalized)) return true
+  return true
+}
+
+function parseUserNumber(value) {
+  if (typeof value === 'number') return value
+  const normalized = String(value ?? '').trim().replace(',', '.')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
+function normalizeImportPayload(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    productId: Number(raw.productId ?? raw.ProductId),
+    quantity: Number(raw.quantity ?? raw.Quantity),
+    supplierId: Number(raw.supplierId ?? raw.SupplierId),
+  }
+}
+
+function isSameImportPayload(requestPayload, debugPayload) {
+  const requestNormalized = normalizeImportPayload(requestPayload)
+  const debugNormalized = normalizeImportPayload(debugPayload)
+  if (!requestNormalized || !debugNormalized) return false
+
+  return requestNormalized.productId === debugNormalized.productId
+    && requestNormalized.supplierId === debugNormalized.supplierId
+    && requestNormalized.quantity === debugNormalized.quantity
+}
+
+function withTraceId(message, traceId) {
+  const normalizedTrace = String(traceId || '').trim()
+  if (!normalizedTrace) return message
+  return `${message} (traceId: ${normalizedTrace})`
+}
+
+function resolveImportErrorMessage(data, requestPayload) {
+  const rawError = readApiErrorMessage(data, 'Nhập kho thất bại.')
+  const normalized = String(rawError || '').toLowerCase()
+  const errorCode = String(data?.errorCode || '').trim().toUpperCase()
+  const traceId = data?.traceId
+  const debugPayload = data?.debugPayload
+  const hasDebugPayload = Boolean(debugPayload && typeof debugPayload === 'object')
+  const payloadMatched = hasDebugPayload && isSameImportPayload(requestPayload, debugPayload)
+
+  if (hasDebugPayload && !payloadMatched) {
+    return withTraceId('Dữ liệu API nhận được không khớp dữ liệu FE gửi. Vui lòng thử lại và kiểm tra request payload.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_LOG_FIELD_TOO_LONG') {
+    return withTraceId('Hệ thống đang lỗi độ dài dữ liệu log khi nhập kho. Vui lòng gửi traceId cho backend để kiểm tra.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_DUPLICATE_INVENTORY') {
+    return withTraceId('Dữ liệu tồn kho bị trùng khóa. Vui lòng gửi traceId cho backend để xử lý dữ liệu hệ thống.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_SUPPLIER_FK_FAILED') {
+    return withTraceId('Nhà cung cấp không hợp lệ trong hệ thống. Vui lòng chọn nhà cung cấp khác.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_PRODUCT_FK_FAILED') {
+    return withTraceId('Nguyên liệu không hợp lệ trong hệ thống. Vui lòng chọn nguyên liệu khác.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_SAVE_FAILED') {
+    return withTraceId('Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng gửi traceId cho backend kiểm tra.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_BUSINESS_ERROR') {
+    if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+      return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+    }
+    if (normalized.includes('raw')) {
+      return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+    }
+    if (normalized.includes('không tìm thấy sản phẩm')) {
+      return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+    if (normalized.includes('không tìm thấy nhà cung cấp')) {
+      return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+    if (normalized.includes('số lượng') || normalized.includes('so luong')) {
+      return withTraceId('Số lượng nhập kho phải lớn hơn 0.', traceId)
+    }
+    return withTraceId(rawError, traceId)
+  }
+
+  if (normalized.includes('saving the entity changes') || normalized.includes('inner exception')) {
+    const hasStructuredError = Boolean(errorCode || traceId)
+    if (payloadMatched) {
+      return withTraceId(
+        hasStructuredError
+          ? 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. Vui lòng gửi traceId cho backend kiểm tra DB.'
+          : 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+        traceId,
+      )
+    }
+    return withTraceId(
+      hasStructuredError
+        ? 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng thử lại sau.'
+        : 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+      traceId,
+    )
+  }
+
+  if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+    return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+  }
+  if (normalized.includes('raw')) {
+    return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+  }
+  if (normalized.includes('không tìm thấy sản phẩm')) {
+    return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+  }
+  if (normalized.includes('không tìm thấy nhà cung cấp')) {
+    return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+  }
+
+  return withTraceId(rawError, traceId)
+}
+
 function getToken() {
   const candidates = [
     localStorage.getItem('auth_token'),
@@ -518,41 +668,57 @@ export default function InventoryPage() {
       ])
 
       if (productsRes.ok) {
-        const data = await productsRes.json()
-        const normalized = (Array.isArray(data) ? data : []).map((p) => ({
-          id: p.productId || p.id,
-          name: p.productName || p.name || `Sản phẩm #${p.productId || p.id}`,
-        }))
+        const data = await productsRes.json().catch(() => [])
+        const normalized = parseArrayData(data)
+          .map((p) => ({
+            id: p.productId || p.id,
+            name: p.productName || p.name || `Sản phẩm #${p.productId || p.id}`,
+            productType: String(p.productType || '').toUpperCase(),
+          }))
+          .filter((item) => Number(item.id) > 0)
+          .filter((item) => !item.productType || item.productType === 'RAW')
         setRawProducts(normalized)
 
         if (normalized.length > 0 && !importForm.productId) {
           setImportForm((prev) => ({ ...prev, productId: String(normalized[0].id) }))
         }
+      } else {
+        setRawProducts([])
       }
 
       if (suppliersRes.ok) {
-        const data = await suppliersRes.json()
-        const normalized = (Array.isArray(data) ? data : []).map((s) => ({
-          id: s.supplierId || s.id,
-          name: s.supplierName || s.name || `NCC #${s.supplierId || s.id}`,
-        }))
-        setSuppliers(normalized)
+        const data = await suppliersRes.json().catch(() => [])
+        const normalized = parseArrayData(data)
+          .map((s) => ({
+            id: s.supplierId || s.id,
+            name: s.supplierName || s.name || `NCC #${s.supplierId || s.id}`,
+            isActive: normalizeSupplierActive(s.isActive ?? s.active ?? s.is_active ?? s.status),
+          }))
+          .filter((s) => Number(s.id) > 0)
 
-        if (normalized.length > 0 && !importForm.supplierId) {
-          setImportForm((prev) => ({ ...prev, supplierId: String(normalized[0].id) }))
+        const activeSuppliers = normalized.filter((s) => s.isActive)
+        setSuppliers(activeSuppliers)
+
+        if (activeSuppliers.length > 0 && !importForm.supplierId) {
+          setImportForm((prev) => ({ ...prev, supplierId: String(activeSuppliers[0].id) }))
         }
+
+        if (normalized.length > 0 && activeSuppliers.length === 0) {
+          setImportError('Hiện không có nhà cung cấp đang hoạt động để nhập kho.')
+        }
+      } else {
+        setSuppliers([])
       }
     } catch (error) {
       console.error('Error fetching raw products/suppliers:', error)
+      setImportError('Không tải được dữ liệu nhập kho. Vui lòng thử lại.')
     }
   }
 
   const openImportModal = () => {
     setShowImportModal(true)
     setImportError('')
-    if (rawProducts.length === 0 || suppliers.length === 0) {
-      fetchRawProductsAndSuppliers()
-    }
+    fetchRawProductsAndSuppliers()
   }
 
   const closeImportModal = () => {
@@ -571,25 +737,41 @@ export default function InventoryPage() {
       return
     }
 
-    const productId = Number(importForm.productId || 0)
-    const supplierId = Number(importForm.supplierId || 0)
-    const quantity = Number(importForm.quantity || 0)
+    const productId = parseUserNumber(importForm.productId)
+    const supplierId = parseUserNumber(importForm.supplierId)
+    const quantity = parseUserNumber(importForm.quantity)
+    const selectedProduct = rawProducts.find((p) => Number(p.id) === productId)
+    const selectedSupplier = suppliers.find((s) => Number(s.id) === supplierId)
 
-    if (productId < 1) {
+    if (!Number.isFinite(productId) || productId < 1) {
       setImportError('Vui lòng chọn sản phẩm hợp lệ.')
       return
     }
-    if (supplierId < 1) {
+    if (!Number.isFinite(supplierId) || supplierId < 1) {
       setImportError('Vui lòng chọn nhà cung cấp hợp lệ.')
       return
     }
-    if (quantity <= 0) {
+    if (!selectedProduct) {
+      setImportError('Sản phẩm không hợp lệ hoặc không thuộc nhóm nguyên liệu thô (RAW).')
+      return
+    }
+    if (!selectedSupplier) {
+      setImportError('Nhà cung cấp không hợp lệ hoặc đã ngừng hoạt động.')
+      return
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       setImportError('Số lượng nhập phải lớn hơn 0.')
       return
     }
 
     setImporting(true)
     try {
+      const requestPayload = {
+        productId: Number(productId),
+        quantity: Number(quantity),
+        supplierId: Number(supplierId),
+      }
+
       const response = await fetch(`${apiBase}/Inventory/import`, {
         method: 'POST',
         headers: {
@@ -597,17 +779,24 @@ export default function InventoryPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tk}`,
         },
-        body: JSON.stringify({
-          productId,
-          quantity,
-          supplierId,
-        }),
+        body: JSON.stringify(requestPayload),
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        const errorMsg = data?.message || data?.title || 'Nhập kho thất bại.'
-        throw new Error(errorMsg)
+        if (import.meta.env.DEV) {
+          console.warn('[InventoryImport] request failed', {
+            status: response.status,
+            requestPayload,
+            responseBody: data,
+          })
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Bạn không có quyền nhập kho. Vui lòng đăng nhập bằng tài khoản ADMIN hoặc MANAGER.')
+        }
+
+        throw new Error(resolveImportErrorMessage(data, requestPayload))
       }
 
       setMessage({ type: 'success', text: data?.message || 'Nhập nguyên liệu thành công.' })
