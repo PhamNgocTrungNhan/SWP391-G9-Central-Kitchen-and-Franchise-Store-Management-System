@@ -20,17 +20,19 @@ namespace Shop2026.DLL
                 MaterialId = r.MaterialId,
                 MaterialName = r.Material?.ProductName,
                 MaterialUnit = r.Material?.BaseUnit,
-                QuantityRequired = r.QuantityRequired
+
+                QuantityRequired = r.QuantityRequired,
+                MaxWastePercent = r.MaxWastePercent // ✅ Trả về cho FE hiển thị
             }).ToList();
         }
 
-        // ✅ HÀM TẠO MỚI: Nhận 1 mảng dữ liệu
+
         public void CreateBulk(CreateRecipeBulkRequest request)
         {
             if (!_repo.ProductExists(request.ParentProductId))
                 throw new Exception("Thành phẩm không tồn tại trong hệ thống.");
 
-            // 1. Chống lỗi tấu hài của FE: Nhét 2 dòng cùng 1 nguyên liệu vào mảng
+
             var duplicateInRequest = request.Materials.GroupBy(x => x.MaterialId).Where(g => g.Count() > 1).Select(y => y.Key).ToList();
             if (duplicateInRequest.Any())
                 throw new Exception($"Danh sách gửi lên có nguyên liệu bị trùng lặp (Mã ID: {string.Join(", ", duplicateInRequest)}).");
@@ -52,15 +54,16 @@ namespace Shop2026.DLL
                 {
                     ParentProductId = request.ParentProductId,
                     MaterialId = item.MaterialId,
-                    QuantityRequired = item.QuantityRequired
+
+                    QuantityRequired = item.QuantityRequired,
+                    MaxWastePercent = item.MaxWastePercent // ✅ LƯU HAO HỤT TỐI ĐA CHO CÔNG THỨC NÀY
                 });
             }
 
-            // 2. Gom hết vào 1 mảng rồi lưu 1 lượt xuống DB
             _repo.AddRange(newRecipes);
         }
 
-        // ✅ HÀM CẬP NHẬT: Dùng DTO mới
+
         public void Update(int id, UpdateRecipeRequest request)
         {
             var recipe = _repo.GetById(id) ?? throw new Exception("Không tìm thấy dòng định mức này trong hệ thống.");
@@ -73,6 +76,9 @@ namespace Shop2026.DLL
 
             recipe.MaterialId = request.MaterialId;
             recipe.QuantityRequired = request.QuantityRequired;
+
+            recipe.MaxWastePercent = request.MaxWastePercent; // ✅ CẬP NHẬT HAO HỤT
+
 
             _repo.Update(recipe);
         }

@@ -19,9 +19,9 @@ namespace Shop2026.DLL
             try
             {
                 var rawMaterialsToDeduct = new Dictionary<int, decimal>();
-
                 decimal actualQty = batch.QuantityActual ?? batch.QuantityPlanned ?? 0;
 
+                // Bắt đầu đệ quy từ bánh thành phẩm (Gửi lượng bánh Net xuống để phân rã)
                 CalculateRawMaterialsRecursive(batch.ProductId ?? 0, actualQty, rawMaterialsToDeduct);
 
                 if (!rawMaterialsToDeduct.Any())
@@ -46,27 +46,37 @@ namespace Shop2026.DLL
             }
         }
 
-        private void CalculateRawMaterialsRecursive(int productId, decimal requiredQty, Dictionary<int, decimal> aggregatedRawMaterials)
+        // ==========================================
+        // ✅ THUẬT TOÁN ĐỆ QUY TÍNH NGUYÊN LIỆU THEO BOM GỐC
+        // Không tự cộng hao hụt vào định mức trừ kho cơ bản.
+        // ==========================================
+        private void CalculateRawMaterialsRecursive(int productId, decimal requiredNetQty, Dictionary<int, decimal> aggregatedRawMaterials)
         {
             var product = _repo.GetProduct(productId) ?? throw new Exception($"Không tìm thấy sản phẩm ID {productId}");
 
+            // Nếu chạm đáy là đồ RAW (Bột, Thịt...) -> Ghi nhận lượng Gross vào sổ để chuẩn bị xuất kho
             if (product.ProductType == "RAW")
             {
                 if (aggregatedRawMaterials.ContainsKey(productId))
-                    aggregatedRawMaterials[productId] += requiredQty;
+                    aggregatedRawMaterials[productId] += requiredNetQty;
                 else
-                    aggregatedRawMaterials[productId] = requiredQty;
+                    aggregatedRawMaterials[productId] = requiredNetQty;
                 return;
             }
 
+            // Nếu là Bánh hoặc Bán thành phẩm -> Tìm công thức BOM
             var recipes = _repo.GetRecipeByProduct(productId);
             if (!recipes.Any())
                 throw new Exception($"Sản phẩm '{product.ProductName}' cần được sản xuất nhưng chưa cấu hình công thức (BOM).");
 
+            // Phân rã tiếp các nguyên liệu con theo định mức BOM gốc.
             foreach (var recipe in recipes)
             {
-                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
-                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
+                // Mỗi cái bánh cha cần 'QuantityRequired' nguyên liệu con.
+                decimal childNetQty = requiredNetQty * recipe.QuantityRequired;
+
+                // Gọi đệ quy tiếp tục chui xuống dưới
+                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childNetQty, aggregatedRawMaterials);
             }
         }
 
@@ -114,6 +124,9 @@ namespace Shop2026.DLL
 
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
+
+                    UpdateStockAndLog(detail.ProductId ?? 0, "STORE", order.StoreId, quantityToShip,
+                                      "Nhận giao từ bếp", order.OrderId, "INTERNAL_ORDER");
 
                     var trackedDetail = _repo.GetContext().InternalOrderDetails.Find(detail.DetailId);
                     if (trackedDetail != null)
@@ -164,7 +177,7 @@ namespace Shop2026.DLL
                 throw new Exception("Số lượng nhập kho phải lớn hơn 0.");
 
             var product = _repo.GetProduct(productId) ?? throw new Exception("Không tìm thấy sản phẩm.");
-            if (product.ProductType != "RAW")
+            if (!string.Equals(product.ProductType?.Trim(), "RAW", StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Lỗi: Chỉ được nhập Nguyên liệu thô (RAW).");
 
             var supplier = _repo.GetContext().Suppliers.Find(supplierId) ?? throw new Exception("Không tìm thấy nhà cung cấp.");
@@ -174,8 +187,9 @@ namespace Shop2026.DLL
             using var transaction = _repo.GetContext().Database.BeginTransaction();
             try
             {
-                string logReason = $"Nhập nguyên liệu từ NCC: {supplier.SupplierName}";
-                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, 0, "IMPORT_SUPPLIER", supplierId);
+                string logReason = BuildImportReason(supplier.SupplierName);
+                // Use supplierId as a meaningful reference for import logs instead of sentinel 0.
+                UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, supplierId, "IMPORT_SUPPLIER", supplierId);
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
             }
@@ -188,7 +202,11 @@ namespace Shop2026.DLL
 
         public void UpdateStockAndLog(int productId, string locationType, int locationId, decimal changeQty, string reason, int refId, string refType, int? supplierId = null)
         {
-            var stock = _repo.GetStock(productId, locationType, locationId);
+            var safeLocationType = TrimToMaxLength(locationType, 20);
+            var safeReason = TrimToMaxLength(reason, 50);
+            var safeRefType = TrimToMaxLength(refType, 20);
+
+            var stock = _repo.GetStock(productId, safeLocationType, locationId);
 
             if (stock == null)
             {
@@ -198,7 +216,7 @@ namespace Shop2026.DLL
                 stock = new Inventory
                 {
                     ProductId = productId,
-                    LocationType = locationType,
+                    LocationType = safeLocationType,
                     LocationId = locationId,
                     CurrentQuantity = changeQty,
                     LastUpdated = DateTime.Now
@@ -219,25 +237,45 @@ namespace Shop2026.DLL
             var log = new StockLog
             {
                 ProductId = productId,
-                LocationType = locationType,
+                LocationType = safeLocationType,
                 LocationId = locationId,
                 ChangeQuantity = changeQty,
-                Reason = reason,
+                Reason = safeReason,
                 ReferenceId = refId,
-                ReferenceType = refType,
+                ReferenceType = safeRefType,
                 SupplierId = supplierId,
                 CreatedAt = DateTime.Now
             };
             _repo.AddStockLog(log);
         }
 
-        // ==========================================
-        // THUẬT TOÁN FIFO ẢO: QUÉT VÀ HỦY HÀNG HẾT HẠN
-        // ==========================================
+        private static string BuildImportReason(string? supplierName)
+        {
+            var normalizedSupplierName = (supplierName ?? string.Empty).Trim();
+            var baseReason = "Nhập nguyên liệu từ NCC";
+
+            if (string.IsNullOrWhiteSpace(normalizedSupplierName))
+            {
+                return baseReason;
+            }
+
+            return TrimToMaxLength($"{baseReason}: {normalizedSupplierName}", 50);
+        }
+
+        private static string TrimToMaxLength(string? value, int maxLength)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            if (normalized.Length <= maxLength)
+            {
+                return normalized;
+            }
+
+            return normalized.Substring(0, maxLength);
+        }
+
         public void ScanAndRemoveExpiredStock()
         {
             var dbContext = _repo.GetContext();
-
             var kitchenInventories = dbContext.Inventories
                 .Where(i => i.LocationType == "KITCHEN" && i.CurrentQuantity > 0)
                 .ToList();
