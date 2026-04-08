@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
 
 const fallbackStoreOptions = []
@@ -1465,6 +1466,52 @@ export default function StoreOrderPage() {
     const currentOrderPage = Math.min(Math.max(ordersPage, 1), totalOrderPages)
     const pagedOrders = orders.slice((currentOrderPage - 1) * ordersPerPage, currentOrderPage * ordersPerPage)
 
+    const statsItems = useMemo(() => {
+        const pendingOrders = orders.filter((item) => String(item.backendStatus || item.status || '').toUpperCase() === 'PENDING').length
+        const shippingOrders = orders.filter((item) => {
+            const normalized = String(item.backendStatus || item.status || '').toUpperCase()
+            return normalized === 'SHIPPING' || normalized === 'PARTIAL_SHIPPING' || normalized === 'SHIPPED'
+        }).length
+        const completedOrders = orders.filter((item) => String(item.backendStatus || item.status || '').toUpperCase() === 'COMPLETED').length
+
+        const lowOrCriticalStock = inventoryRows.filter((item) => item.status === 'low' || item.status === 'critical').length
+
+        return [
+            {
+                key: 'orders-total',
+                label: 'Tổng đơn hàng',
+                value: Number(orders.length || 0).toLocaleString('vi-VN'),
+                note: 'Đơn hiện có trong hệ thống',
+                icon: 'receipt_long',
+                tone: 'blue',
+            },
+            {
+                key: 'orders-pending',
+                label: 'Chờ duyệt',
+                value: Number(pendingOrders || 0).toLocaleString('vi-VN'),
+                note: 'Đơn cần xác nhận',
+                icon: 'pending',
+                tone: 'amber',
+            },
+            {
+                key: 'orders-shipping',
+                label: 'Đang giao',
+                value: Number(shippingOrders || 0).toLocaleString('vi-VN'),
+                note: 'Bao gồm giao một phần',
+                icon: 'local_shipping',
+                tone: 'purple',
+            },
+            {
+                key: 'orders-completed',
+                label: 'Đã hoàn tất',
+                value: Number(completedOrders || 0).toLocaleString('vi-VN'),
+                note: `${Number(lowOrCriticalStock || 0).toLocaleString('vi-VN')} cảnh báo tồn kho`,
+                icon: 'check_circle',
+                tone: 'green',
+            },
+        ]
+    }, [orders, inventoryRows])
+
     const openOrderDetailFromRow = (order) => {
         const selectedId = Number(order?.orderId || order?.id)
         if (selectedId > 0) {
@@ -1543,6 +1590,7 @@ export default function StoreOrderPage() {
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 {/* TAB 0: Place Order */}
                 {tab === 0 && (
@@ -2260,20 +2308,6 @@ export default function StoreOrderPage() {
                                     <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>Đặt thêm hàng
                                 </button>
                             </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {[
-                                { label: 'Mặt hàng', value: inventoryRows.length },
-                                { label: 'Sắp hết', value: inventoryRows.filter((row) => row.status === 'low').length },
-                                { label: 'Cần bổ sung ngay', value: inventoryRows.filter((row) => row.status === 'critical').length },
-                                { label: 'Tổng số lượng', value: inventoryRows.reduce((sum, row) => sum + Number(row.currentQuantity || 0), 0) },
-                            ].map((card) => (
-                                <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-4">{card.label}</p>
-                                    <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
-                            ))}
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">

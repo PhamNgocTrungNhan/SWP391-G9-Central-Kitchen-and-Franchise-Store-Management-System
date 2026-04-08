@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MetricsStrip } from '../components/ui'
 
 const productColumns = [
     { key: 'id', label: 'Mã sản phẩm' },
@@ -499,6 +500,52 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         return productsWithCategoryName.filter((item) => `${item.id} ${item.sku} ${item.name} ${item.categoryName} ${item.productType} ${item.baseUnit}`.toLowerCase().includes(key))
     }, [productsWithCategoryName, keyword])
 
+    const statsItems = useMemo(() => {
+        const categoryCount = new Set(productsWithCategoryName.map((item) => Number(item.categoryId)).filter((id) => id > 0)).size
+        const validSkuCount = productsWithCategoryName.filter((item) => String(item.sku || '').trim().length > 0).length
+        const avgPrice = productsWithCategoryName.length > 0
+            ? productsWithCategoryName.reduce((sum, item) => {
+                const value = normalizedScope === 'ingredient' ? Number(item.purchasePrice || 0) : Number(item.internalPrice || 0)
+                return sum + (Number.isFinite(value) ? value : 0)
+            }, 0) / productsWithCategoryName.length
+            : 0
+
+        return [
+            {
+                key: `${normalizedScope}-total`,
+                label: normalizedScope === 'ingredient' ? 'Tổng nguyên liệu' : 'Tổng thành phẩm',
+                value: Number(productsWithCategoryName.length || 0).toLocaleString('vi-VN'),
+                note: 'Số bản ghi toàn danh sách',
+                icon: normalizedScope === 'ingredient' ? 'nutrition' : 'inventory_2',
+                tone: 'blue',
+            },
+            {
+                key: `${normalizedScope}-sku`,
+                label: 'SKU hợp lệ',
+                value: Number(validSkuCount || 0).toLocaleString('vi-VN'),
+                note: 'Sản phẩm có mã SKU',
+                icon: 'qr_code_2',
+                tone: 'green',
+            },
+            {
+                key: `${normalizedScope}-categories`,
+                label: 'Danh mục sử dụng',
+                value: Number(categoryCount || 0).toLocaleString('vi-VN'),
+                note: 'Số danh mục có sản phẩm',
+                icon: 'category',
+                tone: 'purple',
+            },
+            {
+                key: `${normalizedScope}-avg-price`,
+                label: normalizedScope === 'ingredient' ? 'Giá mua TB' : 'Giá nội bộ TB',
+                value: `${Math.round(avgPrice || 0).toLocaleString('vi-VN')}đ`,
+                note: 'Trung bình theo danh sách',
+                icon: 'payments',
+                tone: 'amber',
+            },
+        ]
+    }, [productsWithCategoryName, normalizedScope])
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
@@ -529,6 +576,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                     <h1 className="text-2xl font-bold">{scopeMeta.listTitle}</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý dữ liệu với các thao tác xem, sửa, xóa.</p>
                 </div>
+
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
                     <label className="flex flex-col gap-1">

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 const statusStyle = {
     Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -1036,6 +1037,41 @@ export default function OrderManagementPage() {
         cancelled: orders.filter((o) => o.status === 'Cancelled').length,
     }), [orders])
 
+    const statsItems = useMemo(() => ([
+        {
+            key: 'orders-total',
+            label: 'Tổng đơn hàng',
+            value: Number(stats.total || 0).toLocaleString('vi-VN'),
+            note: 'Đơn hàng nội bộ toàn danh sách',
+            icon: 'receipt_long',
+            tone: 'blue',
+        },
+        {
+            key: 'orders-pending',
+            label: 'Chờ duyệt',
+            value: Number(stats.pending || 0).toLocaleString('vi-VN'),
+            note: 'Đơn chờ xử lý ban đầu',
+            icon: 'pending',
+            tone: 'amber',
+        },
+        {
+            key: 'orders-shipping',
+            label: 'Đang giao',
+            value: Number(stats.shipped || 0).toLocaleString('vi-VN'),
+            note: `${Number(stats.partialShipping || 0).toLocaleString('vi-VN')} đơn giao một phần`,
+            icon: 'local_shipping',
+            tone: 'purple',
+        },
+        {
+            key: 'orders-completed',
+            label: 'Hoàn tất',
+            value: Number(stats.delivered || 0).toLocaleString('vi-VN'),
+            note: 'Đơn đã giao hoàn tất',
+            icon: 'check_circle',
+            tone: 'green',
+        },
+    ]), [stats])
+
     const canCancelOrder = (status) => status === 'Pending' // PENDING → CANCELLED
     const canApproveOrder = (status) => status === 'Pending' // PENDING → APPROVED
     const canRejectOrder = (status) => status === 'Pending' // PENDING → REJECTED
@@ -1065,37 +1101,10 @@ export default function OrderManagementPage() {
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
                 <div>
                     <h1 className="text-2xl font-bold">Đơn hàng từ cửa hàng</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái, giao từng phần và đồng bộ hoàn tất theo luồng mới.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái và tiến độ xử lý đơn hàng.</p>
                 </div>
 
-                <div className="rounded-xl border border-sky-200 dark:border-sky-900 bg-sky-50/70 dark:bg-sky-900/15 p-4">
-                    <p className="text-sm font-semibold text-sky-800 dark:text-sky-300">Luồng test nhanh API giao từng phần</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 whitespace-nowrap">B1: Đơn ở Đã duyệt, Đang sản xuất, Sẵn sàng hoặc Giao một phần</span>
-                        <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 whitespace-nowrap">B2: Nhập SL giao từng sản phẩm</span>
-                        <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 whitespace-nowrap">B3: Gọi POST /ship-partial</span>
-                        <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 whitespace-nowrap">B4: Nếu đủ 100% sẽ lên Đang giao</span>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[
-                        { label: 'Tổng đơn hàng', value: stats.total, icon: 'receipt_long', color: 'text-blue-600 dark:text-blue-400' },
-                        { label: 'Chờ duyệt', value: stats.pending, icon: 'pending', color: 'text-amber-600 dark:text-amber-400' },
-                        { label: 'Đang giao', value: stats.shipped, icon: 'local_shipping', color: 'text-indigo-600 dark:text-indigo-400' },
-                        { label: 'Hoàn tất', value: stats.delivered, icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400' },
-                    ].map((card) => (
-                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3">
-                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                                <div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                     <label className="block">

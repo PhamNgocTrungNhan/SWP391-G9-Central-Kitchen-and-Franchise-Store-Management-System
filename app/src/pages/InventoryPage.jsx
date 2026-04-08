@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function parseArrayData(raw) {
   if (Array.isArray(raw)) return raw
@@ -835,6 +836,46 @@ export default function InventoryPage() {
     }
   }
 
+  const statsItems = useMemo(() => {
+    const lowStockCount = stock.filter((item) => item.status === 'low').length
+    const criticalStockCount = stock.filter((item) => item.status === 'critical').length
+
+    return [
+      {
+        key: 'inventory-total-stock',
+        label: 'Mặt hàng tồn kho',
+        value: Number(stock.length || 0).toLocaleString('vi-VN'),
+        note: 'Số dòng tồn kho hiện tại',
+        icon: 'inventory_2',
+        tone: 'blue',
+      },
+      {
+        key: 'inventory-low-critical',
+        label: 'Cảnh báo tồn kho',
+        value: Number(lowStockCount + criticalStockCount).toLocaleString('vi-VN'),
+        note: `${lowStockCount} sắp hết • ${criticalStockCount} hết hàng`,
+        icon: 'warning',
+        tone: criticalStockCount > 0 ? 'red' : 'amber',
+      },
+      {
+        key: 'inventory-logs',
+        label: 'Nhật ký tồn kho',
+        value: Number(logs.length || 0).toLocaleString('vi-VN'),
+        note: 'Tổng giao dịch đã ghi nhận',
+        icon: 'receipt_long',
+        tone: 'green',
+      },
+      {
+        key: 'inventory-expiry',
+        label: 'Theo dõi hạn dùng',
+        value: Number(expiryTracking.length || 0).toLocaleString('vi-VN'),
+        note: 'Danh sách lô theo hạn sử dụng',
+        icon: 'event_busy',
+        tone: 'purple',
+      },
+    ]
+  }, [stock, logs, expiryTracking])
+
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -875,6 +916,8 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold">Tồn kho và lịch sử</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi số lượng tồn kho và lịch sử thay đổi.</p>
         </div>
+
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
         {message && (
           <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>

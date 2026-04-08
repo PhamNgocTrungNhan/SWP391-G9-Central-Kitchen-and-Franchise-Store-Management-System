@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function parseArrayData(raw) {
   if (Array.isArray(raw)) return raw
@@ -396,6 +397,41 @@ export default function UsersPage() {
     staff: users.filter((u) => u.roleId === 4 || u.roleId === 5).length,
   }), [users])
 
+  const statsItems = useMemo(() => ([
+    {
+      key: 'users-total',
+      label: 'Tổng người dùng',
+      value: Number(stats.total || 0).toLocaleString('vi-VN'),
+      note: 'Tài khoản trong hệ thống',
+      icon: 'group',
+      tone: 'blue',
+    },
+    {
+      key: 'users-admin',
+      label: 'Quản trị viên',
+      value: Number(stats.admins || 0).toLocaleString('vi-VN'),
+      note: 'Nhóm ADMIN',
+      icon: 'admin_panel_settings',
+      tone: 'red',
+    },
+    {
+      key: 'users-manager',
+      label: 'Quản lý',
+      value: Number(stats.managers || 0).toLocaleString('vi-VN'),
+      note: 'Nhóm MANAGER',
+      icon: 'manage_accounts',
+      tone: 'purple',
+    },
+    {
+      key: 'users-staff',
+      label: 'Nhân viên',
+      value: Number(stats.staff || 0).toLocaleString('vi-VN'),
+      note: 'Kitchen + Store staff',
+      icon: 'badge',
+      tone: 'green',
+    },
+  ]), [stats])
+
   const filtered = useMemo(() => {
     let result = users
 
@@ -435,24 +471,7 @@ export default function UsersPage() {
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý tài khoản và phân quyền người dùng trong hệ thống.</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Tổng người dùng', value: stats.total, icon: 'group', color: 'text-blue-600 dark:text-blue-400' },
-            { label: 'Quản trị viên', value: stats.admins, icon: 'admin_panel_settings', color: 'text-red-600 dark:text-red-400' },
-            { label: 'Quản lý', value: stats.managers, icon: 'manage_accounts', color: 'text-indigo-600 dark:text-indigo-400' },
-            { label: 'Nhân viên', value: stats.staff, icon: 'badge', color: 'text-teal-600 dark:text-teal-400' },
-          ].map((card) => (
-            <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">

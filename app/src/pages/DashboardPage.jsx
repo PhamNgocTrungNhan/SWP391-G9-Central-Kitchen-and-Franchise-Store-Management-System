@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Badge, Field, PageHeader, SectionCard, StatCard } from '../components/ui'
+import { Badge, Field, MetricsStrip, PageHeader, SectionCard } from '../components/ui'
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { getCurrentUserRole } from '../utils/auth'
 
@@ -206,6 +206,50 @@ export default function DashboardPage() {
 
   const totalOrders = ordersData.reduce((sum, item) => sum + item.totalOrders, 0)
 
+  const productionMetricItems = [
+    {
+      key: 'planned',
+      label: 'Kế hoạch',
+      value: Number(production.planned || 0).toLocaleString('vi-VN'),
+      note: 'Số lượng dự kiến',
+      icon: 'assignment',
+      tone: 'blue',
+    },
+    {
+      key: 'actual',
+      label: 'Thực tế',
+      value: Number(production.actual || 0).toLocaleString('vi-VN'),
+      note: 'Đã sản xuất',
+      icon: 'check_circle',
+      tone: 'green',
+    },
+    {
+      key: 'completionRate',
+      label: 'Tỷ lệ hoàn thành',
+      value: `${production.completionRate}%`,
+      note: 'Thực tế/Kế hoạch',
+      icon: 'percent',
+      tone: 'purple',
+    },
+    {
+      key: 'totalBatches',
+      label: 'Tổng lô',
+      value: Number(production.totalBatches || 0).toLocaleString('vi-VN'),
+      note: 'Số lô sản xuất',
+      icon: 'inventory_2',
+      tone: 'amber',
+    },
+  ]
+
+  const orderMetricItems = orderBuckets.map((item) => ({
+    key: item.status || item.label,
+    label: item.label,
+    value: Number(item.value || 0).toLocaleString('vi-VN'),
+    note: `${totalOrders > 0 ? ((item.value / totalOrders) * 100).toFixed(0) : 0}% tổng đơn`,
+    icon: 'shopping_cart',
+    tone: item.tone,
+  }))
+
   // Colors for charts
   const COLORS = {
     'red': '#ef4444',
@@ -258,59 +302,7 @@ export default function DashboardPage() {
             <div className="text-sm text-slate-500">Đang tải...</div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Kế hoạch</p>
-                      <p className="mt-2 text-3xl font-bold text-blue-900">{production.planned}</p>
-                      <p className="text-xs text-blue-600 mt-1">Số lượng dự kiến</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-[28px]">assignment</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-green-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-green-600">Thực tế</p>
-                      <p className="mt-2 text-3xl font-bold text-green-900">{production.actual}</p>
-                      <p className="text-xs text-green-600 mt-1">Đã sản xuất</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-[28px]">check_circle</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">Tỷ lệ hoàn thành</p>
-                      <p className="mt-2 text-3xl font-bold text-purple-900">{production.completionRate}%</p>
-                      <p className="text-xs text-purple-600 mt-1">Thực tế/Kế hoạch</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-purple-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-[28px]">percent</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-6 shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Tổng lô</p>
-                      <p className="mt-2 text-3xl font-bold text-amber-900">{production.totalBatches}</p>
-                      <p className="text-xs text-amber-600 mt-1">Số lô sản xuất</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-amber-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-[28px]">inventory_2</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <MetricsStrip items={productionMetricItems} columns="md:grid-cols-2 lg:grid-cols-4" />
 
               <div className="mt-6 rounded-[1.5rem] border border-[#e7dccd] bg-[#fffdf8] p-4">
                 <div className="flex items-center justify-between mb-4">
@@ -368,36 +360,7 @@ export default function DashboardPage() {
             <div className="text-sm text-slate-500">Chưa có dữ liệu đơn hàng</div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                {orderBuckets.map((item) => {
-                  const colorMap = {
-                    'red': { border: 'border-red-200', bg: 'from-red-50 to-red-100', text: 'text-red-600', textBold: 'text-red-900', bgIcon: 'bg-red-500' },
-                    'green': { border: 'border-green-200', bg: 'from-green-50 to-green-100', text: 'text-green-600', textBold: 'text-green-900', bgIcon: 'bg-green-500' },
-                    'amber': { border: 'border-amber-200', bg: 'from-amber-50 to-amber-100', text: 'text-amber-600', textBold: 'text-amber-900', bgIcon: 'bg-amber-500' },
-                    'blue': { border: 'border-blue-200', bg: 'from-blue-50 to-blue-100', text: 'text-blue-600', textBold: 'text-blue-900', bgIcon: 'bg-blue-500' },
-                    'stone': { border: 'border-slate-200', bg: 'from-slate-50 to-slate-100', text: 'text-slate-600', textBold: 'text-slate-900', bgIcon: 'bg-slate-500' },
-                  }
-                  const colors = colorMap[item.tone] || colorMap['stone']
-
-                  return (
-                    <div
-                      key={item.label}
-                      className={`rounded-xl border-2 ${colors.border} bg-gradient-to-br ${colors.bg} p-6 shadow-lg hover:shadow-xl transition-shadow`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>{item.label}</p>
-                          <p className={`mt-2 text-3xl font-bold ${colors.textBold}`}>{item.value}</p>
-                          <p className={`text-xs ${colors.text} mt-1`}>{totalOrders > 0 ? ((item.value / totalOrders) * 100).toFixed(0) : 0}% tổng đơn</p>
-                        </div>
-                        <div className={`h-12 w-12 rounded-full ${colors.bgIcon} flex items-center justify-center`}>
-                          <span className="material-symbols-outlined text-white text-[28px]">shopping_cart</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <MetricsStrip items={orderMetricItems} columns="md:grid-cols-2 lg:grid-cols-3" className="mb-6" />
 
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Bar Chart */}

@@ -68,6 +68,83 @@ export function StatCard({ label, value, tone = 'neutral' }) {
   )
 }
 
+const metricToneClasses = {
+  blue: {
+    card: 'border-blue-200 from-blue-50 to-blue-100',
+    text: 'text-blue-600',
+    valueText: 'text-blue-900',
+    iconBg: 'bg-blue-500',
+  },
+  green: {
+    card: 'border-green-200 from-green-50 to-green-100',
+    text: 'text-green-600',
+    valueText: 'text-green-900',
+    iconBg: 'bg-green-500',
+  },
+  emerald: {
+    card: 'border-emerald-200 from-emerald-50 to-emerald-100',
+    text: 'text-emerald-600',
+    valueText: 'text-emerald-900',
+    iconBg: 'bg-emerald-500',
+  },
+  purple: {
+    card: 'border-purple-200 from-purple-50 to-purple-100',
+    text: 'text-purple-600',
+    valueText: 'text-purple-900',
+    iconBg: 'bg-purple-500',
+  },
+  amber: {
+    card: 'border-amber-200 from-amber-50 to-amber-100',
+    text: 'text-amber-600',
+    valueText: 'text-amber-900',
+    iconBg: 'bg-amber-500',
+  },
+  red: {
+    card: 'border-red-200 from-red-50 to-red-100',
+    text: 'text-red-600',
+    valueText: 'text-red-900',
+    iconBg: 'bg-red-500',
+  },
+  stone: {
+    card: 'border-slate-200 from-slate-50 to-slate-100',
+    text: 'text-slate-600',
+    valueText: 'text-slate-900',
+    iconBg: 'bg-slate-500',
+  },
+}
+
+export function MetricsStrip({ items = [], columns = 'md:grid-cols-2 lg:grid-cols-4', className = '' }) {
+  if (!Array.isArray(items) || items.length === 0) return null
+
+  return (
+    <div className={cx('grid gap-4', columns, className)}>
+      {items.map((item, index) => {
+        const tone = metricToneClasses[item?.tone] || metricToneClasses.blue
+        const key = item?.key || `${item?.label || 'metric'}-${index}`
+        const value = item?.value ?? 0
+
+        return (
+          <div
+            key={key}
+            className={cx('rounded-xl border-2 bg-gradient-to-br p-4 shadow-lg transition-shadow hover:shadow-xl', tone.card, item?.cardClassName || '')}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className={cx('text-xs font-semibold uppercase tracking-wider', tone.text)}>{item?.label || 'Thống kê'}</p>
+                <p className={cx('mt-1 text-3xl font-bold', tone.valueText)}>{value}</p>
+                {item?.note ? <p className={cx('mt-1 text-xs', tone.text)}>{item.note}</p> : null}
+              </div>
+              <div className={cx('flex h-12 w-12 items-center justify-center rounded-full', tone.iconBg)}>
+                <span className="material-symbols-outlined text-[28px] text-white">{item?.icon || 'query_stats'}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function EmptyState({ title, description, icon = 'search_off' }) {
   return (
     <div className="flex min-h-48 flex-col items-center justify-center rounded-3xl border border-dashed border-[#d9cfbf] bg-[#fff8ee] px-6 py-10 text-center">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { roles } from '../data/appSchema'
+import { MetricsStrip } from '../components/ui'
 import { getCurrentUserRole } from '../utils/auth'
 
 function getToken() {
@@ -884,6 +885,76 @@ export default function PaymentsPage() {
     }
   }, [orders])
 
+  const adminStatsItems = useMemo(() => ([
+    {
+      key: 'admin-total-orders',
+      label: 'Tổng đơn',
+      value: Number(stats.totalOrders || 0).toLocaleString('vi-VN'),
+      note: 'Đơn có dữ liệu thanh toán',
+      icon: 'receipt_long',
+      tone: 'blue',
+    },
+    {
+      key: 'admin-paid-orders',
+      label: 'Đơn đã thanh toán',
+      value: Number(stats.paidOrders || 0).toLocaleString('vi-VN'),
+      note: 'Trạng thái PAID',
+      icon: 'check_circle',
+      tone: 'green',
+    },
+    {
+      key: 'admin-today-inflow',
+      label: 'Thu hôm nay',
+      value: formatCurrency(stats.todayInflow),
+      note: 'Dòng tiền trong ngày',
+      icon: 'today',
+      tone: 'purple',
+    },
+    {
+      key: 'admin-net',
+      label: 'Luồng thu thuần',
+      value: formatCurrency(stats.netInflow),
+      note: 'Đã thu - đã hoàn',
+      icon: 'trending_up',
+      tone: 'amber',
+    },
+  ]), [stats])
+
+  const staffStatsItems = useMemo(() => ([
+    {
+      key: 'staff-total-orders',
+      label: 'Tổng đơn',
+      value: Number(stats.totalOrders || 0).toLocaleString('vi-VN'),
+      note: 'Đơn trong bộ lọc hiện tại',
+      icon: 'receipt_long',
+      tone: 'blue',
+    },
+    {
+      key: 'staff-unpaid-orders',
+      label: 'Cần thanh toán',
+      value: Number(stats.unpaidOrders || 0).toLocaleString('vi-VN'),
+      note: 'Trạng thái UNPAID',
+      icon: 'pending',
+      tone: 'amber',
+    },
+    {
+      key: 'staff-paid-total',
+      label: 'Đã chi',
+      value: formatCurrency(stats.totalCollected),
+      note: 'Tổng tiền đã thanh toán',
+      icon: 'payments',
+      tone: 'green',
+    },
+    {
+      key: 'staff-due-total',
+      label: 'Còn phải chi',
+      value: formatCurrency(stats.totalDue),
+      note: 'Số tiền chưa thanh toán',
+      icon: 'account_balance_wallet',
+      tone: 'red',
+    },
+  ]), [stats])
+
   const visibleColumns = useMemo(() => {
     const rows = filteredOrders || []
     return {
@@ -959,59 +1030,9 @@ export default function PaymentsPage() {
         </div>
 
         {isAdminView ? (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-              <p className="text-[11px] text-slate-500">Tổng đơn</p>
-              <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
-            </div>
-            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đơn đã thanh toán</p>
-              <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-blue-700 dark:text-blue-400">Thu hôm nay</p>
-              <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.todayInflow)}</p>
-            </div>
-            <div className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-indigo-700 dark:text-indigo-400">Thu 7 ngày</p>
-              <p className="mt-2 text-sm font-bold text-indigo-700 dark:text-indigo-300">{formatCurrency(stats.sevenDaysInflow)}</p>
-            </div>
-            <div className="rounded-xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50/60 dark:bg-cyan-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-cyan-700 dark:text-cyan-400">Tổng thu vào</p>
-              <p className="mt-2 text-sm font-bold text-cyan-700 dark:text-cyan-300">{formatCurrency(stats.totalCollected)}</p>
-            </div>
-            <div className="rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-violet-700 dark:text-violet-400">Luồng thu thuần</p>
-              <p className="mt-2 text-sm font-bold text-violet-700 dark:text-violet-300">{formatCurrency(stats.netInflow)}</p>
-            </div>
-          </div>
+          <MetricsStrip items={adminStatsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-              <p className="text-[11px] text-slate-500">Tổng đơn</p>
-              <p className="mt-2 text-xl font-bold">{stats.totalOrders}</p>
-            </div>
-            <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-amber-700 dark:text-amber-400">Cần thanh toán</p>
-              <p className="mt-2 text-xl font-bold text-amber-700 dark:text-amber-300">{stats.unpaidOrders}</p>
-            </div>
-            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Đã thanh toán</p>
-              <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{stats.paidOrders}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-              <p className="text-[11px] text-slate-500">Tổng giá trị</p>
-              <p className="mt-2 text-sm font-bold">{formatCurrency(stats.totalValue)}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-blue-700 dark:text-blue-400">Đã chi</p>
-              <p className="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(stats.totalCollected)}</p>
-            </div>
-            <div className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-900/10 p-3 shadow-sm">
-              <p className="text-[11px] text-rose-700 dark:text-rose-400">Còn phải chi</p>
-              <p className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalDue)}</p>
-            </div>
-          </div>
+          <MetricsStrip items={staffStatsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
         )}
 
         {message && (

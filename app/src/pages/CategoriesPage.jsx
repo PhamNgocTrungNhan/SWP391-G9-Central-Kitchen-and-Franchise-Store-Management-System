@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function parseArrayData(raw) {
   if (Array.isArray(raw)) return raw
@@ -260,6 +261,47 @@ export default function CategoriesPage() {
     return categories.filter((category) => `${category.categoryId} ${category.name}`.toLowerCase().includes(keyword))
   }, [categories, searchTerm])
 
+  const statsItems = useMemo(() => {
+    const normalizedNames = categories.map((item) => String(item.name || '').trim()).filter(Boolean)
+    const duplicateNameCount = Math.max(0, normalizedNames.length - new Set(normalizedNames.map((item) => item.toLowerCase())).size)
+    const uniqueInitialCount = new Set(categories.map((item) => String(item.name || '').trim().charAt(0).toUpperCase()).filter(Boolean)).size
+
+    return [
+      {
+        key: 'categories-total',
+        label: 'Tổng danh mục',
+        value: Number(categories.length || 0).toLocaleString('vi-VN'),
+        note: 'Danh mục toàn hệ thống',
+        icon: 'category',
+        tone: 'blue',
+      },
+      {
+        key: 'categories-duplicates',
+        label: 'Tên bị trùng',
+        value: Number(duplicateNameCount || 0).toLocaleString('vi-VN'),
+        note: 'Danh mục trùng tên cần rà soát',
+        icon: 'content_copy',
+        tone: duplicateNameCount > 0 ? 'red' : 'green',
+      },
+      {
+        key: 'categories-named',
+        label: 'Tên hợp lệ',
+        value: Number(normalizedNames.length || 0).toLocaleString('vi-VN'),
+        note: 'Danh mục đã có tên đầy đủ',
+        icon: 'checklist',
+        tone: 'green',
+      },
+      {
+        key: 'categories-initial',
+        label: 'Nhóm ký tự',
+        value: Number(uniqueInitialCount || 0).toLocaleString('vi-VN'),
+        note: 'Số chữ cái đầu khác nhau',
+        icon: 'sort_by_alpha',
+        tone: 'amber',
+      },
+    ]
+  }, [categories])
+
   useEffect(() => {
     fetchCategories()
   }, [])
@@ -318,6 +360,8 @@ export default function CategoriesPage() {
           <h1 className="text-2xl font-bold">Danh sách danh mục</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý nhóm sản phẩm dùng cho Product và Recipe/BOM.</p>
         </div>
+
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
           <label className="flex flex-col gap-1">

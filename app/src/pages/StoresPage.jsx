@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
 import { getCurrentUserRole } from '../utils/auth'
 
 function parseArrayData(raw) {
@@ -268,6 +269,30 @@ export default function StoresPage() {
         inactive: stores.filter((s) => !s.isActive).length,
     }), [stores])
 
+    const statsItems = [
+        {
+            key: 'store-total',
+            label: 'Tổng cửa hàng',
+            value: Number(stats.total || 0).toLocaleString('vi-VN'),
+            icon: 'store',
+            tone: 'blue',
+        },
+        {
+            key: 'store-active',
+            label: 'Đang hoạt động',
+            value: Number(stats.active || 0).toLocaleString('vi-VN'),
+            icon: 'check_circle',
+            tone: 'emerald',
+        },
+        {
+            key: 'store-inactive',
+            label: 'Ngừng hoạt động',
+            value: Number(stats.inactive || 0).toLocaleString('vi-VN'),
+            icon: 'cancel',
+            tone: 'red',
+        },
+    ]
+
     const filtered = useMemo(() => {
         let result = stores
 
@@ -322,43 +347,7 @@ export default function StoresPage() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">store</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tổng cửa hàng</p>
-                                <p className="mt-1 text-3xl font-bold text-blue-900">{stats.total}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">check_circle</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Đang hoạt động</p>
-                                <p className="mt-1 text-3xl font-bold text-emerald-900">{stats.active}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">cancel</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Ngừng hoạt động</p>
-                                <p className="mt-1 text-3xl font-bold text-red-900">{stats.inactive}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">

@@ -429,7 +429,7 @@ export default function ProductionBatchesPage() {
               <div className="rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
                 <p className="text-sm font-semibold text-[#2e3f30]">Cập Nhật Trạng Thái</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Khi chuyển sang IN_PROGRESS, backend sẽ đệ quy BOM đến RAW, gom theo nguyên liệu và trừ tồn kho.
+                  Kiểm tra kỹ trạng thái và số lượng trước khi cập nhật mẻ.
                 </p>
                 
                 {statusForm.Status === 'IN_PROGRESS' && (
@@ -545,7 +545,7 @@ export default function ProductionBatchesPage() {
             <div className="mt-5">
               <EmptyState
                 title="Nhập mã mẻ để thao tác"
-                description="Backend chưa có API đọc danh sách mẻ, nên bạn cần nhập mã mẻ hợp lệ để mở các thao tác."
+                description="Nhập mã mẻ hợp lệ để mở các thao tác quản lý trạng thái và phân bổ."
                 icon="factory"
               />
             </div>

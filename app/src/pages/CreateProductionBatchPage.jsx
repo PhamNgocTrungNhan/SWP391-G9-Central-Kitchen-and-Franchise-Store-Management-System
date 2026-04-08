@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function getToken() {
     const candidates = [
@@ -1488,6 +1489,49 @@ export default function CreateProductionBatchPage() {
         && !completeUsagesLoading
         && !completingBatchId
 
+    const statsItems = useMemo(() => {
+        const ordersInProgress = Object.values(orderBatchProgress || {}).filter((item) => {
+            const created = parseSafeNumber(item?.created, 0)
+            const total = parseSafeNumber(item?.total, 0)
+            return total > 0 && created < total
+        }).length
+
+        return [
+            {
+                key: 'batch-active',
+                label: 'Mẻ đang sản xuất',
+                value: Number(batches.length || 0).toLocaleString('vi-VN'),
+                note: 'Mẻ có thể hoàn thành',
+                icon: 'precision_manufacturing',
+                tone: 'green',
+            },
+            {
+                key: 'batch-demand',
+                label: 'Nhu cầu chờ tạo mẻ',
+                value: Number(approvedDemandRows.length || 0).toLocaleString('vi-VN'),
+                note: 'Sản phẩm từ đơn đã duyệt',
+                icon: 'assignment',
+                tone: 'blue',
+            },
+            {
+                key: 'batch-orders',
+                label: 'Đơn đang theo dõi',
+                value: Number(orders.length || 0).toLocaleString('vi-VN'),
+                note: `${ordersInProgress.toLocaleString('vi-VN')} đơn chưa đủ mẻ`,
+                icon: 'inventory',
+                tone: 'amber',
+            },
+            {
+                key: 'batch-products',
+                label: 'Sản phẩm SX',
+                value: Number(products.length || 0).toLocaleString('vi-VN'),
+                note: 'Danh mục thành phẩm khả dụng',
+                icon: 'category',
+                tone: 'purple',
+            },
+        ]
+    }, [batches.length, approvedDemandRows.length, orders.length, products.length, orderBatchProgress])
+
     return (
         <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             {toastMessage ? (
@@ -1531,6 +1575,8 @@ export default function CreateProductionBatchPage() {
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 space-y-4">
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
+
                 {batches.length > 0 && (
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-900/20">

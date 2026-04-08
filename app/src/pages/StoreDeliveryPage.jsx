@@ -1,3 +1,6 @@
+import { useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
+
 const deliveryItems = [
     { name: 'Fresh Basil Leaves (1kg)', ordered: 5, received: 5, stars: 5, note: '', variant: 'normal' },
     { name: 'Premium Pizza Flour (25kg)', ordered: 10, received: 10, stars: 4, note: '', variant: 'normal' },
@@ -16,6 +19,51 @@ function StarRating({ count }) {
 }
 
 export default function StoreDeliveryPage() {
+    const statsItems = useMemo(() => {
+        const totalItems = deliveryItems.length
+        const totalOrdered = deliveryItems.reduce((sum, item) => sum + Number(item.ordered || 0), 0)
+        const totalReceived = deliveryItems.reduce((sum, item) => sum + Number(item.received || 0), 0)
+        const avgRating = totalItems > 0
+            ? deliveryItems.reduce((sum, item) => sum + Number(item.stars || 0), 0) / totalItems
+            : 0
+        const issueCount = deliveryItems.filter((item) => Number(item.received || 0) < Number(item.ordered || 0) || String(item.note || '').trim()).length
+
+        return [
+            {
+                key: 'delivery-items',
+                label: 'Mặt hàng nhận',
+                value: Number(totalItems || 0).toLocaleString('vi-VN'),
+                note: 'Số dòng giao nhận',
+                icon: 'inventory_2',
+                tone: 'blue',
+            },
+            {
+                key: 'delivery-received-rate',
+                label: 'Tỷ lệ nhận',
+                value: `${totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0}%`,
+                note: `${totalReceived}/${totalOrdered} đơn vị`,
+                icon: 'local_shipping',
+                tone: 'green',
+            },
+            {
+                key: 'delivery-quality',
+                label: 'Chất lượng TB',
+                value: `${avgRating.toFixed(1)}/5`,
+                note: 'Điểm đánh giá toàn lô',
+                icon: 'star',
+                tone: 'amber',
+            },
+            {
+                key: 'delivery-issues',
+                label: 'Dòng có vấn đề',
+                value: Number(issueCount || 0).toLocaleString('vi-VN'),
+                note: 'Thiếu hàng hoặc có ghi chú',
+                icon: 'warning',
+                tone: issueCount > 0 ? 'red' : 'green',
+            },
+        ]
+    }, [])
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             <div className="flex h-full grow flex-col">
@@ -49,6 +97,10 @@ export default function StoreDeliveryPage() {
                                 <button className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Save Draft</button>
                                 <button className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white hover:bg-primary/90 text-sm font-medium transition-colors">Submit Receipt</button>
                             </div>
+                        </div>
+
+                        <div className="px-4 pb-4">
+                            <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
                         </div>
 
                         {/* Table */}

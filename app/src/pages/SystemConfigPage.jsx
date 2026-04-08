@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 const sections = [
     { key: 'units', icon: 'straighten', label: 'Đơn Vị Tính', desc: 'Quản lý đơn vị đo lường trong hệ thống' },
@@ -46,6 +47,123 @@ export default function SystemConfigPage() {
     const [activeSection, setActiveSection] = useState('units')
     const [showAddUnit, setShowAddUnit] = useState(false)
 
+    const statsItems = useMemo(() => {
+        if (activeSection === 'units') {
+            const typeCount = new Set(units.map((item) => item.type)).size
+            const massUnitsCount = units.filter((item) => item.type === 'Khối lượng').length
+            return [
+                {
+                    key: 'cfg-units-total',
+                    label: 'Tổng đơn vị',
+                    value: Number(units.length || 0).toLocaleString('vi-VN'),
+                    note: 'Đơn vị đo đang cấu hình',
+                    icon: 'straighten',
+                    tone: 'blue',
+                },
+                {
+                    key: 'cfg-units-types',
+                    label: 'Nhóm đơn vị',
+                    value: Number(typeCount || 0).toLocaleString('vi-VN'),
+                    note: 'Khối lượng, thể tích, số đếm',
+                    icon: 'category',
+                    tone: 'green',
+                },
+                {
+                    key: 'cfg-units-mass',
+                    label: 'Đơn vị khối lượng',
+                    value: Number(massUnitsCount || 0).toLocaleString('vi-VN'),
+                    note: 'Nhóm cân đo theo kg/g',
+                    icon: 'scale',
+                    tone: 'amber',
+                },
+            ]
+        }
+
+        if (activeSection === 'workflow') {
+            const enabledCount = workflowOptions.filter((item) => item.enabled).length
+            const disabledCount = workflowOptions.length - enabledCount
+            return [
+                {
+                    key: 'cfg-workflow-total',
+                    label: 'Bước quy trình',
+                    value: Number(workflowOptions.length || 0).toLocaleString('vi-VN'),
+                    note: 'Tổng cấu hình workflow',
+                    icon: 'account_tree',
+                    tone: 'blue',
+                },
+                {
+                    key: 'cfg-workflow-enabled',
+                    label: 'Đang bật',
+                    value: Number(enabledCount || 0).toLocaleString('vi-VN'),
+                    note: `${disabledCount.toLocaleString('vi-VN')} mục đang tắt`,
+                    icon: 'toggle_on',
+                    tone: 'green',
+                },
+            ]
+        }
+
+        if (activeSection === 'params') {
+            return [
+                {
+                    key: 'cfg-params-total',
+                    label: 'Tham số',
+                    value: Number(params.length || 0).toLocaleString('vi-VN'),
+                    note: 'Ngưỡng và giới hạn hệ thống',
+                    icon: 'tune',
+                    tone: 'blue',
+                },
+                {
+                    key: 'cfg-params-health',
+                    label: 'Trạng thái cấu hình',
+                    value: 'Ổn định',
+                    note: 'Sẵn sàng cho vận hành',
+                    icon: 'verified',
+                    tone: 'green',
+                },
+            ]
+        }
+
+        if (activeSection === 'notifications') {
+            return [
+                {
+                    key: 'cfg-noti-enabled',
+                    label: 'Kênh thông báo',
+                    value: '3',
+                    note: 'Email, in-app, webhook',
+                    icon: 'notifications_active',
+                    tone: 'blue',
+                },
+                {
+                    key: 'cfg-noti-rules',
+                    label: 'Rule cảnh báo',
+                    value: '8',
+                    note: 'Bộ quy tắc cảnh báo đang dùng',
+                    icon: 'rule',
+                    tone: 'amber',
+                },
+            ]
+        }
+
+        return [
+            {
+                key: 'cfg-integrations-connected',
+                label: 'Kết nối hoạt động',
+                value: '2',
+                note: 'Kênh tích hợp đang chạy ổn định',
+                icon: 'integration_instructions',
+                tone: 'blue',
+            },
+            {
+                key: 'cfg-integrations-pending',
+                label: 'Kết nối chờ cấu hình',
+                value: '1',
+                note: 'Cần bổ sung thông tin kết nối',
+                icon: 'hourglass_empty',
+                tone: 'purple',
+            },
+        ]
+    }, [activeSection])
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             {/* Header */}
@@ -81,6 +199,8 @@ export default function SystemConfigPage() {
 
                 {/* Main Content */}
                 <main className="flex-1 flex flex-col gap-6 min-w-0">
+                    <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-3" />
+
                     {activeSection === 'units' && (
                         <>
                             <div className="flex justify-between items-center">

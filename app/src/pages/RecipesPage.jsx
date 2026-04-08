@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function parseArrayData(raw) {
   if (Array.isArray(raw)) return raw
@@ -213,7 +214,7 @@ async function createBulkRecipesWithRetry(apiBase, token, parentProductId, mater
     return { ok: true, data }
   }
 
-  const errorMessage = resolveApiErrorMessage(data, 'Không thể tạo BOM.')
+  const errorMessage = resolveApiErrorMessage(data, 'Không thể tạo công thức.')
   return { ok: false, errorMessage }
 }
 
@@ -235,6 +236,7 @@ export default function RecipesPage() {
 
   const [filterProductId, setFilterProductId] = useState('')
   const [searchText, setSearchText] = useState('')
+  const [expandedParentProductId, setExpandedParentProductId] = useState(null)
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createParentProductId, setCreateParentProductId] = useState('')
@@ -386,7 +388,7 @@ export default function RecipesPage() {
             failed: {
               parentId,
               status: response.status,
-              message: resolveApiErrorMessage(data, `Không thể tải BOM cho thành phẩm ${parentId}.`),
+              message: resolveApiErrorMessage(data, `Không thể tải công thức cho thành phẩm ${parentId}.`),
             },
           }
         }
@@ -401,7 +403,7 @@ export default function RecipesPage() {
           failed: {
             parentId,
             status: 0,
-            message: requestError?.message || `Không thể tải BOM cho thành phẩm ${parentId}.`,
+            message: requestError?.message || `Không thể tải công thức cho thành phẩm ${parentId}.`,
           },
         }
       }
@@ -509,6 +511,18 @@ export default function RecipesPage() {
     return Array.from(groups.values()).sort((a, b) => a.parentProductName.localeCompare(b.parentProductName, 'vi'))
   }, [filteredRecipes, products, materials])
 
+  useEffect(() => {
+    if (groupedRecipes.length === 0) {
+      setExpandedParentProductId(null)
+      return
+    }
+
+    const hasExpanded = groupedRecipes.some((group) => Number(group.parentProductId) === Number(expandedParentProductId))
+    if (!hasExpanded) {
+      setExpandedParentProductId(null)
+    }
+  }, [groupedRecipes, expandedParentProductId])
+
   const stats = useMemo(() => {
     return {
       totalLines: recipes.length,
@@ -516,6 +530,30 @@ export default function RecipesPage() {
       uniqueMaterials: new Set(recipes.map((r) => r.materialId)).size,
     }
   }, [recipes])
+
+  const statsItems = useMemo(() => ([
+    {
+      key: 'recipe-total-lines',
+      label: 'Tổng dòng công thức',
+      value: Number(stats.totalLines || 0).toLocaleString('vi-VN'),
+      icon: 'rule_settings',
+      tone: 'blue',
+    },
+    {
+      key: 'recipe-parent-products',
+      label: 'Sản phẩm có công thức',
+      value: Number(stats.parentProducts || 0).toLocaleString('vi-VN'),
+      icon: 'inventory_2',
+      tone: 'green',
+    },
+    {
+      key: 'recipe-materials',
+      label: 'Nguyên liệu sử dụng',
+      value: Number(stats.uniqueMaterials || 0).toLocaleString('vi-VN'),
+      icon: 'grocery',
+      tone: 'amber',
+    },
+  ]), [stats])
 
   const openCreateModal = () => {
     clearNotice()
@@ -599,7 +637,7 @@ export default function RecipesPage() {
     for (let index = 0; index < materialsPayload.length; index += 1) {
       const key = String(materialsPayload[index].materialId)
       if (duplicateSet.has(key)) {
-        setError(`Dòng ${index + 1}: Nguyên liệu bị trùng trong danh sách tạo BOM.`)
+        setError(`Dòng ${index + 1}: Nguyên liệu bị trùng trong danh sách tạo công thức.`)
         return
       }
       duplicateSet.add(key)
@@ -614,7 +652,7 @@ export default function RecipesPage() {
     const existingMaterialSet = new Set([...localExistingMaterialSet])
     const duplicatedExisting = materialsPayload.find((line) => existingMaterialSet.has(Number(line.materialId)))
     if (duplicatedExisting) {
-      setError(`Nguyên liệu ${getProductName(duplicatedExisting.materialId)} đã tồn tại trong BOM của thành phẩm này.`)
+      setError(`Nguyên liệu ${getProductName(duplicatedExisting.materialId)} đã tồn tại trong công thức của thành phẩm này.`)
       return
     }
 
@@ -623,7 +661,7 @@ export default function RecipesPage() {
     try {
       const createResult = await createBulkRecipesWithRetry(apiBase, tk, parentProductId, materialsPayload)
       if (!createResult.ok) {
-        let finalError = createResult.errorMessage || 'Không thể tạo BOM.'
+        let finalError = createResult.errorMessage || 'Không thể tạo công thức.'
 
         if (isEntitySaveError(finalError)) {
           const conflictNames = materialsPayload
@@ -631,7 +669,7 @@ export default function RecipesPage() {
             .map((line) => getProductName(line.materialId))
 
           if (conflictNames.length > 0) {
-            finalError = `BOM đã có sẵn nguyên liệu: ${conflictNames.join(', ')}. Vui lòng sửa dòng cũ thay vì thêm mới.`
+            finalError = `Công thức đã có sẵn nguyên liệu: ${conflictNames.join(', ')}. Vui lòng sửa dòng cũ thay vì thêm mới.`
           } else {
             finalError = 'Không thể lưu công thức lúc này. Vui lòng kiểm tra dữ liệu và thử lại.'
           }
@@ -648,7 +686,7 @@ export default function RecipesPage() {
         throw new Error(finalError)
       }
 
-      const successMessage = createResult.data?.message || `Lưu BOM thành công (${materialsPayload.length} dòng).`
+      const successMessage = createResult.data?.message || `Lưu công thức thành công (${materialsPayload.length} dòng).`
       setSuccess(successMessage)
       setShowCreateModal(false)
       await loadAllData()
@@ -727,10 +765,10 @@ export default function RecipesPage() {
       })
 
       if (!response.ok) {
-        throw new Error(resolveApiErrorMessage(data, 'Không thể cập nhật dòng BOM.'))
+        throw new Error(resolveApiErrorMessage(data, 'Không thể cập nhật dòng công thức.'))
       }
 
-      setSuccess(data?.message || 'Cập nhật dòng BOM thành công.')
+      setSuccess(data?.message || 'Cập nhật dòng công thức thành công.')
       setShowEditModal(false)
       await loadAllData()
     } catch (requestError) {
@@ -741,7 +779,7 @@ export default function RecipesPage() {
   }
 
   const handleDeleteLine = async (recipeId) => {
-    if (!window.confirm('Xóa dòng BOM này?')) return
+    if (!window.confirm('Xóa dòng công thức này?')) return
 
     const tk = getToken()
     if (!tk) {
@@ -772,10 +810,10 @@ export default function RecipesPage() {
       })
 
       if (!response.ok) {
-        throw new Error(data?.message || data?.title || 'Không thể xóa dòng BOM.')
+        throw new Error(data?.message || data?.title || 'Không thể xóa dòng công thức.')
       }
 
-      setSuccess(data?.message || 'Đã xóa dòng BOM thành công.')
+      setSuccess(data?.message || 'Đã xóa dòng công thức thành công.')
       await loadAllData()
     } catch (requestError) {
       setError(toUiNoticeMessage(requestError.message, 'Xóa dòng công thức thất bại.'))
@@ -795,7 +833,7 @@ export default function RecipesPage() {
       <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <span className="material-symbols-outlined text-primary text-[24px]">menu_book</span>
-          <h2 className="text-lg font-bold leading-tight">Quản lý công thức BOM</h2>
+          <h2 className="text-lg font-bold leading-tight">Quản lý công thức</h2>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -810,35 +848,17 @@ export default function RecipesPage() {
             disabled={submitting || products.length === 0}
             className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
           >
-            + Tạo BOM
+            + Tạo công thức
           </button>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold">Công thức BOM theo sản phẩm</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Mỗi sản phẩm có một BOM gồm nhiều dòng nguyên liệu.</p>
+          <h1 className="text-2xl font-bold">Công thức theo sản phẩm</h1>
         </div>
 
-        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
-          Định mức là lượng nguyên liệu cần cho 1 đơn vị thành phẩm. Đơn vị là đơn vị gốc của nguyên liệu (kg, g, lít, cái...).
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Tổng dòng BOM</p>
-            <p className="mt-1 text-2xl font-bold">{stats.totalLines}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Sản phẩm có BOM</p>
-            <p className="mt-1 text-2xl font-bold">{stats.parentProducts}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Nguyên liệu sử dụng</p>
-            <p className="mt-1 text-2xl font-bold">{stats.uniqueMaterials}</p>
-          </div>
-        </div>
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -874,9 +894,9 @@ export default function RecipesPage() {
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
           {loading ? (
-            <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu BOM...</div>
+            <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu công thức...</div>
           ) : groupedRecipes.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-500">Chưa có dòng BOM phù hợp.</div>
+            <div className="px-4 py-3 text-sm text-slate-500">Chưa có dòng công thức phù hợp.</div>
           ) : (
             <table className="w-full table-fixed text-left border-collapse">
               <thead>
@@ -892,12 +912,24 @@ export default function RecipesPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {groupedRecipes.flatMap((group) => ([
                   <tr key={`group-${group.parentProductId}`} className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700">
-                    <td colSpan={6} className="px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                      BOM: {group.parentProductName}
-                      <span className="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400">({group.lines.length} nguyên liệu)</span>
+                    <td colSpan={6} className="px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedParentProductId((prev) => (Number(prev) === Number(group.parentProductId) ? null : group.parentProductId))}
+                        className="flex w-full items-center justify-between gap-3 text-left"
+                      >
+                        <span className="min-w-0 inline-flex items-center gap-2 whitespace-nowrap">
+                          <span className="material-symbols-outlined text-[18px] text-slate-500 dark:text-slate-300">
+                            {Number(expandedParentProductId) === Number(group.parentProductId) ? 'expand_more' : 'chevron_right'}
+                          </span>
+                          <span className="truncate">Công thức: {group.parentProductName}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{group.lines.length} nguyên liệu</span>
+                      </button>
                     </td>
                   </tr>,
-                  ...group.lines.map((row, index) => (
+                  ...(Number(expandedParentProductId) === Number(group.parentProductId)
+                    ? group.lines.map((row, index) => (
                     <tr key={`line-${row.recipeId}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-semibold">{index + 1}</td>
                       <td className="px-4 py-3 text-sm">
@@ -911,7 +943,7 @@ export default function RecipesPage() {
                           <button
                             onClick={() => openEditModal(row)}
                             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Sửa dòng BOM"
+                            title="Sửa dòng công thức"
                           >
                             <span className="material-symbols-outlined text-[18px]">edit</span>
                           </button>
@@ -919,14 +951,15 @@ export default function RecipesPage() {
                             onClick={() => handleDeleteLine(row.recipeId)}
                             disabled={deletingId === row.recipeId}
                             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                            title="Xóa dòng BOM"
+                            title="Xóa dòng công thức"
                           >
                             <span className="material-symbols-outlined text-[18px]">delete</span>
                           </button>
                         </div>
                       </td>
                     </tr>
-                  )),
+                    ))
+                    : []),
                 ]))}
               </tbody>
             </table>
@@ -938,7 +971,7 @@ export default function RecipesPage() {
         <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold">Tạo BOM theo nhiều nguyên liệu</h3>
+              <h3 className="text-lg font-bold">Tạo công thức theo nhiều nguyên liệu</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -1039,7 +1072,7 @@ export default function RecipesPage() {
                   className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-60"
                   disabled={submitting}
                 >
-                  {submitting ? 'Đang lưu...' : 'Lưu BOM'}
+                  {submitting ? 'Đang lưu...' : 'Lưu công thức'}
                 </button>
                 <button
                   type="button"
@@ -1059,7 +1092,7 @@ export default function RecipesPage() {
         <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold">Sửa dòng BOM</h3>
+              <h3 className="text-lg font-bold">Sửa dòng công thức</h3>
               <button
                 onClick={() => setShowEditModal(false)}
                 className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
