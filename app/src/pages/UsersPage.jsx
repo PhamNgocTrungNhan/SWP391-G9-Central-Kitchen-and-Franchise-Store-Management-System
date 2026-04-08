@@ -503,7 +503,7 @@ export default function UsersPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filtered.map((user) => (
                   <tr key={user.userId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium">#{user.userId}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{user.userId}</td>
                     <td className="px-4 py-3 text-sm font-medium">{user.username}</td>
                     <td className="px-4 py-3 text-sm">{user.fullName || 'N/A'}</td>
                     <td className="px-4 py-3 text-sm">
@@ -512,9 +512,9 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      {user.storeId && <span>Cửa hàng #{user.storeId}</span>}
+                      {user.storeId && <span>Cửa hàng {user.storeId}</span>}
                       {user.storeId && user.kitchenId ? <span> | </span> : null}
-                      {user.kitchenId && <span>Bếp #{user.kitchenId}</span>}
+                      {user.kitchenId && <span>Bếp {user.kitchenId}</span>}
                       {!user.storeId && !user.kitchenId && <span className="text-slate-400">Chưa phân công</span>}
                     </td>
                     <td className="px-4 py-3 whitespace-normal">

@@ -414,7 +414,7 @@ export default function OrderManagementPage() {
 
                 return {
                     orderId,
-                    orderCode: item?.orderCode || `#${orderId}`,
+                    orderCode: item?.orderCode || `${orderId}`,
                     storeId,
                     storeName,
                     createdAt: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
@@ -833,7 +833,7 @@ export default function OrderManagementPage() {
                 throw new Error(data?.message || data?.title || 'Không thể cập nhật trạng thái đơn hàng.')
             }
 
-            openNotice('success', data?.message || `Đơn hàng #${orderId} đã sẵn sàng xuất kho.`)
+            openNotice('success', data?.message || `Đơn hàng ${orderId} đã sẵn sàng xuất kho.`)
             await fetchOrders()
         } catch (error) {
             openNotice('error', error.message || 'Cập nhật trạng thái thất bại.')
@@ -928,7 +928,7 @@ export default function OrderManagementPage() {
             })
 
             clearShipDraft(orderId)
-            openNotice('success', data?.message || `Đã ghi nhận giao từng phần cho đơn #${orderId}.`)
+            openNotice('success', data?.message || `Đã ghi nhận giao từng phần cho đơn ${orderId}.`)
 
             await Promise.all([fetchOrders(), fetchKitchenStock()])
             if (expandedId === orderId) {
@@ -1136,7 +1136,7 @@ export default function OrderManagementPage() {
                                     <Fragment key={order.orderId}>
                                         <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-4 py-3 text-sm whitespace-nowrap">
-                                                <p className="font-semibold">#{order.orderId}</p>
+                                                <p className="font-semibold">{order.orderId}</p>
                                                 <p className="text-xs text-slate-500 mt-0.5">{order.orderCode}</p>
                                             </td>
                                             <td className="px-4 py-3 text-sm whitespace-nowrap">{order.storeName}</td>

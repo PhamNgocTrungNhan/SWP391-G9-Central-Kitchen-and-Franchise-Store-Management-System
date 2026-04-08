@@ -207,7 +207,7 @@ export default function PaymentResultPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="app-subcard">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Mã đơn hàng</p>
-                        <p className="mt-2 text-xl font-bold text-[#243428]">#{orderId}</p>
+                        <p className="mt-2 text-xl font-bold text-[#243428]">{orderId}</p>
                       </div>
                       <div className="app-subcard">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8d7a59]">Mã giao dịch</p>
@@ -321,7 +321,7 @@ export default function PaymentResultPage() {
                 Thanh toán thành công!
               </h2>
               <p className="text-sm text-slate-600 mb-4">
-                Đơn hàng #{orderId} đã được xác nhận thanh toán
+                Đơn hàng {orderId} đã được xác nhận thanh toán
               </p>
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-600 border-t-transparent"></div>

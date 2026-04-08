@@ -821,7 +821,7 @@ export default function StoreOrderPage() {
             const allProductNames = productNames.join('\n') // For tooltip
             const resolvedStoreId = Number(item?.storeId ?? item?.store?.storeId ?? item?.store?.id)
             return {
-                id: `#${numericId}`,
+                id: `${numericId}`,
                 orderId: numericId,
                 date: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
                 items: orderDetails.length,
@@ -1099,7 +1099,7 @@ export default function StoreOrderPage() {
 
             const updatedStatus = normalizeStatus('DELIVERED')
             setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'COMPLETED', orderStatus: updatedStatus, status: updatedStatus } : prev)
-            setSubmitSuccess(data?.message || `Đơn #${orderId} đã được xác nhận nhận hàng.`)
+            setSubmitSuccess(data?.message || `Đơn ${orderId} đã được xác nhận nhận hàng.`)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Xác nhận nhận hàng thất bại.')
@@ -1206,7 +1206,7 @@ export default function StoreOrderPage() {
                     : prev))
             }
 
-            setSubmitSuccess(data?.message || `Đơn #${orderId} đã chuyển sang ${nextStatus}.`)
+            setSubmitSuccess(data?.message || `Đơn ${orderId} đã chuyển sang ${nextStatus}.`)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Cập nhật trạng thái đơn hàng thất bại.')
@@ -1434,7 +1434,7 @@ export default function StoreOrderPage() {
                 setDetailOrderId(String(createdId))
                 fetchOrderById(createdId)
             }
-            setSubmitSuccess(orderCode ? `Tạo đơn hàng thành công: #${orderCode}` : 'Tạo đơn hàng thành công.')
+            setSubmitSuccess(orderCode ? `Tạo đơn hàng thành công: ${orderCode}` : 'Tạo đơn hàng thành công.')
             setOrderDetailRows([createEmptyOrderDetailRow()])
             setShowCreateOrderForm(false)
             setTab(1)
@@ -1529,8 +1529,8 @@ export default function StoreOrderPage() {
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <span className="material-symbols-outlined text-primary text-[24px]">storefront</span>
-                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Cổng Đặt Hàng Cửa Hàng</h2>
-                    <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded-full">Chi nhánh #042</span>
+                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Cổng đặt hàng cửa hàng</h2>
+                    <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded-full">Chi nhánh 042</span>
                 </div>
                 <div className="flex flex-1 justify-end gap-6 items-center">
                     <nav className="hidden md:flex items-center gap-8">
@@ -1538,9 +1538,6 @@ export default function StoreOrderPage() {
                             <button key={item} onClick={() => setTab(i)} className={`text-sm font-medium transition-colors ${i === tab ? 'text-primary font-semibold border-b-2 border-primary pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-primary'}`}>{item}</button>
                         ))}
                     </nav>
-                    <button className="relative text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-                        <span className="material-symbols-outlined">notifications</span>
-                    </button>
                     <div className="bg-slate-200 dark:bg-slate-700 rounded-full size-9" />
                 </div>
             </header>
@@ -1552,15 +1549,13 @@ export default function StoreOrderPage() {
                     <>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                                <h1 className="text-2xl font-bold">Tạo Đơn Hàng Nội Bộ</h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Bấm nút bên dưới để mở form tạo đơn. Đã bỏ giỏ hàng và phần nhập trùng để tránh rối dữ liệu.</p>
+                                <h1 className="text-2xl font-bold">Tạo đơn hàng</h1>
                             </div>
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <p className="text-sm font-semibold">Tạo đơn hàng theo biểu mẫu</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Chỉ còn một form duy nhất: mã cửa hàng, ngày giao dự kiến và danh sách sản phẩm theo mã sản phẩm.</p>
                             </div>
                             <button
                                 onClick={() => {
@@ -1571,7 +1566,7 @@ export default function StoreOrderPage() {
                                 }}
                                 className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90"
                             >
-                                + Tạo Đơn Hàng
+                                + Tạo đơn hàng
                             </button>
                         </div>
 
@@ -1621,7 +1616,7 @@ export default function StoreOrderPage() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{product.name}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mã: #{product.id}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mã: {product.id}</p>
                                                         <p className="text-sm font-bold text-primary mt-1">
                                                             {price.toLocaleString('vi-VN')} đ
                                                         </p>
@@ -1653,7 +1648,7 @@ export default function StoreOrderPage() {
                             <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start justify-center p-4 pt-6 md:pt-10 overflow-y-auto">
                                 <div className="w-full max-w-3xl max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                                     <div className="flex items-center justify-between gap-3 mb-4">
-                                        <p className="text-base font-semibold">Form Tạo Đơn Hàng</p>
+                                        <p className="text-base font-semibold">Tạo đơn hàng</p>
                                         <button
                                             onClick={() => setShowCreateOrderForm(false)}
                                             className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -1671,7 +1666,7 @@ export default function StoreOrderPage() {
                                                 className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                             >
                                                 {storeOptions.map((store) => (
-                                                    <option key={store.id} value={String(store.id)}>{store.name} (#{store.id})</option>
+                                                    <option key={store.id} value={String(store.id)}>{store.name} ({store.id})</option>
                                                 ))}
                                             </select>
                                         </label>
@@ -1729,7 +1724,7 @@ export default function StoreOrderPage() {
                                                                 <div className="px-3 py-2">
                                                                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedProduct.name}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
-                                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã: #{selectedProduct.id}</p>
+                                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã: {selectedProduct.id}</p>
                                                                         <span className="text-xs text-slate-400">•</span>
                                                                         <p className="text-xs font-semibold text-primary">{price.toLocaleString('vi-VN')} đ</p>
                                                                     </div>
@@ -1798,7 +1793,7 @@ export default function StoreOrderPage() {
                                             onClick={() => setOrderDetailRows([createEmptyOrderDetailRow()])}
                                             className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                         >
-                                            Xóa Mẫu Nhập
+                                            Xóa mẫu nhập
                                         </button>
                                         <button
                                             onClick={handleSubmitOrder}
@@ -1818,7 +1813,7 @@ export default function StoreOrderPage() {
                 {tab === 1 && (
                     <>
                         <div>
-                            <h1 className="text-2xl font-bold">Danh Sách Đơn Hàng</h1>
+                            <h1 className="text-2xl font-bold">Danh sách đơn hàng</h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Xem đơn theo mã cửa hàng và trạng thái để quản lý/hủy nhanh.</p>
                         </div>
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
@@ -1831,7 +1826,7 @@ export default function StoreOrderPage() {
                                         className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                     >
                                         {storeOptions.map((store) => (
-                                            <option key={store.id} value={String(store.id)}>{store.name} (#{store.id})</option>
+                                            <option key={store.id} value={String(store.id)}>{store.name} ({store.id})</option>
                                         ))}
                                     </select>
                                 </label>
@@ -1845,8 +1840,6 @@ export default function StoreOrderPage() {
                                         <option value="">Tất cả</option>
                                         <option value="PENDING">Chờ duyệt</option>
                                         <option value="APPROVED">Đã duyệt</option>
-                                        <option value="PROCESSING">Đang sản xuất</option>
-                                        <option value="PRODUCED">Đã sản xuất</option>
                                         <option value="PARTIAL_SHIPPING">Giao một phần</option>
                                         <option value="SHIPPING">Đang giao</option>
                                         <option value="COMPLETED">Đã nhận hàng</option>
@@ -1858,13 +1851,13 @@ export default function StoreOrderPage() {
                                     onClick={fetchMyOrders}
                                     className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90"
                                 >
-                                    Tải Danh Sách
+                                    Tải danh sách
                                 </button>
                             </div>
                         </div>
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
                             <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold">Danh sách đơn (dạng bảng)</p>
+                                <p className="text-sm font-semibold">Danh sách đơn</p>
                                 {detailLoading && <p className="text-xs text-slate-500 dark:text-slate-400">Đang tải chi tiết đơn...</p>}
                             </div>
                         </div>
@@ -1881,7 +1874,7 @@ export default function StoreOrderPage() {
                                             }}
                                             className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90"
                                         >
-                                            Xem ngay đơn vừa tạo #{lastCreatedOrderId}
+                                            Xem ngay đơn vừa tạo {lastCreatedOrderId}
                                         </button>
                                     </div>
                                 )}
@@ -1914,9 +1907,9 @@ export default function StoreOrderPage() {
                                                     key={order.id}
                                                     className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
                                                     onClick={() => openOrderDetailFromRow(order)}
-                                                    title={`Xem chi tiết đơn #${order.id}`}
+                                                    title={`Xem chi tiết đơn ${order.id}`}
                                                 >
-                                                    <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
+                                                    <td className="px-3 py-2 text-xs font-semibold">{order.id}</td>
                                                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
                                                     <td className="px-3 py-2 text-xs max-w-[180px]">
                                                         <div className="flex items-center gap-1">
@@ -1967,7 +1960,7 @@ export default function StoreOrderPage() {
                                                                     type="button"
                                                                     onClick={async (e) => {
                                                                         e.stopPropagation()
-                                                                        if (!window.confirm(`Xác nhận hủy đơn #${order.orderId}?`)) return
+                                                                        if (!window.confirm(`Xác nhận hủy đơn ${order.orderId}?`)) return
                                                                         await cancelOrderById(order.orderId)
                                                                     }}
                                                                     disabled={cancelLoading || receiveLoading || returnLoading}
@@ -2019,7 +2012,7 @@ export default function StoreOrderPage() {
                                             </div>
                                             <div>
                                                 <p className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
-                                                <p className="text-white/80 text-sm">#{detailOrder.orderId || detailOrder.id}</p>
+                                                <p className="text-white/80 text-sm">{detailOrder.orderId || detailOrder.id}</p>
                                             </div>
                                         </div>
                                         <button
@@ -2312,11 +2305,11 @@ export default function StoreOrderPage() {
                                                     <span className="material-symbols-outlined text-slate-400">inventory_2</span>
                                                     <div>
                                                         <p className="font-medium text-sm">{item.productName}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã sản phẩm: #{item.productId}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã sản phẩm: {item.productId}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} #{item.locationId || 'Không có'}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} {item.locationId || 'Không có'}</td>
                                             <td className="px-5 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`font-bold text-sm ${item.status === 'critical' ? 'text-red-600 dark:text-red-400' : item.status === 'low' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.currentQuantity}</span>
@@ -2374,9 +2367,9 @@ export default function StoreOrderPage() {
 
                                     {!inventoryLoading && inventoryLogs.map((log) => (
                                         <tr key={`${log.id}-${log.inventoryId}-${log.createdAt || 'no-date'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-5 py-3 text-sm font-semibold">#{log.id || log.inventoryId}</td>
+                                            <td className="px-5 py-3 text-sm font-semibold">{log.id || log.inventoryId}</td>
                                             <td className="px-5 py-3 text-sm">{log.productName}</td>
-                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} #{log.locationId || 'Không có'}</td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} {log.locationId || 'Không có'}</td>
                                             <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
                                                 <p>{log.action}</p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Reason: {log.reason || '-'}</p>
@@ -2423,7 +2416,7 @@ export default function StoreOrderPage() {
 
                         <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                             <p className="text-sm">
-                                <span className="font-semibold">Đơn hàng:</span> #{selectedPaymentOrder.orderId}
+                                <span className="font-semibold">Đơn hàng:</span> {selectedPaymentOrder.orderId}
                             </p>
                             <p className="text-sm mt-1">
                                 <span className="font-semibold">Tổng tiền:</span>{' '}

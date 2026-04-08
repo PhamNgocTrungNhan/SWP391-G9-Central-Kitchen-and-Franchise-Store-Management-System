@@ -792,7 +792,7 @@ export default function BatchTraceabilityPage() {
                                 {!loading && filteredRows.map((row) => (
                                     <tr key={`${row.id}-${row.productId}`} className={stockBg[row.status]}>
                                         <td className="px-5 py-4 text-sm font-medium">{row.productName}</td>
-                                        <td className="px-5 py-4 text-sm">{row.locationType} #{row.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm">{row.locationType} {row.locationId || 'N/A'}</td>
                                         <td className="px-5 py-4 text-sm font-semibold">{row.currentQuantity}</td>
                                         <td className="px-5 py-4 text-sm">{row.minQuantity}</td>
                                         <td className="px-5 py-4 text-sm">{toReadableDate(row.lastUpdated)}</td>
@@ -832,8 +832,8 @@ export default function BatchTraceabilityPage() {
                                                 {log.quantityChange > 0 ? '+' : ''}{log.quantityChange}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm">{log.locationType} #{log.locationId || 'N/A'}</td>
-                                        <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `#${log.referenceId}` : ''}</td>
+                                        <td className="px-5 py-4 text-sm">{log.locationType} {log.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `${log.referenceId}` : ''}</td>
                                         <td className="px-5 py-4 text-sm">
                                             {log.referenceType === 'PRODUCTION_BATCH' && log.referenceId ? (
                                                 <button

@@ -386,7 +386,7 @@ export default function RecipesPage() {
             failed: {
               parentId,
               status: response.status,
-              message: resolveApiErrorMessage(data, `Không thể tải BOM cho thành phẩm #${parentId}.`),
+              message: resolveApiErrorMessage(data, `Không thể tải BOM cho thành phẩm ${parentId}.`),
             },
           }
         }
@@ -401,7 +401,7 @@ export default function RecipesPage() {
           failed: {
             parentId,
             status: 0,
-            message: requestError?.message || `Không thể tải BOM cho thành phẩm #${parentId}.`,
+            message: requestError?.message || `Không thể tải BOM cho thành phẩm ${parentId}.`,
           },
         }
       }
@@ -446,7 +446,7 @@ export default function RecipesPage() {
       }
 
       if (fallbackResult.failedParents.length > 0) {
-        const sample = fallbackResult.failedParents.slice(0, 3).map((item) => `#${item.parentId}`).join(', ')
+        const sample = fallbackResult.failedParents.slice(0, 3).map((item) => `${item.parentId}`).join(', ')
         const firstMessage = fallbackResult.failedParents[0]?.message || ''
 
         if (fallbackResult.rows.length === 0 && isRecipesSchemaMismatch(firstMessage)) {

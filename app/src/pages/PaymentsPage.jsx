@@ -1290,7 +1290,7 @@ export default function PaymentsPage() {
             </div>
 
             <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm">
-              <p><span className="font-semibold">Đơn:</span> {selectedPaymentOrder.orderCode || `#${selectedPaymentOrder.orderId}`}</p>
+              <p><span className="font-semibold">Đơn:</span> {selectedPaymentOrder.orderCode || `${selectedPaymentOrder.orderId}`}</p>
               <p className="mt-1"><span className="font-semibold">Số tiền:</span> {formatCurrency(selectedPaymentOrder.totalAmount)}</p>
             </div>
 

@@ -358,7 +358,7 @@ export default function SuppliersPage() {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filtered.map((supplier) => (
                                     <tr key={supplier.supplierId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-4 py-3 text-sm font-medium">#{supplier.supplierId}</td>
+                                        <td className="px-4 py-3 text-sm font-medium">{supplier.supplierId}</td>
                                         <td className="px-4 py-3 text-sm font-medium">{supplier.supplierName}</td>
                                         <td className="px-4 py-3 text-sm">{supplier.contactInfo}</td>
                                         <td className="px-4 py-3 text-sm">{supplier.address}</td>

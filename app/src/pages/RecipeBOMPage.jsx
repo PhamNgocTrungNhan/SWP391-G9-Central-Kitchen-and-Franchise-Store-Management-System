@@ -331,7 +331,7 @@ export default function RecipeBOMPage() {
             return
         }
 
-        if (!window.confirm(`Xác nhận xóa công thức #${recipeId}?`)) {
+        if (!window.confirm(`Xác nhận xóa công thức ${recipeId}?`)) {
             return
         }
 
@@ -353,7 +353,7 @@ export default function RecipeBOMPage() {
                 throw new Error(data?.message || data?.title || 'Không thể xóa công thức.')
             }
 
-            setCreateSuccess(data?.message || `Đã xóa công thức #${recipeId}.`)
+            setCreateSuccess(data?.message || `Đã xóa công thức ${recipeId}.`)
             fetchParentRecipes()
         } catch (error) {
             setCreateError(error.message || 'Xóa công thức thất bại.')
@@ -461,7 +461,7 @@ export default function RecipeBOMPage() {
 
                             {recipes.map((row) => (
                                 <tr key={`recipe-row-${row.id}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-5 py-3 text-sm font-semibold">#{row.id}</td>
+                                    <td className="px-5 py-3 text-sm font-semibold">{row.id}</td>
                                     <td className="px-5 py-3 text-sm">{getProductNameById(row.parentProductId)}</td>
                                     <td className="px-5 py-3 text-sm">{getProductNameById(row.materialId)}</td>
                                     <td className="px-5 py-3 text-sm">{Number(row.quantityRequired || 0)}</td>
@@ -771,7 +771,7 @@ export default function RecipeBOMPage() {
                 <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <p className="text-base font-semibold">Chi tiết công thức #{viewingRecipe.id}</p>
+                            <p className="text-base font-semibold">Chi tiết công thức {viewingRecipe.id}</p>
                             <button
                                 onClick={() => setShowViewForm(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -781,7 +781,7 @@ export default function RecipeBOMPage() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <p><span className="font-semibold">Recipe ID:</span> #{viewingRecipe.id}</p>
+                            <p><span className="font-semibold">Recipe ID:</span> {viewingRecipe.id}</p>
                             <p><span className="font-semibold">Parent:</span> {getProductNameById(viewingRecipe.parentProductId)}</p>
                             <p><span className="font-semibold">Material:</span> {getProductNameById(viewingRecipe.materialId)}</p>
                             <p><span className="font-semibold">Quantity Required:</span> {Number(viewingRecipe.quantityRequired || 0)}</p>

@@ -585,7 +585,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 {filteredProducts.length > 0 ? (
                                     filteredProducts.map((item) => (
                                         <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-5 py-3 text-sm font-semibold">#{item.id}</td>
+                                            <td className="px-5 py-3 text-sm font-semibold">{item.id}</td>
                                             <td className="px-5 py-3 text-sm font-mono">{item.sku}</td>
                                             <td className="px-5 py-3 text-sm">{item.name}</td>
                                             <td className="px-5 py-3 text-sm">{item.categoryName}</td>
@@ -676,7 +676,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 >
                                     {!hasCategories ? <option value="">Chưa có danh mục</option> : null}
                                     {categories.map((c) => (
-                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} (#{c.categoryId})</option>
+                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} ({c.categoryId})</option>
                                     ))}
                                 </select>
                             </label>
@@ -763,7 +763,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <p className="text-base font-semibold">Cập nhật #{editProductId}</p>
+                            <p className="text-base font-semibold">Cập nhật {editProductId}</p>
                             <button
                                 onClick={() => setShowEditModal(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -799,7 +799,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 >
                                     {!hasCategories ? <option value="">Chưa có danh mục</option> : null}
                                     {categories.map((c) => (
-                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} (#{c.categoryId})</option>
+                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} ({c.categoryId})</option>
                                     ))}
                                 </select>
                             </label>
@@ -894,7 +894,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                                             {normalizedScope === 'ingredient' ? 'Chi tiết nguyên liệu' : 'Chi tiết sản phẩm'}
                                         </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã #{viewProduct.id}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã {viewProduct.id}</p>
                                     </div>
                                 </div>
                                 <button
@@ -969,7 +969,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </button>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Bạn có chắc muốn xóa sản phẩm <span className="font-semibold">{deleteTargetName || `#${deleteTargetId}`}</span> (ID: #{deleteTargetId}) không?
+                            Bạn có chắc muốn xóa sản phẩm <span className="font-semibold">{deleteTargetName || `${deleteTargetId}`}</span> (ID: {deleteTargetId}) không?
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                             Nếu sản phẩm đang được dùng ở đơn hàng, tồn kho, batch hoặc BOM thì backend sẽ trả lỗi 400.

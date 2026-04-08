@@ -28,7 +28,7 @@ function normalizeCategories(raw) {
 
       return {
         categoryId,
-        name: String(item?.name || item?.categoryName || `Danh mục #${categoryId}`).trim(),
+        name: String(item?.name || item?.categoryName || `Danh mục ${categoryId}`).trim(),
       }
     })
     .filter(Boolean)
@@ -353,7 +353,7 @@ export default function CategoriesPage() {
               ) : null}
               {!loading && filteredCategories.map((category) => (
                 <tr key={category.categoryId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-5 py-3 text-sm font-semibold">#{category.categoryId}</td>
+                  <td className="px-5 py-3 text-sm font-semibold">{category.categoryId}</td>
                   <td className="px-5 py-3 text-sm">{category.name}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-2">
@@ -428,7 +428,7 @@ export default function CategoriesPage() {
         <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4" onClick={() => !submitting && setShowEditModal(false)}>
           <div className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-base font-semibold">Cập nhật danh mục #{editCategoryId}</p>
+              <p className="text-base font-semibold">Cập nhật danh mục {editCategoryId}</p>
               <button
                 onClick={() => setShowEditModal(false)}
                 disabled={submitting}
@@ -483,7 +483,7 @@ export default function CategoriesPage() {
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Bạn có chắc muốn xóa danh mục <span className="font-semibold">{deleteCategoryName || `#${deleteCategoryId}`}</span> không?
+              Bạn có chắc muốn xóa danh mục <span className="font-semibold">{deleteCategoryName || `${deleteCategoryId}`}</span> không?
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
               Nếu danh mục đã được dùng trong sản phẩm, backend có thể từ chối thao tác xóa.

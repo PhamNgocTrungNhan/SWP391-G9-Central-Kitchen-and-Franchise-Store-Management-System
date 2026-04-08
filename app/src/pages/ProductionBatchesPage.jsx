@@ -379,7 +379,7 @@ export default function ProductionBatchesPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {recentBatches.map((batch) => (
                     <tr key={batch.batchId || batch.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                      <td className="px-4 py-3 text-sm font-medium">#{batch.batchId || batch.id}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{batch.batchId || batch.id}</td>
                       <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm chưa có tên`}</td>
                       <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{batch.quantityActual || 0}</td>
@@ -415,7 +415,7 @@ export default function ProductionBatchesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b7958]">Mẻ Đang Chọn</p>
-                    <h3 className="mt-2 font-display text-2xl font-bold text-[#243424]">Mẻ #{managedBatchId}</h3>
+                    <h3 className="mt-2 font-display text-2xl font-bold text-[#243424]">Mẻ {managedBatchId}</h3>
                   </div>
                   <Badge tone={statusForm.Status === 'CANCELLED' ? 'red' : 'amber'}>
                     {statusLabelMap[managedBatch?.Status] || statusLabelMap[statusForm.Status] || (managedBatch?.Status || statusForm.Status)}

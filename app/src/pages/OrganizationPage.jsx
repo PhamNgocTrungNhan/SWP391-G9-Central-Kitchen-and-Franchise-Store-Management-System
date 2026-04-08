@@ -164,7 +164,7 @@ export default function OrganizationPage() {
                       className={store.StoreId === selectedStoreId ? 'bg-[#eef7ef]' : 'bg-[#fffdf8]'}
                       onClick={() => selectStore(store)}
                     >
-                      <td className="app-td font-medium">#{store.StoreId}</td>
+                      <td className="app-td font-medium">{store.StoreId}</td>
                       <td className="app-td">
                         <div>
                           <p className="font-medium">{store.StoreName}</p>
@@ -219,7 +219,7 @@ export default function OrganizationPage() {
                       className={kitchen.KitchenId === selectedKitchenId ? 'bg-[#eef7ef]' : 'bg-[#fffdf8]'}
                       onClick={() => selectKitchen(kitchen)}
                     >
-                      <td className="app-td font-medium">#{kitchen.KitchenId}</td>
+                      <td className="app-td font-medium">{kitchen.KitchenId}</td>
                       <td className="app-td">{kitchen.KitchenName}</td>
                       <td className="app-td">{kitchen.Address}</td>
                     </tr>

@@ -399,7 +399,7 @@ export default function StoresPage() {
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{store.storeName}</h2>
-                                            <p className="mt-1 text-sm text-slate-500">ID: #{store.storeId}</p>
+                                            <p className="mt-1 text-sm text-slate-500">ID: {store.storeId}</p>
                                         </div>
                                         <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {store.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
@@ -448,7 +448,7 @@ export default function StoresPage() {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filtered.map((store) => (
                                     <tr key={store.storeId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-4 py-3 text-sm font-medium">#{store.storeId}</td>
+                                        <td className="px-4 py-3 text-sm font-medium">{store.storeId}</td>
                                         <td className="px-4 py-3 text-sm font-medium">{store.storeName}</td>
                                         <td className="px-4 py-3 text-sm">{store.address}</td>
                                         <td className="px-4 py-3 text-sm">{store.phone}</td>

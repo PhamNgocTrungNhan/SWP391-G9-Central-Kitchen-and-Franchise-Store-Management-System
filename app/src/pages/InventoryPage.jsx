@@ -341,9 +341,9 @@ export default function InventoryPage() {
 
         let actor = 'Hệ thống'
         if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
-          actor = `Mẻ SX #${item.referenceId}`
+          actor = `Mẻ SX ${item.referenceId}`
         } else if (item.referenceType === 'INTERNAL_ORDER' && item.referenceId) {
-          actor = `Đơn hàng #${item.referenceId}`
+          actor = `Đơn hàng ${item.referenceId}`
         } else if (item.supplierId) {
           actor = 'Nhà cung cấp'
         }
@@ -1141,7 +1141,7 @@ export default function InventoryPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất #{selectedExpiryItem.batchId}</h3>
+              <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất {selectedExpiryItem.batchId}</h3>
               <button
                 type="button"
                 onClick={() => setShowExpiryDetailModal(false)}

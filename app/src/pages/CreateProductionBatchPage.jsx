@@ -562,7 +562,7 @@ export default function CreateProductionBatchPage() {
 
         return {
             orderId,
-            orderCode: item?.orderCode || `#${orderId}`,
+            orderCode: item?.orderCode || `${orderId}`,
             status: normalizeOrderStatus(item?.orderStatus || item?.status),
             storeId: parseSafeNumber(item?.storeId ?? item?.store?.storeId ?? item?.store?.id, 0),
             storeName: item?.store?.storeName || item?.store?.name || `Cửa hàng chưa có tên`,
@@ -869,7 +869,7 @@ export default function CreateProductionBatchPage() {
 
         const actualQty = Number(completeBatchForm.actualQuantity)
         if (!actualQty || actualQty <= 0) {
-            setError(`Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ #${batch.id}!`)
+            setError(`Phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ ${batch.id}!`)
             return
         }
 
@@ -1048,7 +1048,7 @@ export default function CreateProductionBatchPage() {
                 throw new Error(finalMessage)
             }
 
-            setSuccess(completedData?.message || `Mẻ #${batch.id} đã hoàn thành với SL thực tế: ${actualQty}.`)
+            setSuccess(completedData?.message || `Mẻ ${batch.id} đã hoàn thành với SL thực tế: ${actualQty}.`)
 
             // Đóng modal và reset form
             setShowCompleteBatchModal(false)
@@ -1128,7 +1128,7 @@ export default function CreateProductionBatchPage() {
                         if (!id) return null
                         return {
                             id,
-                            name: item?.supplierName || item?.name || `NCC #${id}`,
+                            name: item?.supplierName || item?.name || `NCC ${id}`,
                             isActive: item?.isActive !== false,
                         }
                     })
@@ -1454,7 +1454,7 @@ export default function CreateProductionBatchPage() {
 
             setSuccess(
                 (data?.message || 'Tạo mẻ sản xuất thành công.')
-                + ` (Mẻ #${createdBatchId}, Đơn: ${row.orderCode}, Sản phẩm: ${row.productName}, SL: ${qty}).`
+                + ` (Mẻ ${createdBatchId}, Đơn: ${row.orderCode}, Sản phẩm: ${row.productName}, SL: ${qty}).`
                 + inventoryHint,
             )
 
@@ -1544,7 +1544,7 @@ export default function CreateProductionBatchPage() {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Mẻ #</th>
+                                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Mẻ</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">SL kế hoạch</th>
                                         <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thao tác</th>
@@ -1562,7 +1562,7 @@ export default function CreateProductionBatchPage() {
                                             <tr key={batch.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                 <td className="px-4 py-3 text-sm font-semibold">
                                                     <div className="flex items-center gap-2">
-                                                        #{batch.id}
+                                                        {batch.id}
                                                         {!isInProgress && (
                                                             <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                                                                 {batch.status}
@@ -1683,7 +1683,7 @@ export default function CreateProductionBatchPage() {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <h3 className="text-lg font-semibold">Hoàn thành mẻ #{selectedBatchToComplete.id}</h3>
+                            <h3 className="text-lg font-semibold">Hoàn thành mẻ {selectedBatchToComplete.id}</h3>
                             <button
                                 type="button"
                                 onClick={closeCompleteBatchModal}
@@ -1763,7 +1763,7 @@ export default function CreateProductionBatchPage() {
                                                         <tr key={`${usage.materialId}-${index}`}>
                                                             <td className="px-3 py-2 text-sm">
                                                                 <p className="font-medium">{usage.materialName}</p>
-                                                                <p className="text-xs text-slate-500 dark:text-slate-400">ID #{usage.materialId} {usage.materialUnit ? `• ${usage.materialUnit}` : ''}</p>
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400">ID {usage.materialId} {usage.materialUnit ? `• ${usage.materialUnit}` : ''}</p>
                                                             </td>
                                                             <td className="px-3 py-2 text-sm">{usage.quantityRequired}</td>
                                                             <td className="px-3 py-2 text-sm">{usage.maxWastePercent}%</td>

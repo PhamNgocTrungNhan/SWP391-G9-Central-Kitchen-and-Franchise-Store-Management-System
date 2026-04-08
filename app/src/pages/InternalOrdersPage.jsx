@@ -196,7 +196,7 @@ export default function InternalOrdersPage() {
                     onClick={() => setSelectedOrderId(order.orderId)}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#2c3d2d]">Order #{order.orderId}</p>
+                      <p className="text-sm font-semibold text-[#2c3d2d]">Order {order.orderId}</p>
                       <Badge tone={order.Status === 'Completed' ? 'green' : order.Status === 'Rejected' ? 'red' : 'amber'}>
                         {order.Status}
                       </Badge>
@@ -217,7 +217,7 @@ export default function InternalOrdersPage() {
               <div className="space-y-4 rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-display text-2xl font-bold text-[#243424]">Order #{selectedOrder.orderId}</h3>
+                    <h3 className="font-display text-2xl font-bold text-[#243424]">Order {selectedOrder.orderId}</h3>
                   </div>
                   <Badge tone="stone">Store {selectedOrder.StoreId}</Badge>
                 </div>
