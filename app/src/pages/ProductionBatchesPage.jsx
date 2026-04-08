@@ -88,9 +88,9 @@ export default function ProductionBatchesPage() {
         (typeof data === 'object' && (data?.message || data?.title || data?.error || validationMessage)) ||
         (typeof data === 'string' && data) ||
         `Yêu cầu thất bại (${response.status})`
-      
+
       console.error('API Error:', { path, status: response.status, data })
-      
+
       const error = new Error(message)
       error.status = response.status
       error.data = data
@@ -163,7 +163,7 @@ export default function ProductionBatchesPage() {
       }
 
       setSuccess((data && data.message) || 'Tạo mẻ sản xuất thành công.')
-      
+
       // Refresh recent batches list
       fetchRecentBatches()
     } catch (requestError) {
@@ -212,7 +212,7 @@ export default function ProductionBatchesPage() {
         Status: statusValue,
         QuantityActual: quantityActualValue,
       }))
-      
+
       if (statusValue === 'IN_PROGRESS') {
         setSuccess((data && data.message) || 'Đã chuyển IN_PROGRESS. Backend sẽ đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.')
       } else if (statusValue === 'COMPLETED') {
@@ -431,7 +431,7 @@ export default function ProductionBatchesPage() {
                 <p className="mt-1 text-xs text-slate-500">
                   Kiểm tra kỹ trạng thái và số lượng trước khi cập nhật mẻ.
                 </p>
-                
+
                 {statusForm.Status === 'IN_PROGRESS' && (
                   <div className="mt-3 space-y-2">
                     <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -451,13 +451,13 @@ export default function ProductionBatchesPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {statusForm.Status === 'COMPLETED' && (
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     ⚠️ Để hoàn thành mẻ, phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!
                   </div>
                 )}
-                
+
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Trạng Thái">
                     <select

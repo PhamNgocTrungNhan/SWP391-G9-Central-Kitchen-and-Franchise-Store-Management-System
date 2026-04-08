@@ -576,122 +576,122 @@ export default function UsersPage() {
             </div>
 
             <form onSubmit={handleModalSubmit}>
-            <div className="px-6 py-4 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Tên đăng nhập <span className="text-red-500">*</span>
-                  </span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.username ?? ''}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    autoComplete="username"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Mật khẩu {modalMode === 'create' && <span className="text-red-500">*</span>}
-                  </span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    type="password"
-                    value={form.passwordHash ?? ''}
-                    onChange={(e) => setForm({ ...form, passwordHash: e.target.value })}
-                    placeholder={modalMode === 'edit' ? "Để trống nếu không đổi" : "Nhập mật khẩu"}
-                    autoComplete={modalMode === 'create' ? 'new-password' : 'current-password'}
-                  />
-                </label>
-
-                <label className="block sm:col-span-2">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Họ tên</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.fullName ?? ''}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                    autoComplete="name"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Vai trò <span className="text-red-500">*</span>
-                  </span>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.roleId ?? ''}
-                    onChange={(e) => handleRoleChange(e.target.value)}
-                  >
-                    <option value="">-- Chọn vai trò --</option>
-                    <option value="1">ADMIN</option>
-                    <option value="2">MANAGER</option>
-                    <option value="3">SUPPLY_COORDINATOR</option>
-                    <option value="4">KITCHEN_STAFF</option>
-                    <option value="5">STORE_STAFF</option>
-                  </select>
-                </label>
-
-                {requiresStoreAssignment(form.roleId) && (
+              <div className="px-6 py-4 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng <span className="text-red-500">*</span></span>
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Tên đăng nhập <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.username ?? ''}
+                      onChange={(e) => setForm({ ...form, username: e.target.value })}
+                      autoComplete="username"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Mật khẩu {modalMode === 'create' && <span className="text-red-500">*</span>}
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      type="password"
+                      value={form.passwordHash ?? ''}
+                      onChange={(e) => setForm({ ...form, passwordHash: e.target.value })}
+                      placeholder={modalMode === 'edit' ? "Để trống nếu không đổi" : "Nhập mật khẩu"}
+                      autoComplete={modalMode === 'create' ? 'new-password' : 'current-password'}
+                    />
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Họ tên</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.fullName ?? ''}
+                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      autoComplete="name"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Vai trò <span className="text-red-500">*</span>
+                    </span>
                     <select
                       className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      value={form.storeId ?? ''}
-                      onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
+                      value={form.roleId ?? ''}
+                      onChange={(e) => handleRoleChange(e.target.value)}
                     >
-                      <option value="">-- Chọn cửa hàng --</option>
-                      {stores.map((store) => (
-                        <option key={store.storeId} value={store.storeId}>
-                          {store.storeName}
-                        </option>
-                      ))}
+                      <option value="">-- Chọn vai trò --</option>
+                      <option value="1">ADMIN</option>
+                      <option value="2">MANAGER</option>
+                      <option value="3">SUPPLY_COORDINATOR</option>
+                      <option value="4">KITCHEN_STAFF</option>
+                      <option value="5">STORE_STAFF</option>
                     </select>
                   </label>
-                )}
 
-                {requiresKitchenAssignment(form.roleId) && (
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp <span className="text-red-500">*</span></span>
-                    <select
-                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      value={form.kitchenId ?? ''}
-                      onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
-                    >
-                      <option value="">-- Chọn bếp --</option>
-                      {kitchens.map((kitchen) => (
-                        <option key={kitchen.kitchenId} value={kitchen.kitchenId}>
-                          {kitchen.kitchenName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                  {requiresStoreAssignment(form.roleId) && (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng <span className="text-red-500">*</span></span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        value={form.storeId ?? ''}
+                        onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">-- Chọn cửa hàng --</option>
+                        {stores.map((store) => (
+                          <option key={store.storeId} value={store.storeId}>
+                            {store.storeName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
 
-                {!requiresStoreAssignment(form.roleId) && !requiresKitchenAssignment(form.roleId) && form.roleId ? (
-                  <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
-                    Vai trò này không yêu cầu gán Store/Kitchen khi tạo hoặc cập nhật user.
-                  </div>
-                ) : null}
+                  {requiresKitchenAssignment(form.roleId) && (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp <span className="text-red-500">*</span></span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        value={form.kitchenId ?? ''}
+                        onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">-- Chọn bếp --</option>
+                        {kitchens.map((kitchen) => (
+                          <option key={kitchen.kitchenId} value={kitchen.kitchenId}>
+                            {kitchen.kitchenName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {!requiresStoreAssignment(form.roleId) && !requiresKitchenAssignment(form.roleId) && form.roleId ? (
+                    <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+                      Vai trò này không yêu cầu gán Store/Kitchen khi tạo hoặc cập nhật user.
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                onClick={closeModal}
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                disabled={submitting}
-              >
-                {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
-              </button>
-            </div>
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  onClick={closeModal}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

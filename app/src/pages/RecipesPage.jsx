@@ -930,34 +930,34 @@ export default function RecipesPage() {
                   </tr>,
                   ...(Number(expandedParentProductId) === Number(group.parentProductId)
                     ? group.lines.map((row, index) => (
-                    <tr key={`line-${row.recipeId}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-3 text-sm font-semibold">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <p className="font-medium">{getProductName(row.materialId)}</p>
-                      </td>
-                      <td className="px-4 py-3 text-sm">{row.quantityRequired}</td>
-                      <td className="px-4 py-3 text-sm">{row.maxWastePercent ?? 0}%</td>
-                      <td className="px-4 py-3 text-sm">{getMaterialUnit(row.materialId)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openEditModal(row)}
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Sửa dòng công thức"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteLine(row.recipeId)}
-                            disabled={deletingId === row.recipeId}
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                            title="Xóa dòng công thức"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                      <tr key={`line-${row.recipeId}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-4 py-3 text-sm font-semibold">{index + 1}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <p className="font-medium">{getProductName(row.materialId)}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{row.quantityRequired}</td>
+                        <td className="px-4 py-3 text-sm">{row.maxWastePercent ?? 0}%</td>
+                        <td className="px-4 py-3 text-sm">{getMaterialUnit(row.materialId)}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEditModal(row)}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
+                              title="Sửa dòng công thức"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLine(row.recipeId)}
+                              disabled={deletingId === row.recipeId}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                              title="Xóa dòng công thức"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     ))
                     : []),
                 ]))}
