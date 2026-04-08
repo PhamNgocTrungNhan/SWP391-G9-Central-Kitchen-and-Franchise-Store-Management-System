@@ -1520,6 +1520,11 @@ export default function StoreOrderPage() {
         }
     }
 
+    const closeDetailModal = () => {
+        setDetailOrder(null)
+        setDetailError('')
+    }
+
     const clearToast = () => {
         setSubmitError('')
         setDetailError('')
@@ -2050,8 +2055,8 @@ export default function StoreOrderPage() {
                             </div>
                         )}
                         {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-start md:items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[calc(100dvh-3rem)] flex flex-col">
+                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm grid place-items-center p-3 sm:p-4 overflow-hidden">
+                                <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
                                     {/* Header */}
                                     <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -2064,10 +2069,7 @@ export default function StoreOrderPage() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                setDetailOrder(null)
-                                                setDetailError('')
-                                            }}
+                                            onClick={closeDetailModal}
                                             className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                                         >
                                             <span className="material-symbols-outlined text-white text-[20px]">close</span>
@@ -2075,7 +2077,7 @@ export default function StoreOrderPage() {
                                     </div>
 
                                     {/* Content */}
-                                    <div className="p-6 overflow-y-auto min-h-0">
+                                    <div className="p-4 sm:p-6 overflow-y-auto min-h-0 overscroll-contain">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
                                             <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>

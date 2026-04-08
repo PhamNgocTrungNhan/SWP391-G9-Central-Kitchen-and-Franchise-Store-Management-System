@@ -188,6 +188,15 @@ function toShortDate(dateString) {
   })
 }
 
+function normalizeLocationLabel(locationType, locationId) {
+  const type = String(locationType || '').trim().toUpperCase()
+  const id = Number(locationId || 0)
+
+  if (type === 'STORE') return `Kho cửa hàng ${id > 0 ? `#${id}` : ''}`.trim()
+  if (type === 'KITCHEN') return `Kho bếp trung tâm ${id > 0 ? `#${id}` : ''}`.trim()
+  return 'Kho hệ thống'
+}
+
 export default function InventoryPage() {
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
   const [activeTab, setActiveTab] = useState('stock')
@@ -272,20 +281,22 @@ export default function InventoryPage() {
         return
       }
 
-      const normalized = data.map((item) => {
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
-        const location = item.location || item.locationName || 'Bếp trung tâm #1'
-        const quantity = Number(item.currentQuantity || item.quantity || 0)
+      const normalized = data
+        .filter((item) => String(item?.locationType || '').toUpperCase() !== 'STORE')
+        .map((item) => {
+          const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
+          const location = item.location || item.locationName || 'Bếp trung tâm #1'
+          const quantity = Number(item.currentQuantity || item.quantity || 0)
 
-        return {
-          id: item.inventoryId || item.stockId || item.productId,
-          productId: item.productId,
-          product: productName,
-          location,
-          quantity,
-          unit: item.product?.baseUnit || item.baseUnit || 'unit',
-        }
-      })
+          return {
+            id: item.inventoryId || item.stockId || item.productId,
+            productId: item.productId,
+            product: productName,
+            location,
+            quantity,
+            unit: item.product?.baseUnit || item.baseUnit || 'unit',
+          }
+        })
 
       setStock(normalized)
     } catch {
@@ -333,21 +344,42 @@ export default function InventoryPage() {
       const normalized = data.map((item) => {
         const qty = Number(item.changeQuantity || 0)
         const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
+        const reasonRaw = String(item.reason || '')
+        const reasonUpper = reasonRaw.toUpperCase()
+        const referenceType = String(item.referenceType || '').toUpperCase()
+        const locationType = String(item.locationType || '').toUpperCase()
 
-        let action = item.reason || 'Unknown'
-        if (action.includes('SẢN XUẤT')) action = 'Trừ nguyên liệu sản xuất'
-        if (action.includes('NHẬP THÀNH PHẨM')) action = 'Nhập thành phẩm'
-        if (action.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
-        if (action.includes('NHẬP NGUYÊN LIỆU') || action.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
+        // Trang này đang là UI kho bếp: tạm ẩn log kho STORE, sẽ hiển thị ở UI kho store riêng.
+        if (locationType === 'STORE') return null
+
+        const locationLabel = normalizeLocationLabel(item.locationType, item.locationId)
+
+        let action = reasonRaw || 'Unknown'
+        if (reasonUpper.includes('SẢN XUẤT')) action = 'Trừ nguyên liệu sản xuất'
+        if (reasonUpper.includes('NHẬP THÀNH PHẨM')) action = 'Nhập thành phẩm'
+        if (reasonUpper.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
+        if (reasonUpper.includes('NHẬP NGUYÊN LIỆU') || reasonUpper.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
+
+        if (referenceType === 'INTERNAL_ORDER') {
+          if (locationType === 'STORE' && qty > 0) {
+            action = 'Nhận giao từ bếp (kho cửa hàng)'
+          } else if (locationType === 'KITCHEN' && qty < 0) {
+            action = 'Xuất giao cho cửa hàng'
+          }
+        }
 
         let actor = 'Hệ thống'
-        if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
+        if (referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
           actor = `Mẻ SX ${item.referenceId}`
-        } else if (item.referenceType === 'INTERNAL_ORDER' && item.referenceId) {
+        } else if (referenceType === 'INTERNAL_ORDER' && item.referenceId) {
           actor = `Đơn hàng ${item.referenceId}`
         } else if (item.supplierId) {
           actor = 'Nhà cung cấp'
         }
+
+        const statusLabel = qty >= 0
+          ? (locationType === 'STORE' ? 'Nhập kho store' : 'Nhập')
+          : (locationType === 'KITCHEN' ? 'Xuất' : 'Xuất')
 
         return {
           id: item.logId,
@@ -355,10 +387,12 @@ export default function InventoryPage() {
           quantity: qty >= 0 ? `+${qty}` : `${qty}`,
           action,
           actor,
+          locationLabel,
+          statusLabel,
           date: toReadableDate(item.createdAt),
           type: qty >= 0 ? 'IN' : 'OUT',
         }
-      })
+      }).filter(Boolean)
 
       setLogs(normalized)
     } catch {
@@ -1051,7 +1085,10 @@ export default function InventoryPage() {
                       <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-4 py-3 text-sm font-medium">{log.product}</td>
                         <td className="px-4 py-3 text-sm">{log.action}</td>
-                        <td className="px-4 py-3 text-sm">{log.actor}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="font-medium">{log.actor}</div>
+                          <div className="text-xs text-slate-500">{log.locationLabel}</div>
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={String(log.quantity).startsWith('+') ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
                             {log.quantity}
@@ -1060,7 +1097,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-xs">{log.date}</td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {String(log.quantity).startsWith('+') ? 'Nhập' : 'Xuất'}
+                            {log.statusLabel}
                           </span>
                         </td>
                       </tr>

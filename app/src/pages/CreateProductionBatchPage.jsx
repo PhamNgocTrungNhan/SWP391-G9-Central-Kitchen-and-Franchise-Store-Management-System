@@ -578,8 +578,7 @@ export default function CreateProductionBatchPage() {
             setError('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
             return
         }
-        name: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
-            setOrdersLoading(true)
+        setOrdersLoading(true)
         try {
             const productMap = products.reduce((acc, product) => {
                 acc[Number(product.id)] = product.name
