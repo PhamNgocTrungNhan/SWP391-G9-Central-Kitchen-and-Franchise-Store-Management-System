@@ -16,6 +16,7 @@ public partial class ApplicationDbContext : DbContext
     {
     }
 
+
     public virtual DbSet<Category> Categories
     {
         get; set;
@@ -77,6 +78,7 @@ public partial class ApplicationDbContext : DbContext
         get; set;
     }
 
+
     // ✅ DBSET MỚI: BÁO CÁO HAO HỤT THỰC TẾ
     public virtual DbSet<ProductionBatchMaterial> ProductionBatchMaterials
     {
@@ -107,12 +109,14 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.OrderId).HasColumnName("order_id");
             entity.Property(e => e.ApprovedAt).HasColumnType("datetime").HasColumnName("approved_at");
             entity.Property(e => e.ApprovedBy).HasColumnName("approved_by");
+
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("created_at");
             entity.Property(e => e.ExpectedDeliveryDate).HasColumnType("datetime").HasColumnName("expected_delivery_date");
             entity.Property(e => e.KitchenId).HasDefaultValue(1).HasColumnName("kitchen_id");
             entity.Property(e => e.OrderCode).HasMaxLength(13).IsUnicode(false).HasComputedColumnSql("('ORD'+CONVERT([varchar](10),[order_id]))", false).HasColumnName("order_code");
             entity.Property(e => e.OrderStatus).HasMaxLength(50).HasDefaultValue("PENDING").HasColumnName("order_status");
             entity.Property(e => e.PaymentStatus).HasMaxLength(50).HasDefaultValue("UNPAID").HasColumnName("payment_status");
+
             entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason");
             entity.Property(e => e.StoreId).HasColumnName("store_id");
             entity.Property(e => e.TotalAmount).HasDefaultValue(0m).HasColumnType("decimal(18, 2)").HasColumnName("total_amount");
@@ -181,13 +185,21 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ProductId).HasColumnName("product_id");
             entity.Property(e => e.BaseUnit).HasMaxLength(20).HasColumnName("base_unit");
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
+
             entity.Property(e => e.ProductName).HasMaxLength(255).HasColumnName("product_name");
             entity.Property(e => e.ProductType).HasMaxLength(50).HasColumnName("product_type");
             entity.Property(e => e.Sku).HasMaxLength(50).HasColumnName("sku");
             entity.Property(e => e.PurchasePrice).HasColumnType("decimal(18, 2)").HasColumnName("purchase_price").HasDefaultValue(0m);
             entity.Property(e => e.InternalPrice).HasColumnType("decimal(18, 2)").HasColumnName("internal_price").HasDefaultValue(0m);
 
+
             // ❌ ĐÃ GỠ BỎ DEFAULT WASTE PERCENT CHO CHUẨN V2
+
+            // ✅ THÊM CỘT HAO HỤT MẶC ĐỊNH
+            entity.Property(e => e.DefaultWastePercent)
+                .HasColumnType("decimal(5, 2)")
+                .HasColumnName("default_waste_percent")
+                .HasDefaultValue(0m);
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
                 .HasForeignKey(d => d.CategoryId).HasConstraintName("FK__Products__catego__48CFD27E");
@@ -255,6 +267,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.RecipeId).HasColumnName("recipe_id");
             entity.Property(e => e.MaterialId).HasColumnName("material_id");
             entity.Property(e => e.ParentProductId).HasColumnName("parent_product_id");
+
             entity.Property(e => e.QuantityRequired).HasColumnType("decimal(12, 4)").HasColumnName("quantity_required");
 
             // ✅ CẤU HÌNH MAX WASTE THEO TỪNG CÔNG THỨC
@@ -262,6 +275,7 @@ public partial class ApplicationDbContext : DbContext
                 .HasColumnType("decimal(5, 2)")
                 .HasColumnName("waste_allowance_percent")
                 .HasDefaultValue(0m);
+
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
                 .HasForeignKey(d => d.MaterialId).HasConstraintName("FK__Recipes_B__mater__4D94879B");

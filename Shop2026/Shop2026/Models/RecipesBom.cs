@@ -4,6 +4,7 @@ namespace Shop2026.Models;
 
 public partial class RecipesBom
 {
+
     public int RecipeId
     {
         get; set;
@@ -36,3 +37,4 @@ public partial class RecipesBom
         get; set;
     }
 }
+

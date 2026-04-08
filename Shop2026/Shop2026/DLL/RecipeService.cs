@@ -20,15 +20,18 @@ namespace Shop2026.DLL
                 MaterialId = r.MaterialId,
                 MaterialName = r.Material?.ProductName,
                 MaterialUnit = r.Material?.BaseUnit,
+
                 QuantityRequired = r.QuantityRequired,
                 MaxWastePercent = r.MaxWastePercent // ✅ Trả về cho FE hiển thị
             }).ToList();
         }
 
+
         public void CreateBulk(CreateRecipeBulkRequest request)
         {
             if (!_repo.ProductExists(request.ParentProductId))
                 throw new Exception("Thành phẩm không tồn tại trong hệ thống.");
+
 
             var duplicateInRequest = request.Materials.GroupBy(x => x.MaterialId).Where(g => g.Count() > 1).Select(y => y.Key).ToList();
             if (duplicateInRequest.Any())
@@ -51,6 +54,7 @@ namespace Shop2026.DLL
                 {
                     ParentProductId = request.ParentProductId,
                     MaterialId = item.MaterialId,
+
                     QuantityRequired = item.QuantityRequired,
                     MaxWastePercent = item.MaxWastePercent // ✅ LƯU HAO HỤT TỐI ĐA CHO CÔNG THỨC NÀY
                 });
@@ -58,6 +62,7 @@ namespace Shop2026.DLL
 
             _repo.AddRange(newRecipes);
         }
+
 
         public void Update(int id, UpdateRecipeRequest request)
         {
@@ -71,7 +76,9 @@ namespace Shop2026.DLL
 
             recipe.MaterialId = request.MaterialId;
             recipe.QuantityRequired = request.QuantityRequired;
+
             recipe.MaxWastePercent = request.MaxWastePercent; // ✅ CẬP NHẬT HAO HỤT
+
 
             _repo.Update(recipe);
         }

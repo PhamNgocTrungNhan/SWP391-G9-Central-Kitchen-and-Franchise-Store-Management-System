@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace Shop2026.DTOs
 {
+
     public class CreateRecipeBulkRequest
     {
         [Required]
@@ -53,10 +54,12 @@ namespace Shop2026.DTOs
 
         [Range(0, 100)]
         public decimal MaxWastePercent { get; set; } = 0;
+
     }
 
     public class RecipeResponse
     {
+
         public int RecipeId
         {
             get; set;
@@ -89,5 +92,6 @@ namespace Shop2026.DTOs
         {
             get; set;
         } 
+
     }
 }

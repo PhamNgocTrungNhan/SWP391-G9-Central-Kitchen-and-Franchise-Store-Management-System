@@ -35,6 +35,10 @@ public partial class Product
     {
         get; set;
     }
+    public decimal? DefaultWastePercent 
+    {
+        get; set; 
+    };
 
     // ❌ ĐÃ XÓA DefaultWastePercent 
 
