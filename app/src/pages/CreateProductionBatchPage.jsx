@@ -195,6 +195,41 @@ function normalizeProductType(rawType) {
     return value || 'N/A'
 }
 
+function pickFirstNonEmptyText(...candidates) {
+    for (const candidate of candidates) {
+        const text = String(candidate ?? '').trim()
+        if (text) return text
+    }
+    return ''
+}
+
+function resolveProductDisplayName(record, productNameById = {}) {
+    const productId = parseSafeNumber(
+        record?.productId
+        ?? record?.ProductId
+        ?? record?.product?.productId
+        ?? record?.product?.id
+        ?? record?.Product?.ProductId
+        ?? record?.Product?.Id,
+        0,
+    )
+
+    return pickFirstNonEmptyText(
+        record?.productName,
+        record?.ProductName,
+        record?.name,
+        record?.Name,
+        record?.product?.productName,
+        record?.product?.ProductName,
+        record?.product?.name,
+        record?.Product?.productName,
+        record?.Product?.ProductName,
+        record?.Product?.name,
+        productId ? productNameById[productId] : '',
+        'Sản phẩm chưa có tên',
+    )
+}
+
 function resolveDefaultStoreId() {
     const directValue = localStorage.getItem('storeId') || localStorage.getItem('store_id') || localStorage.getItem('current_store_id')
     if (directValue && String(directValue).trim()) return String(directValue).trim()
@@ -555,7 +590,7 @@ export default function CreateProductionBatchPage() {
                     key: `${orderId}-${detailProductId}-${idx}`,
                     orderId, // Add orderId to each detail
                     productId: detailProductId,
-                    productName: row?.product?.productName || row?.product?.name || productMap[detailProductId] || `Sản phẩm chưa có tên`,
+                    productName: resolveProductDisplayName(row, productMap),
                     quantityOrdered: detailQty,
                 }
             })
@@ -684,7 +719,7 @@ export default function CreateProductionBatchPage() {
                         id,
                         status: status,
                         productId: parseSafeNumber(item?.productId ?? item?.product?.productId ?? item?.product?.id, 0),
-                        productName: item?.product?.productName || item?.product?.name || `Sản phẩm chưa có tên`,
+                        productName: resolveProductDisplayName(item),
                         quantityPlanned: parseSafeNumber(item?.quantityPlanned, 0),
                         quantityActual: parseSafeNumber(item?.quantityActual, 0),
                         orderId: parseSafeNumber(item?.orderId ?? item?.internalOrderId, 0) || null,

@@ -244,16 +244,67 @@ export default function OrderManagementPage() {
 
     const getKitchenStockByProductId = (productId) => {
         const numericProductId = Number(productId)
-        if (!numericProductId) return null
-        if (!Object.prototype.hasOwnProperty.call(kitchenStockByProduct, numericProductId)) return null
+        if (!numericProductId) return 0
+        if (!Object.prototype.hasOwnProperty.call(kitchenStockByProduct, numericProductId)) return 0
         return toNumber(kitchenStockByProduct[numericProductId], 0)
     }
 
     const getMaxShippableNow = (row) => {
         const remaining = getRemainingToShip(row)
         const stockQty = getKitchenStockByProductId(row?.productId)
-        if (stockQty === null) return remaining
         return Math.max(0, Math.min(remaining, stockQty))
+    }
+
+    const isFullShipmentDraft = (order) => {
+        const numericOrderId = Number(order?.orderId)
+        if (!numericOrderId) return false
+
+        const detailRows = Array.isArray(order?.details) ? order.details : []
+        const rowsNeedShip = detailRows.filter((row) => getRemainingToShip(row) > 0)
+        if (!rowsNeedShip.length) return false
+
+        const draftRows = shipDraftByOrder[numericOrderId] || {}
+
+        return rowsNeedShip.every((row) => {
+            const productId = Number(row?.productId)
+            if (!productId) return false
+
+            const draftRaw = String(draftRows[productId] ?? '').trim()
+            if (!draftRaw) return false
+
+            const quantityToShip = Number(draftRaw)
+            if (!Number.isFinite(quantityToShip) || quantityToShip <= 0) return false
+
+            const remaining = getRemainingToShip(row)
+            const maxShippableNow = getMaxShippableNow(row)
+            if (maxShippableNow <= 0) return false
+
+            return quantityToShip >= remaining - 0.000001
+                && quantityToShip <= maxShippableNow + 0.000001
+        })
+    }
+
+    const isFullShipmentPayload = (order, payload) => {
+        if (!Array.isArray(payload) || payload.length === 0) return false
+
+        const detailRows = Array.isArray(order?.details) ? order.details : []
+        const rowsNeedShip = detailRows.filter((row) => getRemainingToShip(row) > 0)
+        if (!rowsNeedShip.length) return false
+
+        const payloadByProductId = payload.reduce((acc, line) => {
+            const productId = Number(line?.productId)
+            if (!productId) return acc
+            acc[productId] = toNumber(line?.quantityToShip, 0)
+            return acc
+        }, {})
+
+        return rowsNeedShip.every((row) => {
+            const productId = Number(row?.productId)
+            if (!productId) return false
+            const qty = toNumber(payloadByProductId[productId], 0)
+            const remaining = getRemainingToShip(row)
+            return qty >= remaining - 0.000001
+        })
     }
 
     const getDetailUnitPrice = (row) => {
@@ -862,6 +913,8 @@ export default function OrderManagementPage() {
             return
         }
 
+        const isFullShipment = isFullShipmentPayload(targetOrder, payload)
+
         const tk = token()
 
         if (!tk) {
@@ -929,7 +982,12 @@ export default function OrderManagementPage() {
             })
 
             clearShipDraft(orderId)
-            openNotice('success', data?.message || `Đã ghi nhận giao từng phần cho đơn ${orderId}.`)
+            openNotice(
+                'success',
+                data?.message || (isFullShipment
+                    ? `Đã xuất kho đủ số lượng cho đơn ${orderId}.`
+                    : `Đã ghi nhận giao từng phần cho đơn ${orderId}.`),
+            )
 
             await Promise.all([fetchOrders(), fetchKitchenStock()])
             if (expandedId === orderId) {
@@ -1198,7 +1256,9 @@ export default function OrderManagementPage() {
                                                                 disabled={shipLoadingId === order.orderId || !(order.details || []).some((row) => getRemainingToShip(row) > 0 && getMaxShippableNow(row) > 0)}
                                                                 onClick={() => shipPartialOrder(order.orderId)}
                                                             >
-                                                                {shipLoadingId === order.orderId ? 'Đang ghi nhận...' : 'Giao từng phần'}
+                                                                {shipLoadingId === order.orderId
+                                                                    ? 'Đang ghi nhận...'
+                                                                    : (isFullShipmentDraft(order) ? 'Xuất kho' : 'Giao từng phần')}
                                                             </button>
                                                         )}
                                                         {canCancelOrder(order.status) && (
@@ -1243,8 +1303,8 @@ export default function OrderManagementPage() {
                                                                             <td className="px-3 py-2 text-sm font-semibold text-center whitespace-nowrap">{target}</td>
                                                                             <td className="px-3 py-2 text-sm font-semibold text-center text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{shipped}</td>
                                                                             <td className={`px-3 py-2 text-sm font-semibold text-center whitespace-nowrap ${remaining <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{remaining}</td>
-                                                                            <td className={`px-3 py-2 text-sm font-semibold text-center whitespace-nowrap ${stockQty !== null && stockQty <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                                                {stockQty === null ? 'N/A' : stockQty}
+                                                                            <td className={`px-3 py-2 text-sm font-semibold text-center whitespace-nowrap ${stockQty <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                                                {stockQty}
                                                                             </td>
                                                                             <td className="px-3 py-2 text-center">
                                                                                 <input

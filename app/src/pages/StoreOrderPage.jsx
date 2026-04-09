@@ -214,6 +214,20 @@ function toInventoryLogRow(item, productNameById) {
     }
 }
 
+function toProductCatalogRows(rawProducts) {
+    return parseArrayData(rawProducts)
+        .map((item) => {
+            const id = parseSafeNumber(item?.productId ?? item?.id, 0)
+            if (!id) return null
+
+            return {
+                id,
+                name: item?.productName || item?.name || `Sản phẩm chưa có tên`,
+            }
+        })
+        .filter(Boolean)
+}
+
 function resolveStoreIdFromTokenOrStorage() {
     const direct = localStorage.getItem('store_id') || localStorage.getItem('storeId') || localStorage.getItem('current_store_id')
     if (String(direct || '').trim()) return Number(direct)
@@ -493,6 +507,10 @@ export default function StoreOrderPage() {
                 Authorization: `Bearer ${token}`,
             }
 
+            const productsRes = await fetch(`${apiBase}/Products`, { method: 'GET', headers })
+            const productsJson = productsRes.ok ? await productsRes.json().catch(() => []) : []
+            const productCatalog = toProductCatalogRows(productsJson)
+
             const inventoryUrl = inventoryFilter === 'store'
                 ? `${apiBase}/Inventory/store/${parsedStoreId}`
                 : `${apiBase}/Inventory/stock`
@@ -511,11 +529,20 @@ export default function StoreOrderPage() {
                 setInventoryInfo('Không thể tải nhật ký tồn kho từ /Inventory/logs (backend đang lỗi hoặc chưa sẵn sàng). Vẫn hiển thị dữ liệu tồn kho hiện tại.')
             }
 
-            const productNameById = productOptions.reduce((acc, item) => {
+            const productNameById = productCatalog.reduce((acc, item) => {
                 const id = Number(item?.id)
                 if (id > 0) acc[id] = item?.name || `Sản phẩm chưa có tên`
                 return acc
             }, {})
+
+            if (Object.keys(productNameById).length === 0) {
+                productOptions.forEach((item) => {
+                    const id = Number(item?.id)
+                    if (id > 0 && !productNameById[id]) {
+                        productNameById[id] = item?.name || `Sản phẩm chưa có tên`
+                    }
+                })
+            }
 
             let inventoryRecords = parseArrayData(inventoryJson)
 
@@ -526,6 +553,29 @@ export default function StoreOrderPage() {
             const normalizedInventory = inventoryRecords
                 .map((item) => toInventoryRow(item, productNameById))
                 .filter((item) => item.productId > 0)
+
+            const existingProductIds = new Set(normalizedInventory.map((item) => Number(item.productId)))
+            const fallbackZeroRows = Object.entries(productNameById)
+                .map(([productIdRaw, productName]) => {
+                    const productId = Number(productIdRaw)
+                    if (!productId || existingProductIds.has(productId)) return null
+
+                    return {
+                        id: `virtual-${inventoryFilter}-${productId}`,
+                        productId,
+                        productName,
+                        locationType: inventoryFilter === 'store' ? 'Cửa hàng' : 'Không có',
+                        locationId: inventoryFilter === 'store' ? parsedStoreId : 0,
+                        currentQuantity: 0,
+                        minQuantity: 0,
+                        lastUpdated: null,
+                        status: 'critical',
+                    }
+                })
+                .filter(Boolean)
+
+            const mergedInventory = [...normalizedInventory, ...fallbackZeroRows]
+                .sort((a, b) => String(a.productName || '').localeCompare(String(b.productName || ''), 'vi'))
 
             const normalizedLogs = logsRes.ok
                 ? parseArrayData(logsJson)
@@ -543,7 +593,7 @@ export default function StoreOrderPage() {
                 setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho cửa hàng hiện tại.')
             }
 
-            setInventoryRows(normalizedInventory)
+            setInventoryRows(mergedInventory)
             setInventoryLogs(normalizedLogs)
         } catch (error) {
             setInventoryRows([])
@@ -2055,8 +2105,14 @@ export default function StoreOrderPage() {
                             </div>
                         )}
                         {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm grid place-items-center p-3 sm:p-4 overflow-hidden">
-                                <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+                            <div
+                                className="fixed inset-0 z-[90] bg-slate-950/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-5 overflow-y-auto"
+                                onClick={closeDetailModal}
+                            >
+                                <div
+                                    className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col"
+                                    onClick={(event) => event.stopPropagation()}
+                                >
                                     {/* Header */}
                                     <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
