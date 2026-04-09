@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.DAL;
 using Shop2026.Models;
+using Shop2026.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Shop2026.DLL
 {
@@ -72,11 +74,9 @@ namespace Shop2026.DLL
             // Phân rã tiếp các nguyên liệu con theo định mức BOM gốc.
             foreach (var recipe in recipes)
             {
-                // Mỗi cái bánh cha cần 'QuantityRequired' nguyên liệu con.
-                decimal childNetQty = requiredNetQty * recipe.QuantityRequired;
-
-                // Gọi đệ quy tiếp tục chui xuống dưới
-                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childNetQty, aggregatedRawMaterials);
+                // Áp dụng tính hao hụt từ nhánh update_function_material (đã fix lỗi tên biến requiredNetQty)
+                decimal childQty = requiredNetQty * recipe.QuantityRequired * (1 + (recipe.MaxWastePercent ?? 0) / 100m);
+                CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }
 
@@ -112,6 +112,8 @@ namespace Shop2026.DLL
                 var trackedOrder = _repo.GetContext().InternalOrders.Find(order.OrderId);
                 if (trackedOrder == null)
                     throw new Exception("Không tìm thấy đơn hàng");
+                if (order.StoreId <= 0)
+                    throw new Exception("Đơn hàng thiếu StoreId hợp lệ để cộng tồn kho cửa hàng.");
 
                 foreach (var detail in details)
                 {
@@ -125,8 +127,9 @@ namespace Shop2026.DLL
                     UpdateStockAndLog(detail.ProductId ?? 0, "KITCHEN", order.KitchenId ?? 1, -quantityToShip,
                                       "Xuất giao cửa hàng", order.OrderId, "INTERNAL_ORDER");
 
+                    // Đồng thời cộng vào kho STORE để cửa hàng thấy tồn tăng sau khi bếp xuất giao.
                     UpdateStockAndLog(detail.ProductId ?? 0, "STORE", order.StoreId, quantityToShip,
-                                      "Nhận giao từ bếp", order.OrderId, "INTERNAL_ORDER");
+                                      "Nhập từ bếp trung tâm", order.OrderId, "INTERNAL_ORDER");
 
                     var trackedDetail = _repo.GetContext().InternalOrderDetails.Find(detail.DetailId);
                     if (trackedDetail != null)
@@ -149,6 +152,7 @@ namespace Shop2026.DLL
         }
 
         public IEnumerable<Inventory> GetAllStock() => _repo.GetContext().Inventories.ToList();
+        
         public IEnumerable<StockLog> GetStockLogs() => _repo.GetContext().StockLogs.OrderByDescending(x => x.CreatedAt).ToList();
 
         public IEnumerable<Inventory> GetStoreInventory(int storeId)
@@ -188,7 +192,6 @@ namespace Shop2026.DLL
             try
             {
                 string logReason = BuildImportReason(supplier.SupplierName);
-                // Use supplierId as a meaningful reference for import logs instead of sentinel 0.
                 UpdateStockAndLog(productId, "KITCHEN", kitchenId, quantity, logReason, supplierId, "IMPORT_SUPPLIER", supplierId);
                 _repo.GetContext().SaveChanges();
                 transaction.Commit();
@@ -210,18 +213,23 @@ namespace Shop2026.DLL
 
             if (stock == null)
             {
-                if (changeQty < 0)
-                    throw new Exception($"Sản phẩm ID {productId} không tồn tại trong kho {locationType}. Không thể xuất kho.");
-
+                // Nếu chưa có dòng tồn kho thì xem như tồn = 0.
+                // Với nghiệp vụ xuất kho (changeQty < 0) thì báo thiếu tồn kho thay vì "không tồn tại".
                 stock = new Inventory
                 {
                     ProductId = productId,
                     LocationType = safeLocationType,
                     LocationId = locationId,
-                    CurrentQuantity = changeQty,
+                    CurrentQuantity = 0,
                     LastUpdated = DateTime.Now
                 };
                 _repo.AddInventory(stock);
+
+                var newQuantityWhenMissing = stock.CurrentQuantity + changeQty;
+                if (newQuantityWhenMissing < 0)
+                    throw new Exception($"Không đủ tồn kho. Hiện tại: 0, Cần xuất: {Math.Abs(changeQty)}");
+
+                stock.CurrentQuantity = newQuantityWhenMissing;
             }
             else
             {
@@ -329,6 +337,70 @@ namespace Shop2026.DLL
             catch (Exception)
             {
                 transaction.Rollback();
+                throw;
+            }
+        }
+
+        public async Task<List<InventoryItemDTO>> GetStoreInventoryAsync(int storeId)
+        {
+            var inventories = await _repo.GetInventoryByLocationAsync("STORE", storeId);
+
+            return inventories.Select(i => new InventoryItemDTO
+            {
+                InventoryId = i.InventoryId,
+                ProductId = i.ProductId ?? 0,
+                ProductName = i.Product?.ProductName ?? "N/A",
+                BaseUnit = i.Product?.BaseUnit ?? "N/A",
+                CurrentQuantity = i.CurrentQuantity ?? 0,
+                LastUpdated = i.LastUpdated
+            }).ToList();
+        }
+
+        public async Task<bool> ProcessStoreOutboundAsync(int storeId, OutboundRequestDTO request)
+        {
+            if (request.Quantity <= 0)
+                throw new ArgumentException("Số lượng xuất kho phải lớn hơn 0.");
+
+            var context = _repo.GetContext();
+
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var inventory = await _repo.GetStockAsync(request.ProductId, "STORE", storeId);
+
+                if (inventory == null || inventory.CurrentQuantity < request.Quantity)
+                {
+                    throw new InvalidOperationException("Số lượng tồn kho không đủ để thực hiện xuất/hủy.");
+                }
+
+                // 1. Trừ tồn kho
+                inventory.CurrentQuantity -= request.Quantity;
+                inventory.LastUpdated = DateTime.Now;
+                _repo.UpdateInventory(inventory);
+
+                // 2. Ghi nhận lịch sử (StockLog)
+                var stockLog = new StockLog
+                {
+                    ProductId = request.ProductId,
+                    LocationType = "STORE",
+                    LocationId = storeId,
+                    ChangeQuantity = -request.Quantity, // Lưu số âm cho xuất kho
+                    Reason = request.Reason,
+                    ReferenceType = request.Note,
+                    CreatedAt = DateTime.Now
+                };
+                _repo.AddStockLog(stockLog);
+
+                // 3. Lưu thay đổi và Commit Transaction
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return true;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
                 throw;
             }
         }

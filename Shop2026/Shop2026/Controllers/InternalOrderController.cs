@@ -34,18 +34,18 @@ namespace Shop2026.Controllers
             return claim != null && int.TryParse(claim, out userId);
         }
 
-        private bool IsAdmin() => User.IsInRole("ADMIN");
+        private bool IsAdminOrManager() => User.IsInRole("ADMIN") || User.IsInRole("MANAGER");
 
         [HttpPost]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult CreateOrder([FromBody] CreateInternalOrderRequest request)
         {
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 if (request.StoreId <= 0)
                     return BadRequest(new
                     {
-                        message = "ADMIN vui lòng truyền StoreId hợp lệ để tạo đơn."
+                        message = "Vui lòng truyền StoreId hợp lệ để tạo đơn."
                     });
             }
             else
@@ -71,11 +71,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("{orderId}/pay")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult PayOrder(int orderId)
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var orderForStore = _orderService.GetOrderDetail(orderId);
                 if (orderForStore == null)
@@ -108,11 +108,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("{orderId}/vnpay-link")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult CreateVnPayLink(int orderId, [FromQuery] string returnUrl = "http://localhost:5173/payment-result")
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var order = _orderService.GetOrderDetail(orderId);
                 if (order == null)
@@ -183,16 +183,16 @@ namespace Shop2026.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult GetStoreOrders([FromQuery] string? status, [FromQuery] int? storeId)
         {
             int targetStoreId;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 if (!storeId.HasValue || storeId.Value <= 0)
                     return BadRequest(new
                     {
-                        message = "ADMIN vui lòng cung cấp ?storeId= trên URL."
+                        message = "Vui lòng cung cấp ?storeId= trên URL."
                     });
                 targetStoreId = storeId.Value;
             }
@@ -208,7 +208,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpGet("{orderId}")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult GetOrderDetail(int orderId)
         {
             var order = _orderService.GetOrderDetail(orderId);
@@ -217,7 +217,7 @@ namespace Shop2026.Controllers
                 {
                     message = "Order not found"
                 });
-            if (!IsAdmin())
+            if (!IsAdminOrManager())
             {
                 if (!TryGetStoreId(out int storeId) || order.StoreId != storeId)
                     return Forbid();
@@ -226,11 +226,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{orderId}/cancel")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult CancelOrder(int orderId)
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var order = _orderService.GetOrderDetail(orderId);
                 if (order == null)
@@ -266,11 +266,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{orderId}/confirm-completed")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult ConfirmOrderCompleted(int orderId)
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var orderForStore = _orderService.GetOrderDetail(orderId);
                 if (orderForStore == null)
@@ -413,11 +413,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{orderId}/return")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult ReturnOrder(int orderId, [FromBody] RejectOrderRequest request)
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var orderForStore = _orderService.GetOrderDetail(orderId);
                 if (orderForStore == null)
@@ -454,10 +454,10 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("feedback")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult SubmitFeedback([FromBody] CreateFeedbackRequest request)
         {
-            if (!TryGetStoreId(out int storeId))
+            if (!TryGetStoreId(out int storeId) && !IsAdminOrManager())
                 return Unauthorized(new
                 {
                     message = "Invalid StoreId"
@@ -479,7 +479,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpGet("refund-policies")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult GetRefundPolicies()
         {
             var policies = InternalOrderService.RefundPolicies.Select(p => new
@@ -492,11 +492,11 @@ namespace Shop2026.Controllers
         }
 
         [HttpPost("{orderId}/refund")]
-        [Authorize(Roles = "ADMIN, STORE_STAFF")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult RefundOrderByPolicy(int orderId, [FromBody] RefundByPolicyRequest request)
         {
             int storeIdToPass;
-            if (IsAdmin())
+            if (IsAdminOrManager())
             {
                 var orderForStore = _orderService.GetOrderDetail(orderId);
                 if (orderForStore == null)

@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.Models;
 
 namespace Shop2026.Context;
@@ -15,6 +13,7 @@ public partial class ApplicationDbContext : DbContext
         : base(options)
     {
     }
+
 
     public virtual DbSet<Category> Categories
     {
@@ -77,6 +76,7 @@ public partial class ApplicationDbContext : DbContext
         get; set;
     }
 
+
     // ✅ DBSET MỚI: BÁO CÁO HAO HỤT THỰC TẾ
     public virtual DbSet<ProductionBatchMaterial> ProductionBatchMaterials
     {
@@ -85,7 +85,13 @@ public partial class ApplicationDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=Kitchen2026;User Id=sa;Password=12345;TrustServerCertificate=True;");
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlServer(
+                "Server=localhost;Database=Kitchen2026;User Id=sa;Password=12345;TrustServerCertificate=True;");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -187,7 +193,9 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.PurchasePrice).HasColumnType("decimal(18, 2)").HasColumnName("purchase_price").HasDefaultValue(0m);
             entity.Property(e => e.InternalPrice).HasColumnType("decimal(18, 2)").HasColumnName("internal_price").HasDefaultValue(0m);
 
+
             // ❌ ĐÃ GỠ BỎ DEFAULT WASTE PERCENT CHO CHUẨN V2
+
 
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
                 .HasForeignKey(d => d.CategoryId).HasConstraintName("FK__Products__catego__48CFD27E");
@@ -255,6 +263,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.RecipeId).HasColumnName("recipe_id");
             entity.Property(e => e.MaterialId).HasColumnName("material_id");
             entity.Property(e => e.ParentProductId).HasColumnName("parent_product_id");
+
             entity.Property(e => e.QuantityRequired).HasColumnType("decimal(12, 4)").HasColumnName("quantity_required");
 
             // ✅ CẤU HÌNH MAX WASTE THEO TỪNG CÔNG THỨC
@@ -262,6 +271,7 @@ public partial class ApplicationDbContext : DbContext
                 .HasColumnType("decimal(5, 2)")
                 .HasColumnName("waste_allowance_percent")
                 .HasDefaultValue(0m);
+
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
                 .HasForeignKey(d => d.MaterialId).HasConstraintName("FK__Recipes_B__mater__4D94879B");

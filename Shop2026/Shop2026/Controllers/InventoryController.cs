@@ -5,12 +5,13 @@ using Microsoft.Extensions.Logging;
 using Shop2026.DLL;
 using Shop2026.DTOs;
 using System;
+using System.Threading.Tasks;
 
 namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")]
+    [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF, KITCHEN_STAFF")]
     public class InventoryController : ControllerBase
     {
         private readonly InventoryService _service;
@@ -22,17 +23,28 @@ namespace Shop2026.Controllers
             _logger = logger;
         }
 
+        // Xem danh sách tồn kho hiện tại (KITCHEN & STORE)
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
 
-        [HttpGet("store/{storeId}")]
-        public IActionResult GetStoreInventory(int storeId)
-        {
-            return Ok(_service.GetStoreInventory(storeId));
-        }
-
+        // Xem lịch sử ra/vào kho (Nhật ký)
         [HttpGet("logs")]
         public IActionResult GetLogs() => Ok(_service.GetStockLogs());
+
+        // Xem tồn kho của Store cụ thể (Dùng bản Async từ nhánh update_function_material)
+        [HttpGet("store/{storeId}")]
+        public async Task<IActionResult> GetStoreInventory(int storeId)
+        {
+            try
+            {
+                var data = await _service.GetStoreInventoryAsync(storeId);
+                return Ok(new { success = true, data = data });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpPost("transfer/{orderId}")]
         public IActionResult TransferToStore(int orderId)
@@ -47,13 +59,11 @@ namespace Shop2026.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
+                return BadRequest(new { message = ex.Message });
             }
         }
 
+        // Nhập nguyên liệu (Giữ lại bản có Logging chi tiết từ HEAD)
         [HttpPost("import")]
         public IActionResult ImportRawMaterial([FromBody] ImportMaterialRequest request)
         {
@@ -106,6 +116,35 @@ namespace Shop2026.Controllers
                 });
             }
         }
+
+        // Xuất/Hủy kho từ Store (Từ nhánh update_function_material)
+        [HttpPost("store/{storeId}/outbound")]
+        public async Task<IActionResult> ProcessStoreOutbound(int storeId, [FromBody] OutboundRequestDTO request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Dữ liệu đầu vào không hợp lệ." });
+
+            try
+            {
+                var result = await _service.ProcessStoreOutboundAsync(storeId, request);
+
+                if (result)
+                {
+                    return Ok(new { success = true, message = "Xuất/Hủy kho thành công." });
+                }
+                return BadRequest(new { success = false, message = "Không thể xử lý yêu cầu." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = "Lỗi máy chủ: " + ex.Message });
+            }
+        }
+
+        // --- CÁC HÀM HELPER XỬ LÝ LỖI TỪ HEAD ---
 
         private static string ToClientImportMessage(Exception ex)
         {

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { decodeJwtPayload, saveUserRole } from '../utils/auth';
+import { getDefaultPathByRole } from '../data/appSchema'
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -77,10 +78,11 @@ export default function LoginPage() {
             localStorage.setItem('auth_token', rawToken);
             localStorage.setItem('token', rawToken);
             const payload = decodeJwtPayload(rawToken);
-            detectRole(payload, data);
+            const role = detectRole(payload, data);
 
             setStatus('Đăng nhập thành công. Đang chuyển trang...');
-            setTimeout(() => navigate('/dashboard'), 400);
+            const nextPath = getDefaultPathByRole(role)
+            setTimeout(() => navigate(nextPath), 400);
         } catch (err) {
             setError(err.message || 'Đăng nhập thất bại');
         } finally {
