@@ -123,7 +123,15 @@ export function clearAuthStorage() {
   localStorage.removeItem('token')
   localStorage.removeItem('access_token')
   localStorage.removeItem('user_role')
+  localStorage.removeItem('storeId')
+  localStorage.removeItem('store_id')
+  localStorage.removeItem('userId')
   sessionStorage.removeItem('auth_token')
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('access_token')
+}
+
+export function getStoreIdFromToken() {
+  const payload = decodeJwtPayload(getStoredToken())
+  return payload?.StoreId || null
 }

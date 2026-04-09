@@ -972,6 +972,10 @@ export default function CreateProductionBatchPage() {
                 actualUsed: usage.actualUsed,
                 actualWasted: usage.actualWasted,
             }))
+
+            let completedData = {}
+            let completedSuccessfully = false
+            let lastErrorMsg = ''
             const statusPayloadVariants = [
                 { status: 'COMPLETED', quantityActual: actualQty, additionalMaterials },
                 { status: 'COMPLETED', quantityActual: actualQty },
@@ -981,9 +985,6 @@ export default function CreateProductionBatchPage() {
                 { request: { Status: 'COMPLETED', QuantityActual: actualQty, AdditionalMaterials: additionalMaterials } },
             ]
 
-            let completedData = {}
-            let completedSuccessfully = false
-            let lastErrorMsg = ''
             let shouldTryLegacyCompleteEndpoint = false
 
             for (let index = 0; index < statusPayloadVariants.length; index += 1) {

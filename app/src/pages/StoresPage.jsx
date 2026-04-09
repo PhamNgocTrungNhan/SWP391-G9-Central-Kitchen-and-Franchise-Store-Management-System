@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { MetricsStrip } from '../components/ui'
-import { getCurrentUserRole } from '../utils/auth'
+import { getCurrentUserRole, getStoreIdFromToken } from '../utils/auth'
 
 function parseArrayData(raw) {
     if (Array.isArray(raw)) return raw
@@ -43,6 +43,21 @@ export default function StoresPage() {
         isActive: true,
     })
 
+    const [showInventoryModal, setShowInventoryModal] = useState(false)
+    const [inventoryStoreId, setInventoryStoreId] = useState(null)
+    const [inventoryStoreName, setInventoryStoreName] = useState('')
+    const [inventoryData, setInventoryData] = useState([])
+    const [inventoryLoading, setInventoryLoading] = useState(false)
+    const [outboundForm, setOutboundForm] = useState({ productId: '', quantity: '', reason: 'SOLD', note: '' })
+    const [outboundSubmitting, setOutboundSubmitting] = useState(false)
+
+    const [stockLogs, setStockLogs] = useState([])
+    const [stockLogsLoading, setStockLogsLoading] = useState(false)
+    const [staffActiveTab, setStaffActiveTab] = useState('inventory')
+
+    const isStoreStaff = currentRole === 'STORE_STAFF'
+    const userStoreId = localStorage.getItem('storeId') || localStorage.getItem('store_id') || getStoreIdFromToken()
+
     const openNotice = (type, message) => setNotice({ open: true, type, message })
     const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
 
@@ -81,12 +96,8 @@ export default function StoresPage() {
 
             let storesArray = parseArrayData(data)
 
-            // Nếu là STORE_STAFF, chỉ hiển thị cửa hàng của mình
-            if (currentRole === 'STORE_STAFF') {
-                const userStoreId = localStorage.getItem('storeId') || localStorage.getItem('store_id')
-                if (userStoreId) {
-                    storesArray = storesArray.filter(s => Number(s.storeId) === Number(userStoreId))
-                }
+            if (isStoreStaff && userStoreId) {
+                storesArray = storesArray.filter(s => Number(s.storeId) === Number(userStoreId))
             }
 
             setStores(storesArray)
@@ -263,6 +274,95 @@ export default function StoresPage() {
         }
     }
 
+    const openInventoryModal = async (store) => {
+        setInventoryStoreId(store.storeId)
+        setInventoryStoreName(store.storeName || `Store #${store.storeId}`)
+        setShowInventoryModal(true)
+        setInventoryData([])
+        setOutboundForm({ productId: '', quantity: '', reason: 'SOLD', note: '' })
+        await fetchInventory(store.storeId)
+    }
+
+    const fetchInventory = async (storeId) => {
+        const token = getToken()
+        if (!token) return
+        setInventoryLoading(true)
+        try {
+            const res = await fetch(`${apiBase}/Inventory/store/${storeId}`, {
+                headers: { accept: '*/*', Authorization: `Bearer ${token}` },
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(json?.message || 'Không thể tải tồn kho.')
+            setInventoryData(Array.isArray(json?.data) ? json.data : [])
+        } catch (err) {
+            openNotice('error', err.message || 'Tải tồn kho thất bại.')
+            setInventoryData([])
+        } finally {
+            setInventoryLoading(false)
+        }
+    }
+
+    const handleOutbound = async (reasonType) => {
+        if (!outboundForm.productId || !outboundForm.quantity || Number(outboundForm.quantity) <= 0) {
+            openNotice('error', 'Vui lòng chọn sản phẩm và nhập số lượng hợp lệ.')
+            return
+        }
+        const token = getToken()
+        if (!token) return
+
+        const reasonLabels = { SOLD: 'Xuất kho (Bán)', DAMAGED: 'Hủy hàng (Hỏng)', ADJUSTMENT: 'Điều chỉnh giảm' }
+
+        setOutboundSubmitting(true)
+        try {
+            const res = await fetch(`${apiBase}/Inventory/store/${inventoryStoreId}/outbound`, {
+                method: 'POST',
+                headers: {
+                    accept: '*/*',
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    productId: Number(outboundForm.productId),
+                    quantity: Number(outboundForm.quantity),
+                    reason: reasonLabels[reasonType] || reasonType,
+                    note: outboundForm.note || reasonType,
+                }),
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(json?.message || 'Thao tác thất bại.')
+            openNotice('success', json?.message || 'Thao tác thành công.')
+            setOutboundForm({ productId: '', quantity: '', reason: 'SOLD', note: '' })
+            const refreshId = inventoryStoreId || (isStoreStaff && userStoreId ? Number(userStoreId) : null)
+            if (refreshId) {
+                await fetchInventory(refreshId)
+                if (isStoreStaff) await fetchStoreLogs(refreshId)
+            }
+        } catch (err) {
+            openNotice('error', err.message || 'Thao tác thất bại.')
+        } finally {
+            setOutboundSubmitting(false)
+        }
+    }
+
+    const fetchStoreLogs = async (storeId) => {
+        const token = getToken()
+        if (!token) return
+        setStockLogsLoading(true)
+        try {
+            const res = await fetch(`${apiBase}/Inventory/store/${storeId}/logs`, {
+                headers: { accept: '*/*', Authorization: `Bearer ${token}` },
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(json?.message || 'Không thể tải lịch sử kho.')
+            setStockLogs(Array.isArray(json?.data) ? json.data : [])
+        } catch (err) {
+            openNotice('error', err.message || 'Tải lịch sử kho thất bại.')
+            setStockLogs([])
+        } finally {
+            setStockLogsLoading(false)
+        }
+    }
+
     const stats = useMemo(() => ({
         total: stores.length,
         active: stores.filter((s) => s.isActive).length,
@@ -316,6 +416,11 @@ export default function StoresPage() {
 
     useEffect(() => {
         fetchStores()
+        if (isStoreStaff && userStoreId) {
+            fetchInventory(Number(userStoreId))
+            fetchStoreLogs(Number(userStoreId))
+            setInventoryStoreId(Number(userStoreId))
+        }
     }, [])
 
     return (
@@ -347,41 +452,42 @@ export default function StoresPage() {
                     </p>
                 </div>
 
-                <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
+                {!isStoreStaff && <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />}
 
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Tìm kiếm</span>
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Tìm theo tên, địa chỉ hoặc số điện thoại..."
-                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo trạng thái</span>
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                            >
-                                <option value="All">Tất cả</option>
-                                <option value="Active">Đang hoạt động</option>
-                                <option value="Inactive">Ngừng hoạt động</option>
-                            </select>
-                        </label>
+                {!isStoreStaff && (
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Tìm kiếm</span>
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Tìm theo tên, địa chỉ hoặc số điện thoại..."
+                                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                />
+                            </label>
+                            <label className="block">
+                                <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo trạng thái</span>
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                >
+                                    <option value="All">Tất cả</option>
+                                    <option value="Active">Đang hoạt động</option>
+                                    <option value="Inactive">Ngừng hoạt động</option>
+                                </select>
+                            </label>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     {loading ? <div className="px-4 py-3 text-sm text-slate-500">Đang tải dữ liệu...</div> : null}
                     {!loading && filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500">Không có cửa hàng phù hợp.</div> : null}
 
-                    {!loading && filtered.length > 0 && currentRole === 'STORE_STAFF' && filtered.length === 1 ? (
-                        // Card view cho STORE_STAFF (chỉ 1 cửa hàng)
+                    {!loading && filtered.length > 0 && isStoreStaff ? (
                         <div className="p-6">
                             {filtered.map((store) => (
                                 <div key={store.storeId} className="space-y-6">
@@ -412,12 +518,6 @@ export default function StoresPage() {
                                             <p className="text-slate-900 dark:text-slate-100 pl-7">{store.phone}</p>
                                         </div>
                                     </div>
-
-                                    <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                                            Đây là thông tin cửa hàng bạn đang quản lý. Nếu có thay đổi, vui lòng liên hệ quản trị viên.
-                                        </p>
-                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -426,12 +526,12 @@ export default function StoresPage() {
                         <table className="w-full table-fixed text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
-                                    <th className="w-[24%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
-                                    <th className="w-[27%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
-                                    <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Điện thoại</th>
+                                    <th className="w-[6%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
+                                    <th className="w-[20%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
+                                    <th className="w-[24%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
+                                    <th className="w-[13%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Điện thoại</th>
                                     <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái</th>
-                                    {isAdmin && <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
+                                    {isAdmin && <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -449,6 +549,12 @@ export default function StoresPage() {
                                         {isAdmin && (
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 <div className="flex items-center gap-2">
+                                                    <button
+                                                        className="h-8 px-3 rounded-lg bg-violet-500 text-white text-xs font-semibold hover:bg-violet-600 transition-colors"
+                                                        onClick={() => openInventoryModal(store)}
+                                                    >
+                                                        Tồn kho
+                                                    </button>
                                                     <button
                                                         className="h-8 px-3 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
                                                         onClick={() => openEditModal(store)}
@@ -470,6 +576,127 @@ export default function StoresPage() {
                         </table>
                     ) : null}
                 </div>
+
+                {isStoreStaff && userStoreId && (
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div className="flex border-b border-slate-200 dark:border-slate-800">
+                            <button
+                                className={`flex-1 px-4 py-3 text-sm font-bold transition-colors ${staffActiveTab === 'inventory' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => setStaffActiveTab('inventory')}
+                            >
+                                <span className="material-symbols-outlined text-[18px] align-middle mr-1">inventory_2</span>
+                                Kho hàng
+                            </button>
+                            <button
+                                className={`flex-1 px-4 py-3 text-sm font-bold transition-colors ${staffActiveTab === 'logs' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setStaffActiveTab('logs'); fetchStoreLogs(Number(userStoreId)) }}
+                            >
+                                <span className="material-symbols-outlined text-[18px] align-middle mr-1">history</span>
+                                Lịch sử kho
+                            </button>
+                        </div>
+
+                        <div className="p-5">
+                            {staffActiveTab === 'inventory' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-base font-bold">Tồn kho cửa hàng</h3>
+                                        <button
+                                            onClick={() => fetchInventory(Number(userStoreId))}
+                                            disabled={inventoryLoading}
+                                            className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px] align-middle mr-1">refresh</span>
+                                            Tải lại
+                                        </button>
+                                    </div>
+                                    {inventoryLoading && <p className="text-sm text-slate-500">Đang tải dữ liệu tồn kho...</p>}
+                                    {!inventoryLoading && inventoryData.length === 0 && (
+                                        <p className="text-sm text-slate-500">Chưa có sản phẩm nào trong kho.</p>
+                                    )}
+                                    {!inventoryLoading && inventoryData.length > 0 && (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Số lượng</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cập nhật</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {inventoryData.map((item) => (
+                                                        <tr key={item.inventoryId || item.productId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                                                            <td className="px-3 py-2 text-sm">{item.productId}</td>
+                                                            <td className="px-3 py-2 text-sm font-medium">{item.productName}</td>
+                                                            <td className="px-3 py-2 text-sm">{item.baseUnit}</td>
+                                                            <td className="px-3 py-2 text-sm text-right font-semibold">{Number(item.currentQuantity).toLocaleString('vi-VN')}</td>
+                                                            <td className="px-3 py-2 text-sm text-slate-500">{item.lastUpdated ? new Date(item.lastUpdated).toLocaleString('vi-VN') : '-'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {staffActiveTab === 'logs' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-base font-bold">Lịch sử điều chỉnh kho</h3>
+                                        <button
+                                            onClick={() => fetchStoreLogs(Number(userStoreId))}
+                                            disabled={stockLogsLoading}
+                                            className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px] align-middle mr-1">refresh</span>
+                                            Tải lại
+                                        </button>
+                                    </div>
+                                    {stockLogsLoading && <p className="text-sm text-slate-500">Đang tải lịch sử kho...</p>}
+                                    {!stockLogsLoading && stockLogs.length === 0 && (
+                                        <p className="text-sm text-slate-500">Chưa có lịch sử điều chỉnh kho.</p>
+                                    )}
+                                    {!stockLogsLoading && stockLogs.length > 0 && (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thời gian</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thay đổi</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Lý do</th>
+                                                        <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Loại</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {stockLogs.map((log) => (
+                                                        <tr key={log.logId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                                                            <td className="px-3 py-2 text-sm text-slate-500">{log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : '-'}</td>
+                                                            <td className="px-3 py-2 text-sm font-medium">{log.productName}</td>
+                                                            <td className={`px-3 py-2 text-sm text-right font-semibold ${Number(log.changeQuantity) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                                {Number(log.changeQuantity) > 0 ? '+' : ''}{Number(log.changeQuantity).toLocaleString('vi-VN')}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-sm">{log.reason}</td>
+                                                            <td className="px-3 py-2 text-sm">
+                                                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                    {log.referenceType || '-'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {showModal && isAdmin && (
@@ -551,6 +778,71 @@ export default function StoresPage() {
                                 onClick={modalMode === 'create' ? createStore : updateStore}
                             >
                                 {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Thêm mới' : 'Cập nhật'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showInventoryModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                            <h3 className="text-lg font-bold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-violet-500">inventory_2</span>
+                                Tồn kho - {inventoryStoreName}
+                            </h3>
+                            <button
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={() => setShowInventoryModal(false)}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                            {inventoryLoading && <p className="text-sm text-slate-500">Đang tải dữ liệu tồn kho...</p>}
+                            {!inventoryLoading && inventoryData.length === 0 && (
+                                <p className="text-sm text-slate-500">Chưa có sản phẩm nào trong kho cửa hàng này.</p>
+                            )}
+                            {!inventoryLoading && inventoryData.length > 0 && (
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                            <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
+                                            <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
+                                            <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn vị</th>
+                                            <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Số lượng</th>
+                                            <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Cập nhật</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {inventoryData.map((item) => (
+                                            <tr key={item.inventoryId || item.productId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                                                <td className="px-3 py-2 text-sm">{item.productId}</td>
+                                                <td className="px-3 py-2 text-sm font-medium">{item.productName}</td>
+                                                <td className="px-3 py-2 text-sm">{item.baseUnit}</td>
+                                                <td className="px-3 py-2 text-sm text-right font-semibold">{Number(item.currentQuantity).toLocaleString('vi-VN')}</td>
+                                                <td className="px-3 py-2 text-sm text-slate-500">{item.lastUpdated ? new Date(item.lastUpdated).toLocaleString('vi-VN') : '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+
+                            {!inventoryLoading && inventoryData.length > 0 && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-200 dark:border-slate-800">
+                                    Thao tác xuất kho / hủy hàng / điều chỉnh chỉ khả dụng cho nhân viên cửa hàng (Store Staff).
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-end px-6 py-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
+                            <button
+                                className="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                onClick={() => setShowInventoryModal(false)}
+                            >
+                                Đóng
                             </button>
                         </div>
                     </div>

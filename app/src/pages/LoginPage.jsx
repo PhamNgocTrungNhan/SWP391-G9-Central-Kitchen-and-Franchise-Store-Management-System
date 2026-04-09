@@ -79,6 +79,9 @@ export default function LoginPage() {
             const payload = decodeJwtPayload(rawToken);
             detectRole(payload, data);
 
+            if (payload?.StoreId) localStorage.setItem('storeId', payload.StoreId);
+            if (payload?.UserId) localStorage.setItem('userId', payload.UserId);
+
             setStatus('Đăng nhập thành công. Đang chuyển trang...');
             setTimeout(() => navigate('/dashboard'), 400);
         } catch (err) {

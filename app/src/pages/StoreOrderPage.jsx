@@ -1121,6 +1121,20 @@ export default function StoreOrderPage() {
             }
 
             setReceiveLoading(true)
+
+            try {
+                const transferRes = await fetch(`${apiBase}/Inventory/transfer/${orderId}`, {
+                    method: 'POST',
+                    headers: { accept: '*/*', Authorization: `Bearer ${token}` },
+                })
+                if (!transferRes.ok) {
+                    const transferData = await transferRes.json().catch(() => ({}))
+                    console.warn('Inventory transfer warning:', transferData?.message || transferRes.status)
+                }
+            } catch (transferErr) {
+                console.warn('Inventory transfer failed (non-blocking):', transferErr.message)
+            }
+
             const response = await fetch(`${apiBase}/internal-orders/${orderId}/confirm-completed`, {
                 method: 'PUT',
                 headers: {
