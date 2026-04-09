@@ -295,7 +295,7 @@ public partial class ApplicationDbContext : DbContext
                 .HasColumnType("decimal(12, 4)")
                 .HasColumnName("quantity_required");
 
-            // ❌ ĐÃ XÓA CỘT WasteAllowancePercent TẠI ĐÂY
+            // waste_allowance_percent was dropped from Recipes_BOM; do not add WasteAllowancePercent to RecipesBom (EF would query it).
 
             entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
                 .HasForeignKey(d => d.MaterialId)
