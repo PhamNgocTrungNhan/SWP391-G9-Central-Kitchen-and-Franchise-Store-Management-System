@@ -44,7 +44,12 @@ public partial class Product
     public virtual ICollection<RecipesBom> RecipesBomMaterials { get; set; } = new List<RecipesBom>();
     public virtual ICollection<RecipesBom> RecipesBomParentProducts { get; set; } = new List<RecipesBom>();
     public virtual ICollection<StockLog> StockLogs { get; set; } = new List<StockLog>();
+<<<<<<< Updated upstream
 
     // ✅ THÊM LIÊN KẾT ĐẾN BẢNG HAO HỤT THỰC TẾ
     public virtual ICollection<ProductionBatchMaterial> ProductionBatchMaterials { get; set; } = new List<ProductionBatchMaterial>();
 }
+=======
+    public virtual ICollection<ProductionBatchMaterial> ProductionBatchMaterials { get; set; } = new List<ProductionBatchMaterial>();
+}
+>>>>>>> Stashed changes

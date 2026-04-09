@@ -24,6 +24,9 @@ public partial class ProductionBatch
     public virtual Product? Product { get; set; }
 
     public virtual ICollection<ProductionBatchOrder> ProductionBatchOrders { get; set; } = new List<ProductionBatchOrder>();
+<<<<<<< Updated upstream
     // (Chỉ cần thêm dòng này vào cuối file ProductionBatch.cs hiện tại của ông bạn)
+=======
+>>>>>>> Stashed changes
     public virtual ICollection<ProductionBatchMaterial> ProductionBatchMaterials { get; set; } = new List<ProductionBatchMaterial>();
 }
