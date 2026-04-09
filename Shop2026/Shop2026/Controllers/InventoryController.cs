@@ -25,10 +25,24 @@ namespace Shop2026.Controllers
         [HttpGet("stock")]
         public IActionResult GetStock() => Ok(_service.GetAllStock());
 
+        // ✅ ĐÃ XÓA HÀM CŨ VÀ ĐƯA HÀM GET MỚI LÊN ĐÂY
+        // SỬA LẠI API GET CŨ: Trả về kèm cờ cảnh báo IsLowStock
         [HttpGet("store/{storeId}")]
+        // Dành cho cả Manager và Staff xem kho
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult GetStoreInventory(int storeId)
         {
-            return Ok(_service.GetStoreInventory(storeId));
+            try
+            {
+                return Ok(_service.GetStoreInventoryWithWarning(storeId));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
         }
 
         [HttpGet("logs")]
@@ -180,6 +194,30 @@ namespace Shop2026.Controllers
         {
             var root = GetInnermostMessage(ex);
             return root.Contains("String or binary data would be truncated", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ==========================================
+        // ⚙️ API CHO MANAGER: CÀI ĐẶT MỨC TỒN KHO TỐI THIỂU
+        // ==========================================
+        [HttpPut("store/{storeId}/min-stock")]
+        [Authorize(Roles = "ADMIN, MANAGER")] // Phân quyền chặt chẽ
+        public IActionResult SetMinStock(int storeId, [FromBody] SetMinStockBulkRequest request)
+        {
+            try
+            {
+                _service.SetMinStockLevel(storeId, request);
+                return Ok(new
+                {
+                    message = "Cập nhật mức tồn kho tối thiểu thành công."
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
         }
     }
 }

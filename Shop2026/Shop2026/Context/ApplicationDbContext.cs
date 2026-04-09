@@ -16,7 +16,6 @@ public partial class ApplicationDbContext : DbContext
     {
     }
 
-
     public virtual DbSet<Category> Categories
     {
         get; set;
@@ -78,7 +77,6 @@ public partial class ApplicationDbContext : DbContext
         get; set;
     }
 
-
     // ✅ DBSET MỚI: BÁO CÁO HAO HỤT THỰC TẾ
     public virtual DbSet<ProductionBatchMaterial> ProductionBatchMaterials
     {
@@ -94,11 +92,8 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<Category>(entity =>
         {
             entity.HasKey(e => e.CategoryId).HasName("PK__Categori__D54EE9B4F8A751BC");
-
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
-            entity.Property(e => e.Name)
-                .HasMaxLength(100)
-                .HasColumnName("name");
+            entity.Property(e => e.Name).HasMaxLength(100).HasColumnName("name");
         });
 
         modelBuilder.Entity<InternalOrder>(entity =>
@@ -125,12 +120,9 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.Rating).HasColumnName("rating");
             entity.Property(e => e.FeedbackComment).HasColumnName("feedback_comment");
 
-            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.InternalOrders)
-                .HasForeignKey(d => d.ApprovedBy).HasConstraintName("FK__Internal___appro__5812160E");
-            entity.HasOne(d => d.Kitchen).WithMany(p => p.InternalOrders)
-                .HasForeignKey(d => d.KitchenId).HasConstraintName("FK__Internal___kitch__571DF1D5");
-            entity.HasOne(d => d.Store).WithMany(p => p.InternalOrders)
-                .HasForeignKey(d => d.StoreId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Internal___store__5629CD9C");
+            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.InternalOrders).HasForeignKey(d => d.ApprovedBy).HasConstraintName("FK__Internal___appro__5812160E");
+            entity.HasOne(d => d.Kitchen).WithMany(p => p.InternalOrders).HasForeignKey(d => d.KitchenId).HasConstraintName("FK__Internal___kitch__571DF1D5");
+            entity.HasOne(d => d.Store).WithMany(p => p.InternalOrders).HasForeignKey(d => d.StoreId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Internal___store__5629CD9C");
         });
 
         modelBuilder.Entity<InternalOrderDetail>(entity =>
@@ -145,10 +137,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.QuantityOrdered).HasColumnType("decimal(12, 2)").HasColumnName("quantity_ordered");
             entity.Property(e => e.QuantityShipped).HasDefaultValue(0m).HasColumnType("decimal(12, 2)").HasColumnName("quantity_shipped");
 
-            entity.HasOne(d => d.Order).WithMany(p => p.InternalOrderDetails)
-                .HasForeignKey(d => d.OrderId).HasConstraintName("FK__Internal___order__5BE2A6F2");
-            entity.HasOne(d => d.Product).WithMany(p => p.InternalOrderDetails)
-                .HasForeignKey(d => d.ProductId).HasConstraintName("FK__Internal___produ__5CD6CB2B");
+            entity.HasOne(d => d.Order).WithMany(p => p.InternalOrderDetails).HasForeignKey(d => d.OrderId).HasConstraintName("FK__Internal___order__5BE2A6F2");
+            entity.HasOne(d => d.Product).WithMany(p => p.InternalOrderDetails).HasForeignKey(d => d.ProductId).HasConstraintName("FK__Internal___produ__5CD6CB2B");
         });
 
         modelBuilder.Entity<Inventory>(entity =>
@@ -164,14 +154,15 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.LocationType).HasMaxLength(20).HasColumnName("location_type");
             entity.Property(e => e.ProductId).HasColumnName("product_id");
 
-            entity.HasOne(d => d.Product).WithMany(p => p.Inventories)
-                .HasForeignKey(d => d.ProductId).HasConstraintName("FK__Inventory__produ__693CA210");
+            // ✅ ĐÃ THÊM MAP CỘT MIN STOCK LEVEL
+            entity.Property(e => e.MinStockLevel).HasColumnType("decimal(12, 2)").HasColumnName("min_stock_level").HasDefaultValue(0m);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.Inventories).HasForeignKey(d => d.ProductId).HasConstraintName("FK__Inventory__produ__693CA210");
         });
 
         modelBuilder.Entity<Kitchen>(entity =>
         {
             entity.HasKey(e => e.KitchenId).HasName("PK__Kitchens__E7E63B8647477242");
-
             entity.Property(e => e.KitchenId).HasColumnName("kitchen_id");
             entity.Property(e => e.Address).HasColumnName("address");
             entity.Property(e => e.KitchenName).HasMaxLength(255).HasColumnName("kitchen_name");
@@ -185,24 +176,13 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ProductId).HasColumnName("product_id");
             entity.Property(e => e.BaseUnit).HasMaxLength(20).HasColumnName("base_unit");
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
-
             entity.Property(e => e.ProductName).HasMaxLength(255).HasColumnName("product_name");
             entity.Property(e => e.ProductType).HasMaxLength(50).HasColumnName("product_type");
             entity.Property(e => e.Sku).HasMaxLength(50).HasColumnName("sku");
             entity.Property(e => e.PurchasePrice).HasColumnType("decimal(18, 2)").HasColumnName("purchase_price").HasDefaultValue(0m);
             entity.Property(e => e.InternalPrice).HasColumnType("decimal(18, 2)").HasColumnName("internal_price").HasDefaultValue(0m);
 
-
-            // ❌ ĐÃ GỠ BỎ DEFAULT WASTE PERCENT CHO CHUẨN V2
-
-            // ✅ THÊM CỘT HAO HỤT MẶC ĐỊNH
-            entity.Property(e => e.DefaultWastePercent)
-                .HasColumnType("decimal(5, 2)")
-                .HasColumnName("default_waste_percent")
-                .HasDefaultValue(0m);
-
-            entity.HasOne(d => d.Category).WithMany(p => p.Products)
-                .HasForeignKey(d => d.CategoryId).HasConstraintName("FK__Products__catego__48CFD27E");
+            entity.HasOne(d => d.Category).WithMany(p => p.Products).HasForeignKey(d => d.CategoryId).HasConstraintName("FK__Products__catego__48CFD27E");
         });
 
         modelBuilder.Entity<ProductionBatch>(entity =>
@@ -220,8 +200,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.QuantityPlanned).HasColumnType("decimal(12, 2)").HasColumnName("quantity_planned");
             entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("SCHEDULED").HasColumnName("status");
 
-            entity.HasOne(d => d.Product).WithMany(p => p.ProductionBatches)
-                .HasForeignKey(d => d.ProductId).HasConstraintName("FK__Productio__produ__628FA481");
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductionBatches).HasForeignKey(d => d.ProductId).HasConstraintName("FK__Productio__produ__628FA481");
         });
 
         // ✅ CẤU HÌNH BẢNG MỚI: BÁO CÁO HAO HỤT (PRODUCTION BATCH MATERIALS)
@@ -237,11 +216,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ActualUsed).HasColumnType("decimal(12, 4)").HasColumnName("actual_used");
             entity.Property(e => e.ActualWasted).HasColumnType("decimal(12, 4)").HasColumnName("actual_wasted");
 
-            entity.HasOne(d => d.Batch).WithMany(p => p.ProductionBatchMaterials)
-                .HasForeignKey(d => d.BatchId).HasConstraintName("FK_BatchMaterials_Batch");
-
-            entity.HasOne(d => d.Material).WithMany(p => p.ProductionBatchMaterials)
-                .HasForeignKey(d => d.MaterialId).HasConstraintName("FK_BatchMaterials_Material");
+            entity.HasOne(d => d.Batch).WithMany(p => p.ProductionBatchMaterials).HasForeignKey(d => d.BatchId).HasConstraintName("FK_BatchMaterials_Batch");
+            entity.HasOne(d => d.Material).WithMany(p => p.ProductionBatchMaterials).HasForeignKey(d => d.MaterialId).HasConstraintName("FK_BatchMaterials_Material");
         });
 
         modelBuilder.Entity<ProductionBatchOrder>(entity =>
@@ -253,10 +229,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.OrderId).HasColumnName("order_id");
             entity.Property(e => e.AllocatedQuantity).HasColumnType("decimal(12, 2)").HasColumnName("allocated_quantity");
 
-            entity.HasOne(d => d.Batch).WithMany(p => p.ProductionBatchOrders)
-                .HasForeignKey(d => d.BatchId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Productio__batch__6C190EBB");
-            entity.HasOne(d => d.Order).WithMany(p => p.ProductionBatchOrders)
-                .HasForeignKey(d => d.OrderId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Productio__order__6D0D32F4");
+            entity.HasOne(d => d.Batch).WithMany(p => p.ProductionBatchOrders).HasForeignKey(d => d.BatchId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Productio__batch__6C190EBB");
+            entity.HasOne(d => d.Order).WithMany(p => p.ProductionBatchOrders).HasForeignKey(d => d.OrderId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK__Productio__order__6D0D32F4");
         });
 
         modelBuilder.Entity<RecipesBom>(entity =>
@@ -267,20 +241,16 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.RecipeId).HasColumnName("recipe_id");
             entity.Property(e => e.MaterialId).HasColumnName("material_id");
             entity.Property(e => e.ParentProductId).HasColumnName("parent_product_id");
-
             entity.Property(e => e.QuantityRequired).HasColumnType("decimal(12, 4)").HasColumnName("quantity_required");
 
-            // ✅ CẤU HÌNH MAX WASTE THEO TỪNG CÔNG THỨC
+            // ✅ ĐÃ SỬA LẠI TÊN CỘT MAX WASTE CHO CHUẨN VỚI SQL DB VERSION 2.0
             entity.Property(e => e.MaxWastePercent)
                 .HasColumnType("decimal(5, 2)")
-                .HasColumnName("waste_allowance_percent")
+                .HasColumnName("max_waste_percent")
                 .HasDefaultValue(0m);
 
-
-            entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials)
-                .HasForeignKey(d => d.MaterialId).HasConstraintName("FK__Recipes_B__mater__4D94879B");
-            entity.HasOne(d => d.ParentProduct).WithMany(p => p.RecipesBomParentProducts)
-                .HasForeignKey(d => d.ParentProductId).HasConstraintName("FK__Recipes_B__paren__4CA06362");
+            entity.HasOne(d => d.Material).WithMany(p => p.RecipesBomMaterials).HasForeignKey(d => d.MaterialId).HasConstraintName("FK__Recipes_B__mater__4D94879B");
+            entity.HasOne(d => d.ParentProduct).WithMany(p => p.RecipesBomParentProducts).HasForeignKey(d => d.ParentProductId).HasConstraintName("FK__Recipes_B__paren__4CA06362");
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -308,16 +278,13 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ReferenceType).HasMaxLength(20).HasColumnName("reference_type");
             entity.Property(e => e.SupplierId).HasColumnName("supplier_id");
 
-            entity.HasOne(d => d.Product).WithMany(p => p.StockLogs)
-                .HasForeignKey(d => d.ProductId).HasConstraintName("FK__Stock_Log__produ__70DDC3D8");
-            entity.HasOne(d => d.Supplier).WithMany()
-                .HasForeignKey(d => d.SupplierId).HasConstraintName("FK_Stock_Logs_Suppliers");
+            entity.HasOne(d => d.Product).WithMany(p => p.StockLogs).HasForeignKey(d => d.ProductId).HasConstraintName("FK__Stock_Log__produ__70DDC3D8");
+            entity.HasOne(d => d.Supplier).WithMany().HasForeignKey(d => d.SupplierId).HasConstraintName("FK_Stock_Logs_Suppliers");
         });
 
         modelBuilder.Entity<Store>(entity =>
         {
             entity.HasKey(e => e.StoreId).HasName("PK__Stores__A2F2A30C03A97305");
-
             entity.Property(e => e.StoreId).HasColumnName("store_id");
             entity.Property(e => e.Address).HasColumnName("address");
             entity.Property(e => e.IsActive).HasDefaultValue(true).HasColumnName("is_active");
@@ -338,12 +305,9 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.StoreId).HasColumnName("store_id");
             entity.Property(e => e.Username).HasMaxLength(100).HasColumnName("username");
 
-            entity.HasOne(d => d.Kitchen).WithMany(p => p.Users)
-                .HasForeignKey(d => d.KitchenId).HasConstraintName("FK__Users__kitchen_i__4222D4EF");
-            entity.HasOne(d => d.Role).WithMany(p => p.Users)
-                .HasForeignKey(d => d.RoleId).HasConstraintName("FK__Users__role_id__403A8C7D");
-            entity.HasOne(d => d.Store).WithMany(p => p.Users)
-                .HasForeignKey(d => d.StoreId).HasConstraintName("FK__Users__store_id__412EB0B6");
+            entity.HasOne(d => d.Kitchen).WithMany(p => p.Users).HasForeignKey(d => d.KitchenId).HasConstraintName("FK__Users__kitchen_i__4222D4EF");
+            entity.HasOne(d => d.Role).WithMany(p => p.Users).HasForeignKey(d => d.RoleId).HasConstraintName("FK__Users__role_id__403A8C7D");
+            entity.HasOne(d => d.Store).WithMany(p => p.Users).HasForeignKey(d => d.StoreId).HasConstraintName("FK__Users__store_id__412EB0B6");
         });
 
         modelBuilder.Entity<Supplier>(entity =>
@@ -372,8 +336,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.TransactionDate).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("transaction_date");
             entity.Property(e => e.Note).HasColumnName("note");
 
-            entity.HasOne(d => d.InternalOrder).WithMany()
-                .HasForeignKey(d => d.InternalOrderId).HasConstraintName("FK_Transactions_InternalOrders");
+            entity.HasOne(d => d.InternalOrder).WithMany().HasForeignKey(d => d.InternalOrderId).HasConstraintName("FK_Transactions_InternalOrders");
         });
 
         OnModelCreatingPartial(modelBuilder);

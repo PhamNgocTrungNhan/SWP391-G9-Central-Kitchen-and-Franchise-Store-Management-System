@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Shop2026.DAL;
+using Shop2026.DTOs;
 using Shop2026.Models;
 using System;
 using System.Collections.Generic;
@@ -331,6 +332,71 @@ namespace Shop2026.DLL
                 transaction.Rollback();
                 throw;
             }
+        }
+
+        // ==========================================
+        // ⚙️ API CHO MANAGER: CÀI ĐẶT MỨC TỒN KHO TỐI THIỂU
+        // ==========================================
+        public void SetMinStockLevel(int storeId, SetMinStockBulkRequest request)
+        {
+            using var transaction = _repo.GetContext().Database.BeginTransaction();
+            try
+            {
+                foreach (var item in request.Items)
+                {
+                    var stock = _repo.GetStock(item.ProductId, "STORE", storeId);
+                    if (stock == null)
+                    {
+                        // Nếu chưa có trong kho thì tạo mới dòng tồn kho = 0, nhưng có cảnh báo
+                        stock = new Inventory
+                        {
+                            ProductId = item.ProductId,
+                            LocationType = "STORE",
+                            LocationId = storeId,
+                            CurrentQuantity = 0,
+                            MinStockLevel = item.MinStockLevel,
+                            LastUpdated = DateTime.Now
+                        };
+                        _repo.AddInventory(stock);
+                    }
+                    else
+                    {
+                        stock.MinStockLevel = item.MinStockLevel;
+                        stock.LastUpdated = DateTime.Now;
+                        _repo.UpdateInventory(stock);
+                    }
+                }
+                _repo.GetContext().SaveChanges();
+                transaction.Commit();
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+        // ==========================================
+        // 🚨 NÂNG CẤP: LẤY TỒN KHO CỬA HÀNG (KÈM CẢNH BÁO)
+        // ==========================================
+        public object GetStoreInventoryWithWarning(int storeId)
+        {
+            var inventories = _repo.GetContext().Inventories
+                .Include(i => i.Product)
+                .Where(i => i.LocationType == "STORE" && i.LocationId == storeId)
+                .ToList();
+
+            return inventories.Select(i => new
+            {
+                i.InventoryId,
+                i.ProductId,
+                ProductName = i.Product?.ProductName,
+                Unit = i.Product?.BaseUnit,
+                CurrentQuantity = i.CurrentQuantity ?? 0,
+                MinStockLevel = i.MinStockLevel ?? 0,
+                // ✅ TRIGGER CẢNH BÁO ĐỎ CHO FRONTEND:
+                IsLowStock = (i.CurrentQuantity ?? 0) <= (i.MinStockLevel ?? 0)
+            }).ToList();
         }
     }
 }
