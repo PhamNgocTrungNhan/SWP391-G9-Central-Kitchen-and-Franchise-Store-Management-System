@@ -88,6 +88,11 @@ function parseSafeNumber(value, fallback = 0) {
     return Number.isFinite(n) ? n : fallback
 }
 
+function formatVnd(value) {
+    const normalized = Math.round(parseSafeNumber(value, 0))
+    return `${normalized.toLocaleString('vi-VN')} đ`
+}
+
 function getDetailOrderedQty(row) {
     return parseSafeNumber(
         row?.quantityOrdered
@@ -332,6 +337,7 @@ export default function StoreOrderPage() {
     const [storeNameById, setStoreNameById] = useState({})
     const detailModalRef = useRef(null)
     const detailModalCloseButtonRef = useRef(null)
+    const paymentModalRef = useRef(null)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
     const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || ''
@@ -780,38 +786,19 @@ export default function StoreOrderPage() {
         return productOptions.find((p) => Number(p.id) === id)?.internalPrice || 0
     }
 
-    const buildDetailRowsWithPrice = (rows, totalAmount) => {
+    const buildDetailRowsWithPrice = (rows) => {
         const safeRows = Array.isArray(rows) ? rows : []
-        const mapped = safeRows.map((row) => {
+        return safeRows.map((row) => {
             const quantity = getDetailOrderedQty(row)
-            const unitPrice = getDetailUnitPrice(row)
+            const unitPriceFromDetail = getDetailUnitPrice(row)
+            const unitPriceFromCatalog = getProductPriceById(row?.productId)
+            const resolvedUnitPrice = unitPriceFromDetail > 0 ? unitPriceFromDetail : unitPriceFromCatalog
+
             return {
-                row,
-                quantity,
-                unitPrice,
-            }
-        })
-
-        const unknownRows = mapped.filter((item) => item.quantity > 0 && item.unitPrice <= 0)
-        const safeTotalAmount = parseSafeNumber(totalAmount, 0)
-
-        let derivedUnitPrice = 0
-        if (safeTotalAmount > 0 && unknownRows.length > 0) {
-            const knownAmount = mapped.reduce((sum, item) => (
-                item.unitPrice > 0 ? sum + (item.unitPrice * item.quantity) : sum
-            ), 0)
-            const unknownQuantity = unknownRows.reduce((sum, item) => sum + item.quantity, 0)
-            const remainingAmount = Math.max(0, safeTotalAmount - knownAmount)
-            derivedUnitPrice = unknownQuantity > 0 ? remainingAmount / unknownQuantity : 0
-        }
-
-        return mapped.map((item) => {
-            const resolvedUnitPrice = item.unitPrice > 0 ? item.unitPrice : derivedUnitPrice
-            return {
-                ...item.row,
-                _quantity: item.quantity,
+                ...row,
+                _quantity: quantity,
                 _unitPrice: resolvedUnitPrice,
-                _subtotal: resolvedUnitPrice * item.quantity,
+                _subtotal: resolvedUnitPrice * quantity,
             }
         })
     }
@@ -1580,6 +1567,8 @@ export default function StoreOrderPage() {
     const isDetailModalOpen = tab === 1 && !!detailOrder
 
     const handleDetailModalKeyDown = (event) => {
+        if (showPaymentModal) return
+
         if (event.key === 'Escape') {
             event.preventDefault()
             closeDetailModal()
@@ -1645,16 +1634,23 @@ export default function StoreOrderPage() {
         const previousBodyOverflow = document.body.style.overflow
         document.body.style.overflow = 'hidden'
 
-        const focusTimer = window.setTimeout(() => {
-            const focusTarget = detailModalCloseButtonRef.current || detailModalRef.current
-            if (focusTarget && typeof focusTarget.focus === 'function') {
-                focusTarget.focus()
-            }
-        }, 0)
+        const focusTimer = showPaymentModal
+            ? null
+            : window.setTimeout(() => {
+                const focusTarget = detailModalCloseButtonRef.current || detailModalRef.current
+                if (focusTarget && typeof focusTarget.focus === 'function') {
+                    focusTarget.focus()
+                }
+            }, 0)
 
         const handleFocusIn = (event) => {
             const dialog = detailModalRef.current
             if (!dialog || dialog.contains(event.target)) return
+
+            if (showPaymentModal) {
+                const paymentDialog = paymentModalRef.current
+                if (paymentDialog && paymentDialog.contains(event.target)) return
+            }
 
             const focusTarget = detailModalCloseButtonRef.current || dialog
             if (focusTarget && typeof focusTarget.focus === 'function') {
@@ -1665,11 +1661,13 @@ export default function StoreOrderPage() {
         document.addEventListener('focusin', handleFocusIn)
 
         return () => {
-            window.clearTimeout(focusTimer)
+            if (focusTimer !== null) {
+                window.clearTimeout(focusTimer)
+            }
             document.removeEventListener('focusin', handleFocusIn)
             document.body.style.overflow = previousBodyOverflow
         }
-    }, [isDetailModalOpen])
+    }, [isDetailModalOpen, showPaymentModal])
 
     useEffect(() => {
         if (tab === 1) return
@@ -2260,7 +2258,7 @@ export default function StoreOrderPage() {
                                                     <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase">Tổng tiền</p>
                                                 </div>
                                                 <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                                                    {(detailOrder.totalAmount || 0).toLocaleString('vi-VN')} đ
+                                                    {formatVnd(detailOrder.totalAmount || 0)}
                                                 </p>
                                             </div>
                                             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
@@ -2289,8 +2287,8 @@ export default function StoreOrderPage() {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                        {buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).length > 0 ? (
-                                                            buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).map((row, idx) => {
+                                                        {buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
+                                                            buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row, idx) => {
                                                                 const unitPrice = row._unitPrice || 0
                                                                 const quantity = row._quantity || 0
                                                                 const subtotal = row._subtotal || 0
@@ -2306,12 +2304,12 @@ export default function StoreOrderPage() {
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-4 py-3 text-sm text-center text-slate-600 dark:text-slate-300">
-                                                                            {unitPrice.toLocaleString('vi-VN')} đ
+                                                                            {formatVnd(unitPrice)}
                                                                         </td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-slate-900 dark:text-slate-100">{quantity}</td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{getDetailShippedQty(row)}</td>
                                                                         <td className="px-4 py-3 text-sm text-right font-bold text-slate-900 dark:text-slate-100">
-                                                                            {subtotal.toLocaleString('vi-VN')} đ
+                                                                            {formatVnd(subtotal)}
                                                                         </td>
                                                                     </tr>
                                                                 )
@@ -2577,12 +2575,13 @@ export default function StoreOrderPage() {
             {/* Payment Modal */}
             {showPaymentModal && selectedPaymentOrder && (
                 <div
-                    className="fixed inset-0 z-[70] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
+                    className="fixed inset-0 z-[1100] flex items-start md:items-center justify-center bg-slate-900/45 p-4 overflow-y-auto"
                     onClick={() => !paymentLoading && setShowPaymentModal(false)}
                 >
                     <div
                         className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl"
                         onClick={(e) => e.stopPropagation()}
+                        ref={paymentModalRef}
                     >
                         <div className="flex items-center justify-between gap-3 mb-4">
                             <h3 className="text-lg font-semibold">Chọn phương thức thanh toán</h3>

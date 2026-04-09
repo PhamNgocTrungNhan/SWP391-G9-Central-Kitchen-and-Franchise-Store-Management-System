@@ -42,6 +42,13 @@ function normalizeLocationType(locationType) {
     return locationType || 'N/A'
 }
 
+function normalizeLocationTypeKey(locationType) {
+    const raw = String(locationType || '').toUpperCase()
+    if (raw === 'KITCHEN') return 'KITCHEN'
+    if (raw === 'STORE') return 'STORE'
+    return 'UNKNOWN'
+}
+
 function toInventoryLogRow(item, productNameById) {
     const productId = parseSafeNumber(item?.productId, 0)
     const rawAction = String(item?.transactionType || item?.type || item?.action || '').toUpperCase()
@@ -58,6 +65,7 @@ function toInventoryLogRow(item, productNameById) {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         productId,
         productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
+        locationTypeKey: normalizeLocationTypeKey(item?.locationType),
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         action,
@@ -75,6 +83,7 @@ export default function InventoryLogsPage() {
     const [error, setError] = useState('')
     const [logs, setLogs] = useState([])
     const [productNameMap, setProductNameMap] = useState({})
+    const [locationFilter, setLocationFilter] = useState('KITCHEN')
     const [productFilter, setProductFilter] = useState('')
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 50
@@ -176,9 +185,14 @@ export default function InventoryLogsPage() {
         fetchLogs()
     }, [])
 
+    const logsByLocation = useMemo(() => {
+        if (!locationFilter) return logs
+        return logs.filter((log) => log.locationTypeKey === locationFilter)
+    }, [logs, locationFilter])
+
     const productOptions = useMemo(() => {
         const map = new Map()
-        logs.forEach((log) => {
+        logsByLocation.forEach((log) => {
             if (log.productId > 0 && !map.has(log.productId)) {
                 map.set(log.productId, log.productName)
             }
@@ -187,13 +201,13 @@ export default function InventoryLogsPage() {
         return Array.from(map.entries())
             .map(([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-    }, [logs])
+    }, [logsByLocation])
 
     const filteredLogs = useMemo(() => {
-        if (!productFilter) return logs
+        if (!productFilter) return logsByLocation
         const selectedId = Number(productFilter)
-        return logs.filter((log) => log.productId === selectedId)
-    }, [logs, productFilter])
+        return logsByLocation.filter((log) => log.productId === selectedId)
+    }, [logsByLocation, productFilter])
 
     const totalPages = Math.ceil(filteredLogs.length / itemsPerPage)
     const startIndex = (currentPage - 1) * itemsPerPage
@@ -207,17 +221,17 @@ export default function InventoryLogsPage() {
     }
 
     const stats = useMemo(() => ({
-        total: logs.length,
-        in: logs.filter((log) => log.quantityChange > 0).length,
-        out: logs.filter((log) => log.quantityChange < 0).length,
-    }), [logs])
+        total: filteredLogs.length,
+        in: filteredLogs.filter((log) => log.quantityChange > 0).length,
+        out: filteredLogs.filter((log) => log.quantityChange < 0).length,
+    }), [filteredLogs])
 
     const statsItems = useMemo(() => ([
         {
             key: 'logs-total',
             label: 'Tổng giao dịch',
             value: Number(stats.total || 0).toLocaleString('vi-VN'),
-            note: 'Tổng nhật ký toàn hệ thống',
+            note: locationFilter === 'STORE' ? 'Nhật ký kho cửa hàng' : 'Nhật ký kho bếp trung tâm',
             icon: 'receipt_long',
             tone: 'blue',
         },
@@ -225,7 +239,7 @@ export default function InventoryLogsPage() {
             key: 'logs-in',
             label: 'Nhập kho',
             value: Number(stats.in || 0).toLocaleString('vi-VN'),
-            note: 'Biến động tăng tồn',
+            note: locationFilter === 'STORE' ? 'Biến động tăng tồn tại kho cửa hàng' : 'Biến động tăng tồn tại kho bếp',
             icon: 'arrow_downward',
             tone: 'green',
         },
@@ -233,11 +247,11 @@ export default function InventoryLogsPage() {
             key: 'logs-out',
             label: 'Xuất kho',
             value: Number(stats.out || 0).toLocaleString('vi-VN'),
-            note: 'Biến động giảm tồn',
+            note: locationFilter === 'STORE' ? 'Biến động giảm tồn tại kho cửa hàng' : 'Biến động giảm tồn tại kho bếp',
             icon: 'arrow_upward',
             tone: 'red',
         },
-    ]), [stats])
+    ]), [stats, locationFilter])
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -265,22 +279,40 @@ export default function InventoryLogsPage() {
                 <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
-                    <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo sản phẩm</span>
-                        <select
-                            className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                            value={productFilter}
-                            onChange={(e) => {
-                                setProductFilter(e.target.value)
-                                setCurrentPage(1)
-                            }}
-                        >
-                            <option value="">Tất cả sản phẩm</option>
-                            {productOptions.map((item) => (
-                                <option key={item.id} value={item.id}>{item.name}</option>
-                            ))}
-                        </select>
-                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo khu vực kho</span>
+                            <select
+                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                value={locationFilter}
+                                onChange={(e) => {
+                                    setLocationFilter(e.target.value)
+                                    setProductFilter('')
+                                    setCurrentPage(1)
+                                }}
+                            >
+                                <option value="KITCHEN">Kho bếp trung tâm</option>
+                                <option value="STORE">Kho cửa hàng</option>
+                            </select>
+                        </label>
+
+                        <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Lọc theo sản phẩm</span>
+                            <select
+                                className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                value={productFilter}
+                                onChange={(e) => {
+                                    setProductFilter(e.target.value)
+                                    setCurrentPage(1)
+                                }}
+                            >
+                                <option value="">Tất cả sản phẩm</option>
+                                {productOptions.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 {error && (
