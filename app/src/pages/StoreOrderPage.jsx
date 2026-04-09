@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MetricsStrip } from '../components/ui'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
 
@@ -330,6 +330,8 @@ export default function StoreOrderPage() {
     const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
     const [paymentLoading, setPaymentLoading] = useState(false)
     const [storeNameById, setStoreNameById] = useState({})
+    const detailModalRef = useRef(null)
+    const detailModalCloseButtonRef = useRef(null)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
     const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || ''
@@ -1575,6 +1577,48 @@ export default function StoreOrderPage() {
         setDetailError('')
     }
 
+    const isDetailModalOpen = tab === 1 && !!detailOrder
+
+    const handleDetailModalKeyDown = (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault()
+            closeDetailModal()
+            return
+        }
+
+        if (event.key !== 'Tab') return
+
+        const dialog = detailModalRef.current
+        if (!dialog) return
+
+        const focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        const focusableElements = Array.from(dialog.querySelectorAll(focusableSelector))
+            .filter((element) => element.getClientRects().length > 0)
+
+        if (focusableElements.length === 0) {
+            event.preventDefault()
+            dialog.focus()
+            return
+        }
+
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+        const activeElement = document.activeElement
+
+        if (event.shiftKey) {
+            if (activeElement === firstElement || !dialog.contains(activeElement)) {
+                event.preventDefault()
+                lastElement.focus()
+            }
+            return
+        }
+
+        if (activeElement === lastElement) {
+            event.preventDefault()
+            firstElement.focus()
+        }
+    }
+
     const clearToast = () => {
         setSubmitError('')
         setDetailError('')
@@ -1594,6 +1638,44 @@ export default function StoreOrderPage() {
 
         return () => window.clearTimeout(timer)
     }, [toastMessage])
+
+    useEffect(() => {
+        if (!isDetailModalOpen) return undefined
+
+        const previousBodyOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        const focusTimer = window.setTimeout(() => {
+            const focusTarget = detailModalCloseButtonRef.current || detailModalRef.current
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+                focusTarget.focus()
+            }
+        }, 0)
+
+        const handleFocusIn = (event) => {
+            const dialog = detailModalRef.current
+            if (!dialog || dialog.contains(event.target)) return
+
+            const focusTarget = detailModalCloseButtonRef.current || dialog
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+                focusTarget.focus()
+            }
+        }
+
+        document.addEventListener('focusin', handleFocusIn)
+
+        return () => {
+            window.clearTimeout(focusTimer)
+            document.removeEventListener('focusin', handleFocusIn)
+            document.body.style.overflow = previousBodyOverflow
+        }
+    }, [isDetailModalOpen])
+
+    useEffect(() => {
+        if (tab === 1) return
+        if (!detailOrder) return
+        setDetailOrder(null)
+    }, [tab, detailOrder])
 
     const detailBackendStatus = getBackendOrderStatus(detailOrder)
     const detailDisplayStatus = normalizeStatus(detailOrder?.orderStatus || detailOrder?.status)
@@ -2104,14 +2186,20 @@ export default function StoreOrderPage() {
                                 </div>
                             </div>
                         )}
-                        {detailOrder && (
+                        {isDetailModalOpen && (
                             <div
-                                className="fixed inset-0 z-[90] bg-slate-950/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-5 overflow-y-auto"
+                                className="fixed inset-0 z-[1000] bg-black/50 backdrop-blur-sm flex items-start justify-center p-3 sm:p-4 overflow-y-auto"
                                 onClick={closeDetailModal}
                             >
                                 <div
-                                    className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col"
+                                    className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto"
                                     onClick={(event) => event.stopPropagation()}
+                                    onKeyDown={handleDetailModalKeyDown}
+                                    ref={detailModalRef}
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="store-order-detail-title"
+                                    tabIndex={-1}
                                 >
                                     {/* Header */}
                                     <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
@@ -2120,20 +2208,22 @@ export default function StoreOrderPage() {
                                                 <span className="material-symbols-outlined text-white text-[24px]">receipt_long</span>
                                             </div>
                                             <div>
-                                                <p className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
+                                                <p id="store-order-detail-title" className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
                                                 <p className="text-white/80 text-sm">{detailOrder.orderId || detailOrder.id}</p>
                                             </div>
                                         </div>
                                         <button
+                                            type="button"
                                             onClick={closeDetailModal}
                                             className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                                            ref={detailModalCloseButtonRef}
                                         >
                                             <span className="material-symbols-outlined text-white text-[20px]">close</span>
                                         </button>
                                     </div>
 
                                     {/* Content */}
-                                    <div className="p-4 sm:p-6 overflow-y-auto min-h-0 overscroll-contain">
+                                    <div className="p-4 sm:p-6">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
                                             <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>
