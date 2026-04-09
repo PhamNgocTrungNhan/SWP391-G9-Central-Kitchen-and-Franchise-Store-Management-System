@@ -197,5 +197,85 @@ namespace Shop2026.DLL
             batch.Status = "CANCELLED";
             _repo.Update(batch);
         }
+
+        // ========================================================
+        // 🔥 HÀM MỚI: XỬ LÝ NỘP BÁO CÁO HAO HỤT VÀ HOÀN THÀNH MẺ
+        // ========================================================
+        public void CompleteBatch(int batchId, CompleteBatchRequest request, int kitchenId = 1)
+        {
+            var batch = _repo.GetById(batchId) ?? throw new Exception("Không tìm thấy mẻ sản xuất");
+
+            if (batch.Status != "IN_PROGRESS")
+                throw new Exception("Mẻ phải ở trạng thái Đang sản xuất (IN_PROGRESS) mới có thể Hoàn thành!");
+
+            if (request.QuantityActual <= 0)
+                throw new Exception("Số lượng thực tế phải lớn hơn 0!");
+
+            // Lấy toàn bộ công thức gốc của sản phẩm này để đối chiếu
+            var recipes = _repo.GetContext().RecipesBoms.Where(r => r.ParentProductId == batch.ProductId).ToList();
+
+            using var transaction = _repo.GetContext().Database.BeginTransaction();
+            try
+            {
+                batch.QuantityActual = request.QuantityActual;
+                batch.Status = "COMPLETED";
+                _repo.Update(batch);
+
+                foreach (var usage in request.MaterialUsages)
+                {
+                    var recipeLine = recipes.FirstOrDefault(r => r.MaterialId == usage.MaterialId);
+                    if (recipeLine == null)
+                        throw new Exception($"LỖI: Nguyên liệu ID {usage.MaterialId} không có trong công thức của sản phẩm này.");
+
+                    // 1. Tính định mức tịnh (Net) dựa trên số lượng bánh thực tế làm ra
+                    decimal standardNetQty = request.QuantityActual * recipeLine.QuantityRequired;
+
+                    // 2. Tính định mức hao hụt tối đa cho phép (Max Waste Allowed)
+                    decimal maxWastePercent = recipeLine.MaxWastePercent ?? 0m;
+                    decimal grossQtyAllowed = (maxWastePercent > 0 && maxWastePercent < 100)
+                                              ? standardNetQty / (1m - (maxWastePercent / 100m))
+                                              : standardNetQty;
+
+                    decimal maxWasteAllowed = grossQtyAllowed - standardNetQty;
+
+                    // 3. SO SÁNH VỚI THỰC TẾ BẾP BÁO CÁO (Nghiệp vụ yêu cầu)
+                    if (usage.ActualWasted > maxWasteAllowed)
+                    {
+                        throw new Exception($"Nghi vấn thất thoát! Hao hụt của nguyên liệu ID {usage.MaterialId} ({usage.ActualWasted}) đã vượt quá định mức tối đa cho phép ({Math.Round(maxWasteAllowed, 2)}).");
+                    }
+
+                    // 4. Lưu báo cáo hao hụt vào Database cho kế toán xem
+                    var batchMaterial = new ProductionBatchMaterial
+                    {
+                        BatchId = batchId,
+                        MaterialId = usage.MaterialId,
+                        ActualUsed = usage.ActualUsed,
+                        ActualWasted = usage.ActualWasted
+                    };
+                    _repo.GetContext().ProductionBatchMaterials.Add(batchMaterial);
+
+                    // 5. Trừ kho lượng Gross thực tế (Dùng + Vứt đi)
+                    decimal totalDeduct = usage.ActualUsed + usage.ActualWasted;
+                    _inventoryService.UpdateStockAndLog(
+                        usage.MaterialId, "KITCHEN", kitchenId, -totalDeduct,
+                        $"Sản xuất mẻ (Dùng: {usage.ActualUsed}, Hao hụt: {usage.ActualWasted})", batchId, "PRODUCTION_BATCH", null
+                    );
+                }
+
+                // 6. Nhập kho thành phẩm
+                _inventoryService.UpdateStockAndLog(
+                    batch.ProductId ?? 0, "KITCHEN", kitchenId, request.QuantityActual,
+                    "Nhập kho thành phẩm từ mẻ sản xuất", batchId, "PRODUCTION_BATCH", null
+                );
+
+                _repo.GetContext().SaveChanges();
+                transaction.Commit();
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
     }
 }
