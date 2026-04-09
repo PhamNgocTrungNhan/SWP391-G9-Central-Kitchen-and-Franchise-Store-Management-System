@@ -65,7 +65,8 @@ namespace Shop2026.DLL
 
             foreach (var recipe in recipes)
             {
-                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + (recipe.WasteAllowancePercent ?? 0) / 100m);
+                decimal wastePct = recipe.Material?.DefaultWastePercent ?? 0;
+                decimal childQty = requiredQty * recipe.QuantityRequired * (1 + wastePct / 100m);
                 CalculateRawMaterialsRecursive(recipe.MaterialId ?? 0, childQty, aggregatedRawMaterials);
             }
         }

@@ -25,7 +25,10 @@ namespace Shop2026.DAL
         // Lấy công thức BOM để tính nguyên liệu cần trừ
         public IEnumerable<RecipesBom> GetRecipeByProduct(int productId)
         {
-            return _context.RecipesBoms.Where(r => r.ParentProductId == productId).ToList();
+            return _context.RecipesBoms
+                .Include(r => r.Material)
+                .Where(r => r.ParentProductId == productId)
+                .ToList();
         }
 
         public Product GetProduct(int productId)

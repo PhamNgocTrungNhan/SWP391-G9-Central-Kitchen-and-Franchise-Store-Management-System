@@ -7,13 +7,13 @@ namespace Shop2026.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN, MANAGER")]
     public class RecipesController : ControllerBase
     {
         private readonly RecipeService _service;
         public RecipesController(RecipeService service) => _service = service;
 
         [HttpGet("parent/{parentProductId}")]
+        [Authorize(Roles = "ADMIN, MANAGER, STORE_STAFF")]
         public IActionResult GetByParent(int parentProductId)
         {
             try
@@ -25,6 +25,7 @@ namespace Shop2026.Controllers
 
         // ✅ ĐỔI HÀM NÀY ĐỂ NHẬN ARRAY
         [HttpPost]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult CreateBulk([FromBody] CreateRecipeBulkRequest request)
         {
             try
@@ -39,6 +40,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult Update(int id, [FromBody] UpdateRecipeRequest request)
         {
             try
@@ -53,6 +55,7 @@ namespace Shop2026.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "ADMIN, MANAGER")]
         public IActionResult Delete(int id)
         {
             try
