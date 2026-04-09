@@ -35,8 +35,10 @@ namespace Shop2026.DAL
         public bool ExistsInRecipe(int parentId, int materialId)
         {
             return _context.RecipesBoms
-                .Where(r => r.ParentProductId == parentId && r.MaterialId == materialId)
-                .Select(r => r.RecipeId)
+                .FromSqlInterpolated($@"
+                    SELECT TOP (1) [recipe_id], [material_id], [parent_product_id], [quantity_required]
+                    FROM [Recipes_BOM]
+                    WHERE [parent_product_id] = {parentId} AND [material_id] = {materialId}")
                 .Any();
         }
 
