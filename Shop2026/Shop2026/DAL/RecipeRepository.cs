@@ -11,18 +11,33 @@ namespace Shop2026.DAL
 
         public IEnumerable<RecipesBom> GetByParentProductId(int parentProductId)
         {
+            // Explicit column list: DB no longer has waste_allowance_percent; avoids stale EF models that still map it.
             return _context.RecipesBoms
+                .FromSqlInterpolated($@"
+                    SELECT [recipe_id], [material_id], [parent_product_id], [quantity_required]
+                    FROM [Recipes_BOM]
+                    WHERE [parent_product_id] = {parentProductId}")
                 .Include(r => r.Material)
                 .Include(r => r.ParentProduct)
-                .Where(r => r.ParentProductId == parentProductId)
                 .ToList();
         }
 
-        public RecipesBom? GetById(int id) => _context.RecipesBoms.Find(id);
+        public RecipesBom? GetById(int id) =>
+            _context.RecipesBoms
+                .FromSqlInterpolated($@"
+                    SELECT [recipe_id], [material_id], [parent_product_id], [quantity_required]
+                    FROM [Recipes_BOM]
+                    WHERE [recipe_id] = {id}")
+                .Include(r => r.Material)
+                .Include(r => r.ParentProduct)
+                .FirstOrDefault();
 
         public bool ExistsInRecipe(int parentId, int materialId)
         {
-            return _context.RecipesBoms.Any(r => r.ParentProductId == parentId && r.MaterialId == materialId);
+            return _context.RecipesBoms
+                .Where(r => r.ParentProductId == parentId && r.MaterialId == materialId)
+                .Select(r => r.RecipeId)
+                .Any();
         }
 
         public bool ProductExists(int productId)

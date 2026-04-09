@@ -26,8 +26,11 @@ namespace Shop2026.DAL
         public IEnumerable<RecipesBom> GetRecipeByProduct(int productId)
         {
             return _context.RecipesBoms
+                .FromSqlInterpolated($@"
+                    SELECT [recipe_id], [material_id], [parent_product_id], [quantity_required]
+                    FROM [Recipes_BOM]
+                    WHERE [parent_product_id] = {productId}")
                 .Include(r => r.Material)
-                .Where(r => r.ParentProductId == productId)
                 .ToList();
         }
 

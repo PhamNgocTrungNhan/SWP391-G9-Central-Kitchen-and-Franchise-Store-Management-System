@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Shop2026.DLL;
 using Shop2026.DTOs;
 
@@ -88,11 +89,15 @@ namespace Shop2026.Controllers
                 .Where(i => i.ProductId == id && i.LocationType == "KITCHEN" && i.LocationId == 1)
                 .Select(i => i.CurrentQuantity).FirstOrDefault();
 
-            // Lấy công thức (BOM)
+            // Lấy công thức (BOM) — explicit columns (waste_allowance_percent removed from DB)
             var recipe = _context.RecipesBoms
-                .Where(r => r.ParentProductId == id)
+                .FromSqlInterpolated($@"
+                    SELECT [recipe_id], [material_id], [parent_product_id], [quantity_required]
+                    FROM [Recipes_BOM]
+                    WHERE [parent_product_id] = {id}")
+                .Include(r => r.Material)
                 .Select(r => new {
-                    MaterialName = r.Material.ProductName,
+                    MaterialName = r.Material!.ProductName,
                     QuantityRequired = r.QuantityRequired,
                     Unit = r.Material.BaseUnit
                 }).ToList();
