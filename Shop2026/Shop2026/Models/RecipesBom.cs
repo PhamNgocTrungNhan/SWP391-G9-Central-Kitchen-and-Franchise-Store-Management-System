@@ -27,13 +27,6 @@ public partial class RecipesBom
         get; set;
     }
 
-
-    public int? MaterialId { get; set; }
-
-    public decimal QuantityRequired { get; set; }
-
-    public decimal? MaxWastePercent { get; set; }
-
     public virtual Product? Material { get; set; }
 
     public virtual Product? ParentProduct { get; set; }
