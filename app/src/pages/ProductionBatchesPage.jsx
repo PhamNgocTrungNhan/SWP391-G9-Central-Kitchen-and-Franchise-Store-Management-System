@@ -88,9 +88,9 @@ export default function ProductionBatchesPage() {
         (typeof data === 'object' && (data?.message || data?.title || data?.error || validationMessage)) ||
         (typeof data === 'string' && data) ||
         `Yêu cầu thất bại (${response.status})`
-      
+
       console.error('API Error:', { path, status: response.status, data })
-      
+
       const error = new Error(message)
       error.status = response.status
       error.data = data
@@ -163,7 +163,7 @@ export default function ProductionBatchesPage() {
       }
 
       setSuccess((data && data.message) || 'Tạo mẻ sản xuất thành công.')
-      
+
       // Refresh recent batches list
       fetchRecentBatches()
     } catch (requestError) {
@@ -212,7 +212,7 @@ export default function ProductionBatchesPage() {
         Status: statusValue,
         QuantityActual: quantityActualValue,
       }))
-      
+
       if (statusValue === 'IN_PROGRESS') {
         setSuccess((data && data.message) || 'Đã chuyển IN_PROGRESS. Backend sẽ đệ quy BOM, gom RAW và trừ tồn kho nguyên liệu.')
       } else if (statusValue === 'COMPLETED') {
@@ -379,8 +379,8 @@ export default function ProductionBatchesPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {recentBatches.map((batch) => (
                     <tr key={batch.batchId || batch.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                      <td className="px-4 py-3 text-sm font-medium">#{batch.batchId || batch.id}</td>
-                      <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm #${batch.productId}`}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{batch.batchId || batch.id}</td>
+                      <td className="px-4 py-3 text-sm">{batch.product?.productName || `Sản phẩm chưa có tên`}</td>
                       <td className="px-4 py-3 text-sm">{batch.quantityPlanned}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{batch.quantityActual || 0}</td>
                       <td className="px-4 py-3 text-sm">
@@ -415,7 +415,7 @@ export default function ProductionBatchesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b7958]">Mẻ Đang Chọn</p>
-                    <h3 className="mt-2 font-display text-2xl font-bold text-[#243424]">Mẻ #{managedBatchId}</h3>
+                    <h3 className="mt-2 font-display text-2xl font-bold text-[#243424]">Mẻ {managedBatchId}</h3>
                   </div>
                   <Badge tone={statusForm.Status === 'CANCELLED' ? 'red' : 'amber'}>
                     {statusLabelMap[managedBatch?.Status] || statusLabelMap[statusForm.Status] || (managedBatch?.Status || statusForm.Status)}
@@ -429,9 +429,9 @@ export default function ProductionBatchesPage() {
               <div className="rounded-[1.5rem] border border-[#e6dccd] bg-[#fffdf8] p-4">
                 <p className="text-sm font-semibold text-[#2e3f30]">Cập Nhật Trạng Thái</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Khi chuyển sang IN_PROGRESS, backend sẽ đệ quy BOM đến RAW, gom theo nguyên liệu và trừ tồn kho.
+                  Kiểm tra kỹ trạng thái và số lượng trước khi cập nhật mẻ.
                 </p>
-                
+
                 {statusForm.Status === 'IN_PROGRESS' && (
                   <div className="mt-3 space-y-2">
                     <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -451,13 +451,13 @@ export default function ProductionBatchesPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {statusForm.Status === 'COMPLETED' && (
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     ⚠️ Để hoàn thành mẻ, phải nhập số lượng thực tế (lớn hơn 0) khi hoàn thành mẻ!
                   </div>
                 )}
-                
+
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Trạng Thái">
                     <select
@@ -545,7 +545,7 @@ export default function ProductionBatchesPage() {
             <div className="mt-5">
               <EmptyState
                 title="Nhập mã mẻ để thao tác"
-                description="Backend chưa có API đọc danh sách mẻ, nên bạn cần nhập mã mẻ hợp lệ để mở các thao tác."
+                description="Nhập mã mẻ hợp lệ để mở các thao tác quản lý trạng thái và phân bổ."
                 icon="factory"
               />
             </div>

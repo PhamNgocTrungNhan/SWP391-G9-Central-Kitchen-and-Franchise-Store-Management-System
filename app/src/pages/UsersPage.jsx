@@ -1,10 +1,37 @@
 import { useState, useEffect, useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
+
+function parseArrayData(raw) {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.items)) return raw.items
+  if (Array.isArray(raw?.data)) return raw.data
+  return []
+}
+
+const ROLE = {
+  ADMIN: 1,
+  MANAGER: 2,
+  SUPPLY_COORDINATOR: 3,
+  KITCHEN_STAFF: 4,
+  STORE_STAFF: 5,
+}
+
+function requiresStoreAssignment(roleId) {
+  return Number(roleId) === ROLE.STORE_STAFF
+}
+
+function requiresKitchenAssignment(roleId) {
+  return Number(roleId) === ROLE.KITCHEN_STAFF
+}
 
 function getToken() {
   const candidates = [
     localStorage.getItem('auth_token'),
     localStorage.getItem('token'),
     localStorage.getItem('access_token'),
+    sessionStorage.getItem('auth_token'),
+    sessionStorage.getItem('token'),
+    sessionStorage.getItem('access_token'),
   ]
   const first = candidates.find((item) => String(item || '').trim())
   return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
@@ -61,7 +88,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = await response.json()
-        const usersArray = Array.isArray(data) ? data : []
+        const usersArray = parseArrayData(data)
         setUsers(usersArray)
       } else {
         openNotice('error', 'Không thể tải danh sách người dùng.')
@@ -85,7 +112,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = await response.json()
-        const storesArray = Array.isArray(data) ? data : []
+        const storesArray = parseArrayData(data)
         setStores(storesArray)
       } else {
         console.error('Failed to fetch stores:', response.status)
@@ -106,7 +133,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = await response.json()
-        const kitchensArray = Array.isArray(data) ? data : []
+        const kitchensArray = parseArrayData(data)
         setKitchens(kitchensArray)
       } else {
         console.error('Failed to fetch kitchens:', response.status)
@@ -160,9 +187,69 @@ export default function UsersPage() {
     setForm({ ...form, [key]: value })
   }
 
+  function handleRoleChange(nextRoleIdText) {
+    const nextRoleId = nextRoleIdText ? Number(nextRoleIdText) : null
+    setForm((prev) => ({
+      ...prev,
+      roleId: nextRoleId,
+      storeId: requiresStoreAssignment(nextRoleId) ? prev.storeId : null,
+      kitchenId: requiresKitchenAssignment(nextRoleId) ? prev.kitchenId : null,
+    }))
+  }
+
+  function validateUserForm(mode) {
+    const username = String(form.username || '').trim()
+    const passwordHash = String(form.passwordHash || '').trim()
+    const roleId = Number(form.roleId)
+    const storeId = form.storeId ? Number(form.storeId) : null
+    const kitchenId = form.kitchenId ? Number(form.kitchenId) : null
+
+    if (!username || !roleId) {
+      openNotice('error', 'Vui lòng điền đầy đủ: Tên đăng nhập, Vai trò')
+      return false
+    }
+
+    if (mode === 'create' && !passwordHash) {
+      openNotice('error', 'Vui lòng nhập mật khẩu khi tạo user mới.')
+      return false
+    }
+
+    if (requiresStoreAssignment(roleId) && !storeId) {
+      openNotice('error', 'Vai trò STORE_STAFF bắt buộc chọn cửa hàng.')
+      return false
+    }
+
+    if (requiresKitchenAssignment(roleId) && !kitchenId) {
+      openNotice('error', 'Vai trò KITCHEN_STAFF bắt buộc chọn bếp.')
+      return false
+    }
+
+    return true
+  }
+
+  function buildUserPayload() {
+    const username = String(form.username || '').trim()
+    const passwordHash = String(form.passwordHash || '').trim()
+    const fullName = String(form.fullName || '').trim()
+    const roleId = Number(form.roleId)
+
+    const payload = {
+      username,
+      fullName: fullName || null,
+      roleId,
+      storeId: requiresStoreAssignment(roleId) ? Number(form.storeId) : null,
+      kitchenId: requiresKitchenAssignment(roleId) ? Number(form.kitchenId) : null,
+    }
+
+    if (passwordHash) {
+      payload.passwordHash = passwordHash
+    }
+
+    return payload
+  }
+
   const createUser = async () => {
-    if (!form.username || !form.passwordHash || !form.roleId) {
-      openNotice('error', 'Vui lòng điền đầy đủ: Tên đăng nhập, Mật khẩu, Vai trò')
+    if (!validateUserForm('create')) {
       return
     }
 
@@ -174,20 +261,13 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user`, {
+      const response = await fetch(`${apiBase}/User`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tk}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          username: form.username,
-          passwordHash: form.passwordHash,
-          fullName: form.fullName || null,
-          roleId: Number(form.roleId),
-          storeId: form.storeId ? Number(form.storeId) : null,
-          kitchenId: form.kitchenId ? Number(form.kitchenId) : null,
-        }),
+        body: JSON.stringify(buildUserPayload()),
       })
 
       if (response.ok) {
@@ -208,8 +288,7 @@ export default function UsersPage() {
 
   const updateUser = async () => {
     if (!selectedId) return
-    if (!form.username || !form.roleId) {
-      openNotice('error', 'Vui lòng điền đầy đủ: Tên đăng nhập, Vai trò')
+    if (!validateUserForm('edit')) {
       return
     }
 
@@ -221,20 +300,13 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user/${selectedId}`, {
+      const response = await fetch(`${apiBase}/User/${selectedId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${tk}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          username: form.username,
-          passwordHash: form.passwordHash || '',
-          fullName: form.fullName || null,
-          roleId: Number(form.roleId),
-          storeId: form.storeId ? Number(form.storeId) : null,
-          kitchenId: form.kitchenId ? Number(form.kitchenId) : null,
-        }),
+        body: JSON.stringify(buildUserPayload()),
       })
 
       if (response.ok) {
@@ -253,6 +325,15 @@ export default function UsersPage() {
     }
   }
 
+  const handleModalSubmit = (event) => {
+    event.preventDefault()
+    if (modalMode === 'create') {
+      createUser()
+      return
+    }
+    updateUser()
+  }
+
   const deleteUser = async (userId, username) => {
     if (!window.confirm(`Bạn có chắc muốn xóa user "${username}"?\n\nCảnh báo: Thao tác này không thể hoàn tác!`)) {
       return
@@ -266,7 +347,7 @@ export default function UsersPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(`${apiBase}/user/${userId}`, {
+      const response = await fetch(`${apiBase}/User/${userId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -316,6 +397,41 @@ export default function UsersPage() {
     staff: users.filter((u) => u.roleId === 4 || u.roleId === 5).length,
   }), [users])
 
+  const statsItems = useMemo(() => ([
+    {
+      key: 'users-total',
+      label: 'Tổng người dùng',
+      value: Number(stats.total || 0).toLocaleString('vi-VN'),
+      note: 'Tài khoản trong hệ thống',
+      icon: 'group',
+      tone: 'blue',
+    },
+    {
+      key: 'users-admin',
+      label: 'Quản trị viên',
+      value: Number(stats.admins || 0).toLocaleString('vi-VN'),
+      note: 'Nhóm ADMIN',
+      icon: 'admin_panel_settings',
+      tone: 'red',
+    },
+    {
+      key: 'users-manager',
+      label: 'Quản lý',
+      value: Number(stats.managers || 0).toLocaleString('vi-VN'),
+      note: 'Nhóm MANAGER',
+      icon: 'manage_accounts',
+      tone: 'purple',
+    },
+    {
+      key: 'users-staff',
+      label: 'Nhân viên',
+      value: Number(stats.staff || 0).toLocaleString('vi-VN'),
+      note: 'Kitchen + Store staff',
+      icon: 'badge',
+      tone: 'green',
+    },
+  ]), [stats])
+
   const filtered = useMemo(() => {
     let result = users
 
@@ -355,24 +471,7 @@ export default function UsersPage() {
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý tài khoản và phân quyền người dùng trong hệ thống.</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Tổng người dùng', value: stats.total, icon: 'group', color: 'text-blue-600 dark:text-blue-400' },
-            { label: 'Quản trị viên', value: stats.admins, icon: 'admin_panel_settings', color: 'text-red-600 dark:text-red-400' },
-            { label: 'Quản lý', value: stats.managers, icon: 'manage_accounts', color: 'text-indigo-600 dark:text-indigo-400' },
-            { label: 'Nhân viên', value: stats.staff, icon: 'badge', color: 'text-teal-600 dark:text-teal-400' },
-          ].map((card) => (
-            <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -423,7 +522,7 @@ export default function UsersPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filtered.map((user) => (
                   <tr key={user.userId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium">#{user.userId}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{user.userId}</td>
                     <td className="px-4 py-3 text-sm font-medium">{user.username}</td>
                     <td className="px-4 py-3 text-sm">{user.fullName || 'N/A'}</td>
                     <td className="px-4 py-3 text-sm">
@@ -432,8 +531,9 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      {user.storeId && <span>Cửa hàng #{user.storeId}</span>}
-                      {user.kitchenId && <span>Bếp #{user.kitchenId}</span>}
+                      {user.storeId && <span>Cửa hàng {user.storeId}</span>}
+                      {user.storeId && user.kitchenId ? <span> | </span> : null}
+                      {user.kitchenId && <span>Bếp {user.kitchenId}</span>}
                       {!user.storeId && !user.kitchenId && <span className="text-slate-400">Chưa phân công</span>}
                     </td>
                     <td className="px-4 py-3 whitespace-normal">
@@ -475,112 +575,124 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="px-6 py-4 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Tên đăng nhập <span className="text-red-500">*</span>
-                  </span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.username ?? ''}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Mật khẩu {modalMode === 'create' && <span className="text-red-500">*</span>}
-                  </span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    type="password"
-                    value={form.passwordHash ?? ''}
-                    onChange={(e) => setForm({ ...form, passwordHash: e.target.value })}
-                    placeholder={modalMode === 'edit' ? "Để trống nếu không đổi" : "Nhập mật khẩu"}
-                  />
-                </label>
-
-                <label className="block sm:col-span-2">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Họ tên</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.fullName ?? ''}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Vai trò <span className="text-red-500">*</span>
-                  </span>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    value={form.roleId ?? ''}
-                    onChange={(e) => setForm({ ...form, roleId: Number(e.target.value) })}
-                  >
-                    <option value="">-- Chọn vai trò --</option>
-                    <option value="1">ADMIN</option>
-                    <option value="2">MANAGER</option>
-                    <option value="3">SUPPLY_COORDINATOR</option>
-                    <option value="4">KITCHEN_STAFF</option>
-                    <option value="5">STORE_STAFF</option>
-                  </select>
-                </label>
-
-                {form.roleId !== 4 && (
+            <form onSubmit={handleModalSubmit}>
+              <div className="px-6 py-4 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng</span>
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Tên đăng nhập <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.username ?? ''}
+                      onChange={(e) => setForm({ ...form, username: e.target.value })}
+                      autoComplete="username"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Mật khẩu {modalMode === 'create' && <span className="text-red-500">*</span>}
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      type="password"
+                      value={form.passwordHash ?? ''}
+                      onChange={(e) => setForm({ ...form, passwordHash: e.target.value })}
+                      placeholder={modalMode === 'edit' ? "Để trống nếu không đổi" : "Nhập mật khẩu"}
+                      autoComplete={modalMode === 'create' ? 'new-password' : 'current-password'}
+                    />
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Họ tên</span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={form.fullName ?? ''}
+                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      autoComplete="name"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Vai trò <span className="text-red-500">*</span>
+                    </span>
                     <select
                       className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      value={form.storeId ?? ''}
-                      onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
+                      value={form.roleId ?? ''}
+                      onChange={(e) => handleRoleChange(e.target.value)}
                     >
-                      <option value="">-- Chọn cửa hàng --</option>
-                      {stores.map((store) => (
-                        <option key={store.storeId} value={store.storeId}>
-                          {store.storeName}
-                        </option>
-                      ))}
+                      <option value="">-- Chọn vai trò --</option>
+                      <option value="1">ADMIN</option>
+                      <option value="2">MANAGER</option>
+                      <option value="3">SUPPLY_COORDINATOR</option>
+                      <option value="4">KITCHEN_STAFF</option>
+                      <option value="5">STORE_STAFF</option>
                     </select>
                   </label>
-                )}
 
-                {form.roleId === 4 && (
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp</span>
-                    <select
-                      className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      value={form.kitchenId ?? ''}
-                      onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
-                    >
-                      <option value="">-- Chọn bếp --</option>
-                      {kitchens.map((kitchen) => (
-                        <option key={kitchen.kitchenId} value={kitchen.kitchenId}>
-                          {kitchen.kitchenName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                  {requiresStoreAssignment(form.roleId) && (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Cửa hàng <span className="text-red-500">*</span></span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        value={form.storeId ?? ''}
+                        onChange={(e) => setForm({ ...form, storeId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">-- Chọn cửa hàng --</option>
+                        {stores.map((store) => (
+                          <option key={store.storeId} value={store.storeId}>
+                            {store.storeName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {requiresKitchenAssignment(form.roleId) && (
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Bếp <span className="text-red-500">*</span></span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        value={form.kitchenId ?? ''}
+                        onChange={(e) => setForm({ ...form, kitchenId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">-- Chọn bếp --</option>
+                        {kitchens.map((kitchen) => (
+                          <option key={kitchen.kitchenId} value={kitchen.kitchenId}>
+                            {kitchen.kitchenName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {!requiresStoreAssignment(form.roleId) && !requiresKitchenAssignment(form.roleId) && form.roleId ? (
+                    <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+                      Vai trò này không yêu cầu gán Store/Kitchen khi tạo hoặc cập nhật user.
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800">
-              <button
-                className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                onClick={closeModal}
-              >
-                Hủy
-              </button>
-              <button
-                className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-                disabled={submitting}
-                onClick={modalMode === 'create' ? createUser : updateUser}
-              >
-                {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
-              </button>
-            </div>
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  className="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  onClick={closeModal}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Đang xử lý...' : modalMode === 'create' ? 'Tạo mới' : 'Cập nhật'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

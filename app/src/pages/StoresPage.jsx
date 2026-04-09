@@ -1,11 +1,22 @@
 import { useEffect, useState, useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
 import { getCurrentUserRole } from '../utils/auth'
+
+function parseArrayData(raw) {
+    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw?.items)) return raw.items
+    if (Array.isArray(raw?.data)) return raw.data
+    return []
+}
 
 function getToken() {
     const candidates = [
         localStorage.getItem('auth_token'),
         localStorage.getItem('token'),
         localStorage.getItem('access_token'),
+        sessionStorage.getItem('auth_token'),
+        sessionStorage.getItem('token'),
+        sessionStorage.getItem('access_token'),
     ]
     const first = candidates.find((item) => String(item || '').trim())
     return first ? String(first).replace(/^Bearer\s+/i, '').trim() : ''
@@ -68,7 +79,7 @@ export default function StoresPage() {
                 throw new Error(data?.message || data?.title || 'Không thể tải danh sách cửa hàng.')
             }
 
-            let storesArray = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+            let storesArray = parseArrayData(data)
 
             // Nếu là STORE_STAFF, chỉ hiển thị cửa hàng của mình
             if (currentRole === 'STORE_STAFF') {
@@ -218,7 +229,7 @@ export default function StoresPage() {
     }
 
     const deleteStore = async (storeId, storeName) => {
-        if (!window.confirm(`Bạn có chắc muốn vô hiệu hóa cửa hàng "${storeName}"?\n\nCảnh báo: Thao tác này sẽ set isActive = false!`)) {
+        if (!window.confirm(`Bạn có chắc muốn vô hiệu hóa cửa hàng "${storeName}"?\n\nCảnh báo: thao tác này sẽ chuyển trạng thái cửa hàng sang ngừng hoạt động.`)) {
             return
         }
 
@@ -257,6 +268,30 @@ export default function StoresPage() {
         active: stores.filter((s) => s.isActive).length,
         inactive: stores.filter((s) => !s.isActive).length,
     }), [stores])
+
+    const statsItems = [
+        {
+            key: 'store-total',
+            label: 'Tổng cửa hàng',
+            value: Number(stats.total || 0).toLocaleString('vi-VN'),
+            icon: 'store',
+            tone: 'blue',
+        },
+        {
+            key: 'store-active',
+            label: 'Đang hoạt động',
+            value: Number(stats.active || 0).toLocaleString('vi-VN'),
+            icon: 'check_circle',
+            tone: 'emerald',
+        },
+        {
+            key: 'store-inactive',
+            label: 'Ngừng hoạt động',
+            value: Number(stats.inactive || 0).toLocaleString('vi-VN'),
+            icon: 'cancel',
+            tone: 'red',
+        },
+    ]
 
     const filtered = useMemo(() => {
         let result = stores
@@ -312,43 +347,7 @@ export default function StoresPage() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">store</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tổng cửa hàng</p>
-                                <p className="mt-1 text-3xl font-bold text-blue-900">{stats.total}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">check_circle</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Đang hoạt động</p>
-                                <p className="mt-1 text-3xl font-bold text-emerald-900">{stats.active}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 p-4 shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[28px]">cancel</span>
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Ngừng hoạt động</p>
-                                <p className="mt-1 text-3xl font-bold text-red-900">{stats.inactive}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -389,7 +388,7 @@ export default function StoresPage() {
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{store.storeName}</h2>
-                                            <p className="mt-1 text-sm text-slate-500">ID: #{store.storeId}</p>
+                                            <p className="mt-1 text-sm text-slate-500">ID: {store.storeId}</p>
                                         </div>
                                         <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {store.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
@@ -428,28 +427,28 @@ export default function StoresPage() {
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                     <th className="w-[8%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
-                                    <th className="w-[25%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
-                                    <th className="w-[30%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
+                                    <th className="w-[24%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Tên cửa hàng</th>
+                                    <th className="w-[27%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ</th>
                                     <th className="w-[15%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Điện thoại</th>
-                                    <th className="w-[10%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                                    {isAdmin && <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
+                                    <th className="w-[12%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">Trạng thái</th>
+                                    {isAdmin && <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filtered.map((store) => (
                                     <tr key={store.storeId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-4 py-3 text-sm font-medium">#{store.storeId}</td>
+                                        <td className="px-4 py-3 text-sm font-medium">{store.storeId}</td>
                                         <td className="px-4 py-3 text-sm font-medium">{store.storeName}</td>
                                         <td className="px-4 py-3 text-sm">{store.address}</td>
                                         <td className="px-4 py-3 text-sm">{store.phone}</td>
-                                        <td className="px-4 py-3 text-sm">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                                {store.isActive ? 'Hoạt động' : 'Ngừng'}
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                                {store.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
                                             </span>
                                         </td>
                                         {isAdmin && (
-                                            <td className="px-4 py-3 whitespace-normal">
-                                                <div className="flex gap-2">
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         className="h-8 px-3 rounded-lg bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
                                                         onClick={() => openEditModal(store)}

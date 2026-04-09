@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { MetricsStrip } from '../components/ui'
 
 const productColumns = [
     { key: 'id', label: 'Mã sản phẩm' },
@@ -50,6 +52,7 @@ function normalizeProductType(rawType) {
 }
 
 export default function ProductManagementPage({ scope = 'finished' }) {
+    const navigate = useNavigate()
     const normalizedScope = scope === 'ingredient' ? 'ingredient' : 'finished'
     const scopeMeta = scopeConfig[normalizedScope]
     const columns = normalizedScope === 'ingredient' ? ingredientColumns : productColumns
@@ -72,6 +75,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const [categories, setCategories] = useState([])
     const [productsLoading, setProductsLoading] = useState(false)
     const [productsError, setProductsError] = useState('')
+    const [categoriesLoading, setCategoriesLoading] = useState(false)
+    const [categoriesError, setCategoriesError] = useState('')
     const [keyword, setKeyword] = useState('')
 
     const [showCreateModal, setShowCreateModal] = useState(false)
@@ -126,7 +131,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 return {
                     id,
                     sku: item?.sku || 'N/A',
-                    name: item?.productName || item?.name || `Sản phẩm #${id}`,
+                    name: item?.productName || item?.name || `Sản phẩm chưa có tên`,
                     categoryId: Number(item?.categoryId ?? 0),
                     categoryName: item?.category?.name || 'N/A',
                     productType: normalizeProductType(item?.productType),
@@ -138,7 +143,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             .filter(Boolean)
     }
 
-    const extractCategories = (data) => {
+    const normalizeCategories = (data) => {
         const records = Array.isArray(data)
             ? data
             : Array.isArray(data?.items)
@@ -149,13 +154,48 @@ export default function ProductManagementPage({ scope = 'finished' }) {
 
         const seen = new Map()
         records.forEach((item) => {
-            const id = Number(item?.categoryId ?? item?.category?.categoryId)
-            const name = item?.category?.name || item?.categoryName
+            const id = Number(item?.categoryId ?? item?.id ?? item?.category?.categoryId)
+            const name = String(item?.name ?? item?.categoryName ?? item?.category?.name ?? '').trim()
             if (id > 0 && name && !seen.has(id)) {
                 seen.set(id, { categoryId: id, name })
             }
         })
-        return Array.from(seen.values())
+        return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    }
+
+    const fetchCategories = async () => {
+        setCategoriesLoading(true)
+        setCategoriesError('')
+        try {
+            const token = getToken()
+            if (!token) {
+                throw new Error('Thiếu token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
+            const response = await fetch(`${apiBase}/Category`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Không có quyền tải danh mục. Vui lòng đăng nhập bằng ADMIN hoặc MANAGER.')
+                }
+                throw new Error(data?.message || data?.title || 'Không thể tải danh mục.')
+            }
+
+            const normalized = normalizeCategories(data)
+            setCategories(normalized)
+        } catch (error) {
+            setCategories([])
+            setCategoriesError(error.message || 'Tải danh mục thất bại.')
+        } finally {
+            setCategoriesLoading(false)
+        }
     }
 
     const fetchProducts = async () => {
@@ -168,7 +208,9 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             }
 
-            const listEndpoint = normalizedScope === 'ingredient' ? `${apiBase}/Products/raw` : `${apiBase}/Products`
+            const listEndpoint = normalizedScope === 'ingredient'
+                ? `${apiBase}/Products/raw`
+                : `${apiBase}/Products/manufactured`
 
             const response = await fetch(listEndpoint, {
                 method: 'GET',
@@ -186,19 +228,23 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             const normalized = normalizeProducts(data)
             const scopedProducts = normalized.filter((item) => scopeMeta.allowedTypes.includes(item.productType))
             setProducts(scopedProducts)
-            const normalizedCategories = extractCategories(scopedProducts)
-            setCategories(normalizedCategories)
-            if (!formCategoryId && normalizedCategories.length > 0) {
-                setFormCategoryId(String(normalizedCategories[0].categoryId))
-            }
         } catch (error) {
             setProducts([])
-            setCategories([])
             setProductsError(error.message || 'Tải danh sách sản phẩm thất bại.')
         } finally {
             setProductsLoading(false)
         }
     }
+
+    const refreshAllData = async () => {
+        await Promise.all([fetchCategories(), fetchProducts()])
+    }
+
+    const navigateToCategories = () => {
+        navigate('/categories')
+    }
+
+    const hasCategories = categories.length > 0
 
     const resetCreateForm = () => {
         setFormSku('')
@@ -213,6 +259,12 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     const openCreateModal = () => {
         setCreateError('')
         setCreateSuccess('')
+
+        if (!hasCategories) {
+            setCreateError('Chưa có danh mục. Vui lòng tạo danh mục trước khi tạo sản phẩm.')
+            return
+        }
+
         resetCreateForm()
         setShowCreateModal(true)
     }
@@ -235,6 +287,11 @@ export default function ProductManagementPage({ scope = 'finished' }) {
             productType: normalizedScope === 'finished' ? 'FINISHED' : normalizeProductType(formProductType.trim()),
             purchasePrice: Number(formPurchasePrice) || 0,
             internalPrice: Number(formInternalPrice) || 0,
+        }
+
+        if (!Number.isFinite(payload.categoryId) || payload.categoryId <= 0) {
+            setCreateError('Vui lòng chọn danh mục hợp lệ trước khi lưu sản phẩm.')
+            return
         }
 
         if (!payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
@@ -316,6 +373,11 @@ export default function ProductManagementPage({ scope = 'finished' }) {
         }
 
         console.log('📝 Updating product with payload:', payload)
+
+        if (!Number.isFinite(payload.categoryId) || payload.categoryId <= 0) {
+            setEditError('Vui lòng chọn danh mục hợp lệ trước khi cập nhật sản phẩm.')
+            return
+        }
 
         if (!productId || !payload.sku || !payload.productName || !payload.baseUnit || !payload.productType || !payload.categoryId) {
             setEditError('Vui lòng nhập đầy đủ SKU, Tên sản phẩm, Danh mục, Đơn vị gốc và Loại sản phẩm.')
@@ -407,14 +469,82 @@ export default function ProductManagementPage({ scope = 'finished' }) {
     }
 
     useEffect(() => {
-        fetchProducts()
+        refreshAllData()
     }, [])
+
+    useEffect(() => {
+        if (categories.length === 0) return
+
+        if (!formCategoryId) {
+            setFormCategoryId(String(categories[0].categoryId))
+        }
+    }, [categories, formCategoryId])
+
+    const categoryNameMap = useMemo(() => {
+        return categories.reduce((acc, category) => {
+            acc[category.categoryId] = category.name
+            return acc
+        }, {})
+    }, [categories])
+
+    const productsWithCategoryName = useMemo(() => {
+        return products.map((item) => ({
+            ...item,
+            categoryName: categoryNameMap[item.categoryId] || item.categoryName || 'N/A',
+        }))
+    }, [products, categoryNameMap])
 
     const filteredProducts = useMemo(() => {
         const key = keyword.trim().toLowerCase()
-        if (!key) return products
-        return products.filter((item) => `${item.id} ${item.sku} ${item.name} ${item.categoryName} ${item.productType} ${item.baseUnit}`.toLowerCase().includes(key))
-    }, [products, keyword])
+        if (!key) return productsWithCategoryName
+        return productsWithCategoryName.filter((item) => `${item.id} ${item.sku} ${item.name} ${item.categoryName} ${item.productType} ${item.baseUnit}`.toLowerCase().includes(key))
+    }, [productsWithCategoryName, keyword])
+
+    const statsItems = useMemo(() => {
+        const categoryCount = new Set(productsWithCategoryName.map((item) => Number(item.categoryId)).filter((id) => id > 0)).size
+        const validSkuCount = productsWithCategoryName.filter((item) => String(item.sku || '').trim().length > 0).length
+        const avgPrice = productsWithCategoryName.length > 0
+            ? productsWithCategoryName.reduce((sum, item) => {
+                const value = normalizedScope === 'ingredient' ? Number(item.purchasePrice || 0) : Number(item.internalPrice || 0)
+                return sum + (Number.isFinite(value) ? value : 0)
+            }, 0) / productsWithCategoryName.length
+            : 0
+
+        return [
+            {
+                key: `${normalizedScope}-total`,
+                label: normalizedScope === 'ingredient' ? 'Tổng nguyên liệu' : 'Tổng thành phẩm',
+                value: Number(productsWithCategoryName.length || 0).toLocaleString('vi-VN'),
+                note: 'Số bản ghi toàn danh sách',
+                icon: normalizedScope === 'ingredient' ? 'nutrition' : 'inventory_2',
+                tone: 'blue',
+            },
+            {
+                key: `${normalizedScope}-sku`,
+                label: 'SKU hợp lệ',
+                value: Number(validSkuCount || 0).toLocaleString('vi-VN'),
+                note: 'Sản phẩm có mã SKU',
+                icon: 'qr_code_2',
+                tone: 'green',
+            },
+            {
+                key: `${normalizedScope}-categories`,
+                label: 'Danh mục sử dụng',
+                value: Number(categoryCount || 0).toLocaleString('vi-VN'),
+                note: 'Số danh mục có sản phẩm',
+                icon: 'category',
+                tone: 'purple',
+            },
+            {
+                key: `${normalizedScope}-avg-price`,
+                label: normalizedScope === 'ingredient' ? 'Giá mua TB' : 'Giá nội bộ TB',
+                value: `${Math.round(avgPrice || 0).toLocaleString('vi-VN')}đ`,
+                note: 'Trung bình theo danh sách',
+                icon: 'payments',
+                tone: 'amber',
+            },
+        ]
+    }, [productsWithCategoryName, normalizedScope])
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -425,14 +555,16 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={fetchProducts}
+                        onClick={refreshAllData}
+                        disabled={productsLoading || categoriesLoading}
                         className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
-                        Làm mới
+                        {productsLoading || categoriesLoading ? 'Đang tải...' : 'Làm mới'}
                     </button>
                     <button
                         onClick={openCreateModal}
-                        className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
+                        disabled={!hasCategories || categoriesLoading}
+                        className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         + {scopeMeta.createLabel}
                     </button>
@@ -444,6 +576,8 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                     <h1 className="text-2xl font-bold">{scopeMeta.listTitle}</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Quản lý dữ liệu với các thao tác xem, sửa, xóa.</p>
                 </div>
+
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
                     <label className="flex flex-col gap-1">
@@ -459,12 +593,31 @@ export default function ProductManagementPage({ scope = 'finished' }) {
 
                 {productsLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải danh sách sản phẩm...</p>}
                 {productsError && <p className="text-sm text-red-600 dark:text-red-400">{productsError}</p>}
+                {categoriesLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải danh mục...</p>}
+                {categoriesError && <p className="text-sm text-red-600 dark:text-red-400">{categoriesError}</p>}
                 {createSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400">{createSuccess}</p>}
                 {createError && <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>}
                 {editSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400">{editSuccess}</p>}
                 {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
                 {deleteSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400">{deleteSuccess}</p>}
                 {deleteError && <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
+
+                {!categoriesLoading && !categoriesError && !hasCategories && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-4">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Chưa có danh mục sản phẩm</p>
+                        <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                            Cần tạo ít nhất một danh mục trước khi tạo hoặc sửa Product.
+                        </p>
+                        <div className="mt-3">
+                            <button
+                                onClick={navigateToCategories}
+                                className="h-9 px-3 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800"
+                            >
+                                Đi đến màn hình Category
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {!productsLoading && !productsError && (
                     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
@@ -481,7 +634,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                 {filteredProducts.length > 0 ? (
                                     filteredProducts.map((item) => (
                                         <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-5 py-3 text-sm font-semibold">#{item.id}</td>
+                                            <td className="px-5 py-3 text-sm font-semibold">{item.id}</td>
                                             <td className="px-5 py-3 text-sm font-mono">{item.sku}</td>
                                             <td className="px-5 py-3 text-sm">{item.name}</td>
                                             <td className="px-5 py-3 text-sm">{item.categoryName}</td>
@@ -564,26 +717,17 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </label>
                             <label className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Danh mục (Category)</span>
-                                {categories.length > 0 ? (
-                                    <select
-                                        value={formCategoryId}
-                                        onChange={(e) => setFormCategoryId(e.target.value)}
-                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                    >
-                                        {categories.map((c) => (
-                                            <option key={c.categoryId} value={String(c.categoryId)}>{c.name} (#{c.categoryId})</option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={formCategoryId}
-                                        onChange={(e) => setFormCategoryId(e.target.value)}
-                                        placeholder="Nhập Category ID"
-                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                    />
-                                )}
+                                <select
+                                    value={formCategoryId}
+                                    onChange={(e) => setFormCategoryId(e.target.value)}
+                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    disabled={!hasCategories}
+                                >
+                                    {!hasCategories ? <option value="">Chưa có danh mục</option> : null}
+                                    {categories.map((c) => (
+                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} ({c.categoryId})</option>
+                                    ))}
+                                </select>
                             </label>
                             <label className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đơn vị gốc</span>
@@ -654,7 +798,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </button>
                             <button
                                 onClick={handleCreateProduct}
-                                disabled={createLoading}
+                                disabled={createLoading || !hasCategories || !formCategoryId}
                                 className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
                             >
                                 {createLoading ? 'Đang tạo...' : 'Xác nhận tạo'}
@@ -668,7 +812,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                 <div className="fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <p className="text-base font-semibold">Cập nhật #{editProductId}</p>
+                            <p className="text-base font-semibold">Cập nhật {editProductId}</p>
                             <button
                                 onClick={() => setShowEditModal(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -696,26 +840,17 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </label>
                             <label className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Danh mục (Category)</span>
-                                {categories.length > 0 ? (
-                                    <select
-                                        value={editCategoryId}
-                                        onChange={(e) => setEditCategoryId(e.target.value)}
-                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                    >
-                                        {categories.map((c) => (
-                                            <option key={c.categoryId} value={String(c.categoryId)}>{c.name} (#{c.categoryId})</option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={editCategoryId}
-                                        onChange={(e) => setEditCategoryId(e.target.value)}
-                                        placeholder="Nhập Category ID"
-                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                                    />
-                                )}
+                                <select
+                                    value={editCategoryId}
+                                    onChange={(e) => setEditCategoryId(e.target.value)}
+                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    disabled={!hasCategories}
+                                >
+                                    {!hasCategories ? <option value="">Chưa có danh mục</option> : null}
+                                    {categories.map((c) => (
+                                        <option key={c.categoryId} value={String(c.categoryId)}>{c.name} ({c.categoryId})</option>
+                                    ))}
+                                </select>
                             </label>
                             <label className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đơn vị gốc</span>
@@ -785,7 +920,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </button>
                             <button
                                 onClick={handleUpdateProduct}
-                                disabled={editLoading}
+                                disabled={editLoading || !hasCategories || !editCategoryId}
                                 className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
                             >
                                 {editLoading ? 'Đang cập nhật...' : 'Xác nhận cập nhật'}
@@ -808,7 +943,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                                         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                                             {normalizedScope === 'ingredient' ? 'Chi tiết nguyên liệu' : 'Chi tiết sản phẩm'}
                                         </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã #{viewProduct.id}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã {viewProduct.id}</p>
                                     </div>
                                 </div>
                                 <button
@@ -883,7 +1018,7 @@ export default function ProductManagementPage({ scope = 'finished' }) {
                             </button>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Bạn có chắc muốn xóa sản phẩm <span className="font-semibold">{deleteTargetName || `#${deleteTargetId}`}</span> (ID: #{deleteTargetId}) không?
+                            Bạn có chắc muốn xóa sản phẩm <span className="font-semibold">{deleteTargetName || `${deleteTargetId}`}</span> (ID: {deleteTargetId}) không?
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                             Nếu sản phẩm đang được dùng ở đơn hàng, tồn kho, batch hoặc BOM thì backend sẽ trả lỗi 400.

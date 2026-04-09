@@ -1,23 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 import { decodeJwtPayload, getStoredToken } from '../utils/auth'
 
-const fallbackStoreOptions = [{ id: 1, name: 'Cửa hàng #1' }]
-const fallbackProductOptions = [
-    { id: 1, name: 'Bột mì đa dụng' },
-    { id: 2, name: 'Lá húng tươi' },
-    { id: 3, name: 'Đế bánh pizza' },
-    { id: 4, name: 'Sốt burger' },
-    { id: 5, name: 'Phô mai Mozzarella' },
-    { id: 6, name: 'Sốt cà chua nền' },
-]
+const fallbackStoreOptions = []
+const fallbackProductOptions = []
 
 const supplierInactiveLabel = 'Ngừng hoạt động'
 
 const statusColors = { ok: 'bg-emerald-500', low: 'bg-amber-500', critical: 'bg-red-500' }
 const stockBg = { ok: '', low: 'bg-amber-50 dark:bg-amber-900/10', critical: 'bg-red-50 dark:bg-red-900/10' }
 const orderStatusStyle = {
+    'Đã nhận hàng': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Hoàn thành': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'Đang giao': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'Giao một phần': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     'Đã hoàn tiền': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     'Đã sản xuất': 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
     'Đã duyệt': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
@@ -48,11 +44,12 @@ const apiStatusToUi = {
     CONFIRMED: 'Đã xác nhận',
     PROCESSING: 'Đang xử lý',
     PRODUCED: 'Đã sản xuất',
+    PARTIAL_SHIPPING: 'Giao một phần',
     SHIPPED: 'Đang giao',
     SHIPPING: 'Đang giao',
     REFUNDED: 'Đã hoàn tiền',
-    DELIVERED: 'Hoàn thành',
-    COMPLETED: 'Hoàn thành',
+    DELIVERED: 'Đã nhận hàng',
+    COMPLETED: 'Đã nhận hàng',
     CANCELLED: 'Đã hủy',
     REJECTED: 'Đã từ chối',
     RETURNED: 'Đã trả hàng',
@@ -74,15 +71,87 @@ function parseArrayData(raw) {
 }
 
 function parseSafeNumber(value, fallback = 0) {
+    if (typeof value === 'string') {
+        const raw = value.trim()
+        if (!raw) return fallback
+
+        let normalized = raw.replace(/\s/g, '')
+        if (normalized.includes(',') && !normalized.includes('.')) {
+            normalized = normalized.replace(',', '.')
+        }
+
+        const n = Number(normalized)
+        return Number.isFinite(n) ? n : fallback
+    }
+
     const n = Number(value)
     return Number.isFinite(n) ? n : fallback
+}
+
+function getDetailOrderedQty(row) {
+    return parseSafeNumber(
+        row?.quantityOrdered
+        ?? row?.orderedQuantity
+        ?? row?.quantity
+        ?? row?.qty
+        ?? row?.quantity_ordered,
+        0,
+    )
+}
+
+function getDetailConfirmedQty(row) {
+    return parseSafeNumber(
+        row?.quantityConfirmed
+        ?? row?.confirmedQuantity
+        ?? row?.quantity_confirmed,
+        0,
+    )
+}
+
+function getDetailShippedQty(row) {
+    return parseSafeNumber(
+        row?.quantityShipped
+        ?? row?.shippedQuantity
+        ?? row?.quantity_shipped
+        ?? row?.shippedQty
+        ?? row?.deliveredQuantity,
+        0,
+    )
+}
+
+function getDetailUnitPrice(row) {
+    const direct = parseSafeNumber(
+        row?.unitPrice
+        ?? row?.price
+        ?? row?.internalPrice
+        ?? row?.unit_price
+        ?? row?.product?.internalPrice
+        ?? row?.product?.price,
+        0,
+    )
+    if (direct > 0) return direct
+
+    const lineAmount = parseSafeNumber(
+        row?.lineTotal
+        ?? row?.lineAmount
+        ?? row?.subtotal
+        ?? row?.subTotal
+        ?? row?.totalAmount
+        ?? row?.totalPrice
+        ?? row?.amount,
+        0,
+    )
+
+    const qty = getDetailOrderedQty(row)
+    if (lineAmount > 0 && qty > 0) return lineAmount / qty
+    return 0
 }
 
 function normalizeLocationType(locationType) {
     const raw = String(locationType || '').toUpperCase()
     if (raw === 'KITCHEN') return 'Bếp trung tâm'
     if (raw === 'STORE') return 'Cửa hàng'
-    return locationType || 'N/A'
+    return locationType || 'Không có'
 }
 
 function resolveInventoryStatus(row) {
@@ -103,7 +172,7 @@ function toInventoryRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.inventoryId ?? item?.id, productId),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         currentQuantity: parseSafeNumber(item?.currentQuantity, 0),
@@ -125,13 +194,13 @@ function toInventoryLogRow(item, productNameById) {
         || item?.type
         || item?.action
         || item?.reason
-        || 'N/A'
+        || 'Không có'
 
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         inventoryId: parseSafeNumber(item?.inventoryId, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationTypeRaw: String(item?.locationType || '').toUpperCase(),
         locationId: parseSafeNumber(item?.locationId, 0),
@@ -139,10 +208,24 @@ function toInventoryLogRow(item, productNameById) {
         quantityChange: parseSafeNumber(item?.quantityChanged ?? item?.changeQuantity ?? item?.quantity ?? item?.amount, 0),
         note: item?.note || item?.reason || item?.description || '',
         reason: item?.reason || '',
-        referenceType: referenceType || 'N/A',
+        referenceType: referenceType || 'Không có',
         referenceId: item?.referenceId,
         createdAt: item?.createdAt || item?.transactionDate || item?.timestamp || null,
     }
+}
+
+function toProductCatalogRows(rawProducts) {
+    return parseArrayData(rawProducts)
+        .map((item) => {
+            const id = parseSafeNumber(item?.productId ?? item?.id, 0)
+            if (!id) return null
+
+            return {
+                id,
+                name: item?.productName || item?.name || `Sản phẩm chưa có tên`,
+            }
+        })
+        .filter(Boolean)
 }
 
 function resolveStoreIdFromTokenOrStorage() {
@@ -167,6 +250,22 @@ function resolveStoreIdFromTokenOrStorage() {
     return 0
 }
 
+function resolveStoreNameFromTokenOrStorage() {
+    const payload = decodeJwtPayload(getStoredToken()) || {}
+    const claimName = String(payload?.storeName || payload?.StoreName || payload?.store_name || '').trim()
+    if (claimName) return claimName
+
+    const userRaw = localStorage.getItem('user')
+    if (!userRaw) return ''
+
+    try {
+        const user = JSON.parse(userRaw)
+        return String(user?.storeName || user?.StoreName || '').trim()
+    } catch {
+        return ''
+    }
+}
+
 function normalizeSupplierList(raw) {
     const records = parseArrayData(raw)
     return records
@@ -175,7 +274,7 @@ function normalizeSupplierList(raw) {
             if (!supplierId) return null
             return {
                 supplierId,
-                supplierName: item?.supplierName || item?.name || `Nhà cung cấp #${supplierId}`,
+                supplierName: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
                 contactInfo: item?.contactInfo || 'Chưa có thông tin',
                 address: item?.address || 'Chưa có địa chỉ',
                 isActive: item?.isActive !== false,
@@ -208,7 +307,10 @@ export default function StoreOrderPage() {
     const [submitSuccess, setSubmitSuccess] = useState('')
     const [lastCreatedOrderId, setLastCreatedOrderId] = useState(null)
     const [orderDetailRows, setOrderDetailRows] = useState([])
-    const [formStoreId, setFormStoreId] = useState(localStorage.getItem('store_id') || '1')
+    const [formStoreId, setFormStoreId] = useState(() => {
+        const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+        return scopedStoreId > 0 ? String(scopedStoreId) : ''
+    })
     const [storeOptions, setStoreOptions] = useState(fallbackStoreOptions)
     const [productOptions, setProductOptions] = useState(fallbackProductOptions)
     const [supplierOptions, setSupplierOptions] = useState([])
@@ -227,11 +329,14 @@ export default function StoreOrderPage() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
     const [paymentLoading, setPaymentLoading] = useState(false)
+    const [storeNameById, setStoreNameById] = useState({})
+    const detailModalRef = useRef(null)
+    const detailModalCloseButtonRef = useRef(null)
 
     const getStoreIdFromItem = (item) => Number(item?.storeId ?? item?.id)
-    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || `Store #${id}`
+    const getStoreNameFromItem = (item, id) => item?.storeName || item?.name || ''
     const getProductIdFromItem = (item) => Number(item?.productId ?? item?.id)
-    const getProductNameFromItem = (item, id) => item?.productName || item?.name || `Sản phẩm #${id}`
+    const getProductNameFromItem = (item, id) => item?.productName || item?.name || ''
 
     const toOptionList = (rawData, getId, getName) => {
         const records = Array.isArray(rawData)
@@ -255,32 +360,78 @@ export default function StoreOrderPage() {
             .filter(Boolean)
     }
 
+    const buildStoreNameMapFromOptions = (stores) => {
+        return (Array.isArray(stores) ? stores : []).reduce((acc, item) => {
+            const id = Number(item?.id ?? item?.storeId)
+            const name = String(item?.name ?? item?.storeName ?? '').trim()
+            if (id > 0 && name) acc[id] = name
+            return acc
+        }, {})
+    }
+
+    const fetchStoreNameMap = async () => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+        if (!token) return {}
+
+        try {
+            const response = await fetch(`${apiBase}/Organization/stores`, {
+                method: 'GET',
+                headers: {
+                    accept: '*/*',
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) return {}
+
+            const normalizedStores = toOptionList(data, getStoreIdFromItem, getStoreNameFromItem)
+            const nextMap = buildStoreNameMapFromOptions(normalizedStores)
+            if (Object.keys(nextMap).length) {
+                setStoreNameById((prev) => ({ ...prev, ...nextMap }))
+            }
+            return nextMap
+        } catch {
+            return {}
+        }
+    }
+
     const fetchDropdownOptions = async () => {
+        setOrdersError('')
         setOptionsLoading(true)
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
+
             const headers = {
                 accept: '*/*',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                Authorization: `Bearer ${token}`,
             }
 
-            const [storeRes, productRes] = await Promise.all([
-                fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers }),
-                fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers }),
-            ])
+            const scopedStoreId = resolveStoreIdFromTokenOrStorage()
+            const storeRes = await fetch(`${apiBase}/Organization/stores`, { method: 'GET', headers })
+            const storesJson = await storeRes.json().catch(() => ({}))
+            if (!storeRes.ok) {
+                throw new Error(extractErrorMessage(storesJson, 'Không thể tải danh sách cửa hàng.'))
+            }
 
-            const storesJson = await storeRes.json().catch(() => [])
-            const productsJson = await productRes.json().catch(() => [])
-
-            let stores = storeRes.ok ? toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem) : []
+            let stores = toOptionList(storesJson, getStoreIdFromItem, getStoreNameFromItem)
+            if (scopedStoreId > 0) {
+                stores = stores.filter((item) => Number(item.id) === scopedStoreId)
+            }
             if (!stores.length) {
-                const scopedStoreId = resolveStoreIdFromTokenOrStorage()
-                if (scopedStoreId > 0) {
-                    stores = [{ id: scopedStoreId, name: `Cửa hàng #${scopedStoreId}` }]
-                }
+                throw new Error('Không tìm thấy dữ liệu cửa hàng phù hợp tài khoản hiện tại.')
             }
 
-            let products = productRes.ok ? toOptionList(productsJson, getProductIdFromItem, getProductNameFromItem) : []
+            const productRes = await fetch(`${apiBase}/Products/manufactured`, { method: 'GET', headers })
+            const productsJson = await productRes.json().catch(() => ({}))
+            if (!productRes.ok) {
+                throw new Error(extractErrorMessage(productsJson, 'Không thể tải danh sách sản phẩm sản xuất.'))
+            }
+
+            let products = toOptionList(productsJson, getProductIdFromItem, getProductNameFromItem)
 
             // Filter only FINISHED products
             if (products.length > 0) {
@@ -293,27 +444,19 @@ export default function StoreOrderPage() {
             }
 
             if (!products.length) {
-                const inventoryRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
-                const inventoryJson = await inventoryRes.json().catch(() => [])
-                if (inventoryRes.ok) {
-                    const inventoryProductMap = new Map()
-                    parseArrayData(inventoryJson).forEach((item) => {
-                        const id = parseSafeNumber(item?.productId, 0)
-                        if (!id || inventoryProductMap.has(id)) return
-                        const name = item?.product?.productName || item?.product?.name || `Sản phẩm #${id}`
-                        inventoryProductMap.set(id, { id, name })
-                    })
-                    products = Array.from(inventoryProductMap.values())
-                }
+                throw new Error('Không có sản phẩm FINISHED để tạo đơn.')
             }
 
-            setStoreOptions(stores.length ? stores : fallbackStoreOptions)
-            setProductOptions(products.length ? products : fallbackProductOptions)
+            setStoreOptions(stores)
+            setStoreNameById((prev) => ({ ...prev, ...buildStoreNameMapFromOptions(stores) }))
+            setProductOptions(products)
             setSupplierOptions([])
-        } catch {
-            setStoreOptions(fallbackStoreOptions)
-            setProductOptions(fallbackProductOptions)
+        } catch (error) {
+            setStoreOptions([])
+            setStoreNameById({})
+            setProductOptions([])
             setSupplierOptions([])
+            setOrdersError(error.message || 'Tải danh mục cửa hàng/sản phẩm thất bại.')
         } finally {
             setOptionsLoading(false)
         }
@@ -325,10 +468,16 @@ export default function StoreOrderPage() {
     })
 
     const toReadableDate = (dateString) => {
-        if (!dateString) return 'N/A'
+        if (!dateString) return 'Không có'
         const d = new Date(dateString)
         if (Number.isNaN(d.getTime())) return dateString
-        return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        return d.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
     }
 
     const fetchInventory = async () => {
@@ -349,7 +498,7 @@ export default function StoreOrderPage() {
             setInventoryRows([])
             setInventoryLogs([])
             setInventoryInfo('')
-            setInventoryError('Store ID không hợp lệ để tải tồn kho theo cửa hàng.')
+            setInventoryError('Mã cửa hàng không hợp lệ để tải tồn kho theo cửa hàng.')
             return
         }
 
@@ -359,6 +508,10 @@ export default function StoreOrderPage() {
                 accept: '*/*',
                 Authorization: `Bearer ${token}`,
             }
+
+            const productsRes = await fetch(`${apiBase}/Products`, { method: 'GET', headers })
+            const productsJson = productsRes.ok ? await productsRes.json().catch(() => []) : []
+            const productCatalog = toProductCatalogRows(productsJson)
 
             const inventoryUrl = inventoryFilter === 'store'
                 ? `${apiBase}/Inventory/store/${parsedStoreId}`
@@ -378,38 +531,53 @@ export default function StoreOrderPage() {
                 setInventoryInfo('Không thể tải nhật ký tồn kho từ /Inventory/logs (backend đang lỗi hoặc chưa sẵn sàng). Vẫn hiển thị dữ liệu tồn kho hiện tại.')
             }
 
-            const productNameById = productOptions.reduce((acc, item) => {
+            const productNameById = productCatalog.reduce((acc, item) => {
                 const id = Number(item?.id)
-                if (id > 0) acc[id] = item?.name || `Sản phẩm #${id}`
+                if (id > 0) acc[id] = item?.name || `Sản phẩm chưa có tên`
                 return acc
             }, {})
+
+            if (Object.keys(productNameById).length === 0) {
+                productOptions.forEach((item) => {
+                    const id = Number(item?.id)
+                    if (id > 0 && !productNameById[id]) {
+                        productNameById[id] = item?.name || `Sản phẩm chưa có tên`
+                    }
+                })
+            }
 
             let inventoryRecords = parseArrayData(inventoryJson)
 
             if (inventoryFilter === 'store' && inventoryRecords.length === 0) {
-                const stockRes = await fetch(`${apiBase}/Inventory/stock`, { method: 'GET', headers })
-                const stockJson = await stockRes.json().catch(() => [])
-
-                if (stockRes.ok) {
-                    const stockRecords = parseArrayData(stockJson)
-                    const storeScopedFromStock = stockRecords.filter((row) => {
-                        const rowLocationType = String(row?.locationType || '').toUpperCase()
-                        const rowLocationId = Number(row?.locationId)
-                        return rowLocationType === 'STORE' && rowLocationId === parsedStoreId
-                    })
-
-                    inventoryRecords = storeScopedFromStock
-                    if (storeScopedFromStock.length > 0) {
-                        setInventoryInfo('API /Inventory/store/' + parsedStoreId + ' đang trả rỗng, đã tự fallback từ /Inventory/stock để hiển thị dữ liệu store.')
-                    } else {
-                        setInventoryInfo('Store #' + parsedStoreId + ' hiện chưa có bản ghi tồn kho trong hệ thống.')
-                    }
-                }
+                setInventoryInfo('Cửa hàng hiện tại chưa có bản ghi tồn kho trong hệ thống.')
             }
 
             const normalizedInventory = inventoryRecords
                 .map((item) => toInventoryRow(item, productNameById))
                 .filter((item) => item.productId > 0)
+
+            const existingProductIds = new Set(normalizedInventory.map((item) => Number(item.productId)))
+            const fallbackZeroRows = Object.entries(productNameById)
+                .map(([productIdRaw, productName]) => {
+                    const productId = Number(productIdRaw)
+                    if (!productId || existingProductIds.has(productId)) return null
+
+                    return {
+                        id: `virtual-${inventoryFilter}-${productId}`,
+                        productId,
+                        productName,
+                        locationType: inventoryFilter === 'store' ? 'Cửa hàng' : 'Không có',
+                        locationId: inventoryFilter === 'store' ? parsedStoreId : 0,
+                        currentQuantity: 0,
+                        minQuantity: 0,
+                        lastUpdated: null,
+                        status: 'critical',
+                    }
+                })
+                .filter(Boolean)
+
+            const mergedInventory = [...normalizedInventory, ...fallbackZeroRows]
+                .sort((a, b) => String(a.productName || '').localeCompare(String(b.productName || ''), 'vi'))
 
             const normalizedLogs = logsRes.ok
                 ? parseArrayData(logsJson)
@@ -424,10 +592,10 @@ export default function StoreOrderPage() {
                 : []
 
             if (inventoryFilter === 'store' && normalizedLogs.length === 0 && !inventoryInfo) {
-                setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho Store #' + parsedStoreId + '.')
+                setInventoryInfo('Hiện chưa có lịch sử biến động tồn kho cho cửa hàng hiện tại.')
             }
 
-            setInventoryRows(normalizedInventory)
+            setInventoryRows(mergedInventory)
             setInventoryLogs(normalizedLogs)
         } catch (error) {
             setInventoryRows([])
@@ -441,7 +609,47 @@ export default function StoreOrderPage() {
 
     const normalizeStatus = (rawStatus) => {
         if (!rawStatus) return 'Pending'
-        return apiStatusToUi[String(rawStatus).toUpperCase()] || rawStatus
+        const raw = String(rawStatus).trim().toUpperCase()
+        const aliases = {
+            PARTIALSHIPPING: 'PARTIAL_SHIPPING',
+            GIAO_MOT_PHAN: 'PARTIAL_SHIPPING',
+        }
+        const normalized = aliases[raw] || raw
+        return apiStatusToUi[normalized] || rawStatus
+    }
+
+    const deriveStatusFromDetails = (baseStatus, details, sourceOrder = null) => {
+        const normalizedBase = String(baseStatus || '')
+        const rows = Array.isArray(details) ? details : []
+        const topLevelShipped = parseSafeNumber(
+            sourceOrder?.totalShippedQuantity
+            ?? sourceOrder?.shippedQuantity
+            ?? sourceOrder?.quantityShipped
+            ?? sourceOrder?.totalQuantityShipped,
+            0,
+        )
+
+        if (normalizedBase === 'Đang giao' || normalizedBase === 'Giao một phần' || normalizedBase === 'Đã nhận hàng' || normalizedBase === 'Hoàn thành' || normalizedBase === 'Đã hủy' || normalizedBase === 'Đã từ chối' || normalizedBase === 'Đã trả hàng' || normalizedBase === 'Đã hoàn tiền') {
+            return normalizedBase
+        }
+
+        if (!rows.length) {
+            return topLevelShipped > 0 ? 'Giao một phần' : normalizedBase
+        }
+
+        const anyShipped = rows.some((row) => getDetailShippedQty(row) > 0) || topLevelShipped > 0
+        if (!anyShipped) return normalizedBase
+
+        const allReached = rows.every((row) => {
+            const ordered = getDetailOrderedQty(row)
+            const confirmed = getDetailConfirmedQty(row)
+            const shipped = getDetailShippedQty(row)
+            const target = confirmed > 0 ? confirmed : ordered
+            if (target <= 0) return true
+            return shipped >= target
+        })
+
+        return allReached ? 'Đang giao' : 'Giao một phần'
     }
 
     const normalizePaymentStatus = (rawPaymentStatus) => {
@@ -468,16 +676,12 @@ export default function StoreOrderPage() {
 
     const canCancelOrderInList = (rawStatus) => {
         const normalized = normalizeApiOrderStatus(rawStatus)
-        return normalized !== 'CANCELLED' && normalized !== 'COMPLETED' && normalized !== 'RETURNED' && normalized !== 'REFUNDED'
+        return normalized === 'PENDING'
     }
 
     const isShippedLikeStatus = (rawStatus) => {
-        const status = String(rawStatus || '').toUpperCase()
-        // Check both raw status and normalized status
-        return status === 'SHIPPED' ||
-            status === 'SHIPPING' ||
-            status === 'ĐANG GIAO' ||
-            status.includes('GIAO')
+        const normalized = normalizeApiOrderStatus(rawStatus)
+        return normalized === 'SHIPPING' || normalized === 'PARTIAL_SHIPPING'
     }
 
     const normalizeApiOrderStatus = (rawStatus) => {
@@ -488,10 +692,16 @@ export default function StoreOrderPage() {
             'CHỜ DUYỆT': 'PENDING',
             'ĐÃ DUYỆT': 'APPROVED',
             'ĐANG XỬ LÝ': 'PROCESSING',
+            'ĐANG SẢN XUẤT': 'PROCESSING',
             'ĐÃ SẢN XUẤT': 'PRODUCED',
             'ĐANG GIAO': 'SHIPPING',
+            'GIAO MỘT PHẦN': 'PARTIAL_SHIPPING',
+            'GIAO_MOT_PHAN': 'PARTIAL_SHIPPING',
+            PARTIAL_SHIPPING: 'PARTIAL_SHIPPING',
+            PARTIALSHIPPING: 'PARTIAL_SHIPPING',
             SHIPPED: 'SHIPPING',
             'ĐÃ XÁC NHẬN': 'CONFIRMED',
+            'ĐÃ NHẬN HÀNG': 'COMPLETED',
             'HOÀN THÀNH': 'COMPLETED',
             'ĐÃ HỦY': 'CANCELLED',
             'ĐÃ TỪ CHỐI': 'REJECTED',
@@ -501,10 +711,21 @@ export default function StoreOrderPage() {
         return statusAliases[raw] || raw
     }
 
+    const getBackendOrderStatus = (order) => {
+        return normalizeApiOrderStatus(
+            order?.backendStatus
+            || order?.rawOrderStatus
+            || order?.statusApi
+            || order?.statusCode
+            || order?.orderStatus
+            || order?.status,
+        )
+    }
+
     const canPayOrder = (rawStatus, rawPaymentStatus) => {
         const normalizedStatus = normalizeApiOrderStatus(rawStatus)
         const normalizedPayment = normalizePaymentStatus(rawPaymentStatus)
-        const payableStatuses = ['APPROVED', 'PROCESSING', 'PRODUCED', 'SHIPPING']
+        const payableStatuses = ['APPROVED', 'PROCESSING', 'PRODUCED', 'PARTIAL_SHIPPING', 'SHIPPING']
         return normalizedPayment === 'UNPAID' && payableStatuses.includes(normalizedStatus)
     }
 
@@ -513,11 +734,15 @@ export default function StoreOrderPage() {
     }
 
     const canReceiveOrder = (rawStatus, rawPaymentStatus) => {
-        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'PAID'
+        return normalizeApiOrderStatus(rawStatus) === 'SHIPPING' && normalizePaymentStatus(rawPaymentStatus) === 'PAID'
+    }
+
+    const canReturnOrder = (rawStatus) => {
+        return isShippedLikeStatus(rawStatus)
     }
 
     const isShippingUnpaidOrder = (rawStatus, rawPaymentStatus) => {
-        return isShippedLikeStatus(rawStatus) && normalizePaymentStatus(rawPaymentStatus) === 'UNPAID'
+        return normalizeApiOrderStatus(rawStatus) === 'SHIPPING' && normalizePaymentStatus(rawPaymentStatus) === 'UNPAID'
     }
 
     const extractErrorMessage = (data, fallback) => {
@@ -539,14 +764,14 @@ export default function StoreOrderPage() {
 
     const getStoreNameById = (storeId) => {
         const id = Number(storeId)
-        if (!id || id < 1) return 'N/A'
-        return storeOptions.find((s) => Number(s.id) === id)?.name || `Store #${id}`
+        if (!id || id < 1) return 'Không có'
+        return storeNameById[id] || storeOptions.find((s) => Number(s.id) === id)?.name || 'Không có'
     }
 
     const getProductNameById = (productId) => {
         const id = Number(productId)
-        if (!id || id < 1) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === id)?.name || `Sản phẩm #${id}`
+        if (!id || id < 1) return 'Không có'
+        return productOptions.find((p) => Number(p.id) === id)?.name || 'Không có'
     }
 
     const getProductPriceById = (productId) => {
@@ -555,13 +780,54 @@ export default function StoreOrderPage() {
         return productOptions.find((p) => Number(p.id) === id)?.internalPrice || 0
     }
 
-    const normalizeOrders = (rawOrders) => {
+    const buildDetailRowsWithPrice = (rows, totalAmount) => {
+        const safeRows = Array.isArray(rows) ? rows : []
+        const mapped = safeRows.map((row) => {
+            const quantity = getDetailOrderedQty(row)
+            const unitPrice = getDetailUnitPrice(row)
+            return {
+                row,
+                quantity,
+                unitPrice,
+            }
+        })
+
+        const unknownRows = mapped.filter((item) => item.quantity > 0 && item.unitPrice <= 0)
+        const safeTotalAmount = parseSafeNumber(totalAmount, 0)
+
+        let derivedUnitPrice = 0
+        if (safeTotalAmount > 0 && unknownRows.length > 0) {
+            const knownAmount = mapped.reduce((sum, item) => (
+                item.unitPrice > 0 ? sum + (item.unitPrice * item.quantity) : sum
+            ), 0)
+            const unknownQuantity = unknownRows.reduce((sum, item) => sum + item.quantity, 0)
+            const remainingAmount = Math.max(0, safeTotalAmount - knownAmount)
+            derivedUnitPrice = unknownQuantity > 0 ? remainingAmount / unknownQuantity : 0
+        }
+
+        return mapped.map((item) => {
+            const resolvedUnitPrice = item.unitPrice > 0 ? item.unitPrice : derivedUnitPrice
+            return {
+                ...item.row,
+                _quantity: item.quantity,
+                _unitPrice: resolvedUnitPrice,
+                _subtotal: resolvedUnitPrice * item.quantity,
+            }
+        })
+    }
+
+    const normalizeOrders = (rawOrders, storeMapOverride = null) => {
+        const effectiveStoreMap = storeMapOverride && typeof storeMapOverride === 'object'
+            ? storeMapOverride
+            : storeNameById
+
         if (!Array.isArray(rawOrders)) return []
         return rawOrders.map((item) => {
             const numericId = Number(item?.id || item?.internalOrderId || item?.orderId)
             if (!numericId || numericId < 1) return null
 
-            const status = normalizeStatus(item?.status || item?.orderStatus)
+            const backendStatus = normalizeApiOrderStatus(item?.orderStatus || item?.status)
+            const baseStatus = normalizeStatus(item?.status || item?.orderStatus)
 
             // Try multiple possible field names for order details
             const orderDetails = Array.isArray(item?.orderDetails)
@@ -571,6 +837,8 @@ export default function StoreOrderPage() {
                     : Array.isArray(item?.details)
                         ? item.details
                         : []
+
+            const status = deriveStatusFromDetails(baseStatus, orderDetails, item)
 
             // Improved product name extraction - prioritize nested product object
             const productNames = Array.from(new Set(
@@ -584,19 +852,19 @@ export default function StoreOrderPage() {
                     if (productId > 0) {
                         const found = productOptions.find(p => Number(p.id) === productId)
                         if (found) return found.name
-                        return `Sản phẩm #${productId}`
+                        return `Sản phẩm chưa có tên`
                     }
                     return null
                 }).filter(Boolean)
             ))
 
             const totalQuantity = orderDetails.reduce((sum, row) => {
-                const qty = Number(row?.quantityOrdered || row?.quantity || row?.quantityConfirmed || 0)
+                const qty = getDetailOrderedQty(row)
                 return sum + qty
             }, 0)
 
             const productLabel = orderDetails.length === 0
-                ? 'Click xem chi tiết'
+                ? 'Nhấn xem chi tiết'
                 : productNames.length === 0
                     ? 'Đang tải...'
                     : productNames.length === 1
@@ -604,16 +872,22 @@ export default function StoreOrderPage() {
                         : `${productNames[0]} +${productNames.length - 1}`
 
             const allProductNames = productNames.join('\n') // For tooltip
+            const resolvedStoreId = Number(item?.storeId ?? item?.store?.storeId ?? item?.store?.id)
             return {
-                id: `#${numericId}`,
+                id: `${numericId}`,
                 orderId: numericId,
                 date: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
                 items: orderDetails.length,
                 totalQuantity,
-                storeName: item?.store?.storeName || item?.store?.name || getStoreNameById(item?.storeId),
+                storeName: item?.store?.storeName
+                    || item?.store?.name
+                    || item?.storeName
+                    || effectiveStoreMap[resolvedStoreId]
+                    || getStoreNameById(resolvedStoreId),
                 productLabel,
                 allProductNames, // Add this for tooltip
                 hasMultipleProducts: productNames.length > 1,
+                backendStatus,
                 status,
                 statusStyle: orderStatusStyle[status] || orderStatusStyle['Chờ duyệt'],
                 paymentStatus: normalizePaymentStatus(item?.paymentStatus),
@@ -627,10 +901,16 @@ export default function StoreOrderPage() {
         setOrdersLoading(true)
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
 
             const params = new URLSearchParams()
             const parsedStoreId = Number(formStoreId)
-            const effectiveStoreId = parsedStoreId > 0 ? parsedStoreId : 1
+            if (!(parsedStoreId > 0)) {
+                throw new Error('Không xác định được cửa hàng hiện tại để tải đơn hàng.')
+            }
+            const effectiveStoreId = parsedStoreId
             params.set('storeId', String(effectiveStoreId))
             if (ordersStatusFilter) {
                 params.set('status', String(ordersStatusFilter).toLowerCase())
@@ -641,7 +921,7 @@ export default function StoreOrderPage() {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
             })
 
@@ -663,7 +943,7 @@ export default function StoreOrderPage() {
                             method: 'GET',
                             headers: {
                                 accept: '*/*',
-                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                Authorization: `Bearer ${token}`,
                             },
                         })
 
@@ -686,7 +966,17 @@ export default function StoreOrderPage() {
                 records = await Promise.all(detailPromises)
             }
 
-            setOrders(normalizeOrders(records))
+            const hasMissingStoreName = records.some((item) => {
+                const id = Number(item?.storeId ?? item?.store?.storeId ?? item?.store?.id)
+                const name = String(item?.store?.storeName || item?.store?.name || item?.storeName || '').trim()
+                return id > 0 && !name
+            })
+            let latestStoreMap = storeNameById
+            if (hasMissingStoreName && !Object.keys(storeNameById).length) {
+                latestStoreMap = await fetchStoreNameMap()
+            }
+
+            setOrders(normalizeOrders(records, latestStoreMap))
         } catch (error) {
             setOrders([])
             setOrdersError(error.message || 'Tải đơn hàng thất bại.')
@@ -708,13 +998,16 @@ export default function StoreOrderPage() {
 
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token đăng nhập. Vui lòng đăng nhập lại.')
+            }
 
             setDetailLoading(true)
             const response = await fetch(`${apiBase}/internal-orders/${orderId}`, {
                 method: 'GET',
                 headers: {
                     accept: '*/*',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
             })
 
@@ -727,8 +1020,31 @@ export default function StoreOrderPage() {
                 throw new Error(extractErrorMessage(data, 'Không thể tải chi tiết đơn hàng.'))
             }
 
+            const detailRows = data?.internalOrderDetails || data?.orderDetails || []
+            const backendStatus = normalizeApiOrderStatus(data?.orderStatus || data?.status)
+            const displayStatus = deriveStatusFromDetails(
+                normalizeStatus(data?.orderStatus || data?.status),
+                detailRows,
+                data,
+            )
+
+            const resolvedStoreId = Number(data?.storeId ?? data?.store?.storeId ?? data?.store?.id)
+            let resolvedStoreName = String(data?.store?.storeName || data?.store?.name || data?.storeName || '').trim()
+
+            if (!resolvedStoreName && resolvedStoreId > 0) {
+                let latestStoreMap = storeNameById
+                if (!Object.keys(storeNameById).length) {
+                    latestStoreMap = await fetchStoreNameMap()
+                }
+                resolvedStoreName = latestStoreMap[resolvedStoreId] || getStoreNameById(resolvedStoreId)
+            }
+
             setDetailOrder({
                 ...data,
+                storeId: resolvedStoreId > 0 ? resolvedStoreId : data?.storeId,
+                storeName: resolvedStoreName || 'Không có',
+                backendStatus,
+                orderStatus: displayStatus,
                 paymentStatus: normalizePaymentStatus(data?.paymentStatus),
             })
         } catch (error) {
@@ -773,7 +1089,7 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('CANCELLED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'CANCELLED', orderStatus: updatedStatus, status: updatedStatus } : prev)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Hủy đơn thất bại.')
@@ -786,9 +1102,15 @@ export default function StoreOrderPage() {
         setDetailError('')
         setUiWarning('')
 
+        const currentBackendStatus = getBackendOrderStatus(detailOrder)
+        if (normalizeApiOrderStatus(currentBackendStatus) !== 'SHIPPING') {
+            setDetailError('Chỉ đơn ở trạng thái SHIPPING mới có thể xác nhận nhận hàng.')
+            return
+        }
+
         const currentPaymentStatus = normalizePaymentStatus(detailOrder?.paymentStatus)
         if (currentPaymentStatus !== 'PAID') {
-            setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+            setUiWarning('Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.')
             return
         }
 
@@ -821,7 +1143,7 @@ export default function StoreOrderPage() {
 
                 const backendMessage = extractErrorMessage(data, 'Không thể xác nhận đã nhận hàng.')
                 if (/chưa\s*thanh\s*toán|not\s*paid/i.test(backendMessage)) {
-                    setUiWarning('Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.')
+                    setUiWarning('Đơn chưa thanh toán, chưa thể xác nhận nhận hàng.')
                     return
                 }
 
@@ -829,8 +1151,8 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('DELIVERED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
-            setSubmitSuccess(data?.message || `Đơn #${orderId} đã được xác nhận nhận hàng.`)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'COMPLETED', orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setSubmitSuccess(data?.message || `Đơn ${orderId} đã được xác nhận nhận hàng.`)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Xác nhận nhận hàng thất bại.')
@@ -841,6 +1163,14 @@ export default function StoreOrderPage() {
 
     const returnOrderById = async (orderId) => {
         setDetailError('')
+        setUiWarning('')
+
+        const currentBackendStatus = getBackendOrderStatus(detailOrder)
+        if (!isShippedLikeStatus(currentBackendStatus)) {
+            setDetailError('Chỉ đơn đang giao SHIPPING hoặc PARTIAL_SHIPPING mới có thể trả hàng.')
+            return
+        }
+
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
             if (!token) {
@@ -871,7 +1201,7 @@ export default function StoreOrderPage() {
             }
 
             const updatedStatus = normalizeStatus('RETURNED')
-            setDetailOrder((prev) => prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev)
+            setDetailOrder((prev) => prev ? { ...prev, backendStatus: 'RETURNED', orderStatus: updatedStatus, status: updatedStatus } : prev)
             setSubmitSuccess(data?.message || `Đã trả hàng thành công. Kho Kitchen đã được hoàn trả.`)
             fetchMyOrders()
         } catch (error) {
@@ -910,14 +1240,26 @@ export default function StoreOrderPage() {
             const updatedOrder = data?.order
             if (updatedOrder && Number(updatedOrder?.orderId || updatedOrder?.id) === Number(orderId)) {
                 setDetailOrder((prev) => (prev
-                    ? { ...prev, ...updatedOrder, paymentStatus: normalizePaymentStatus(updatedOrder?.paymentStatus ?? prev?.paymentStatus) }
+                    ? {
+                        ...prev,
+                        ...updatedOrder,
+                        backendStatus: normalizeApiOrderStatus(updatedOrder?.orderStatus || updatedOrder?.status || prev?.backendStatus),
+                        paymentStatus: normalizePaymentStatus(updatedOrder?.paymentStatus ?? prev?.paymentStatus),
+                    }
                     : prev))
             } else {
                 const updatedStatus = normalizeStatus(nextStatus)
-                setDetailOrder((prev) => (prev ? { ...prev, orderStatus: updatedStatus, status: updatedStatus } : prev))
+                setDetailOrder((prev) => (prev
+                    ? {
+                        ...prev,
+                        backendStatus: normalizeApiOrderStatus(nextStatus),
+                        orderStatus: updatedStatus,
+                        status: updatedStatus,
+                    }
+                    : prev))
             }
 
-            setSubmitSuccess(data?.message || `Đơn #${orderId} đã chuyển sang ${nextStatus}.`)
+            setSubmitSuccess(data?.message || `Đơn ${orderId} đã chuyển sang ${nextStatus}.`)
             fetchMyOrders()
         } catch (error) {
             setDetailError(error.message || 'Cập nhật trạng thái đơn hàng thất bại.')
@@ -927,8 +1269,9 @@ export default function StoreOrderPage() {
     }
 
     const openPaymentModal = (order) => {
-        if (!canPayOrder(order?.orderStatus || order?.status, order?.paymentStatus)) {
-            if (isPendingOrder(order?.orderStatus || order?.status)) {
+        const orderBackendStatus = normalizeApiOrderStatus(order?.backendStatus || order?.orderStatus || order?.status)
+        if (!canPayOrder(orderBackendStatus, order?.paymentStatus)) {
+            if (isPendingOrder(orderBackendStatus)) {
                 setUiWarning('Đơn chưa duyệt, chưa thể thanh toán.')
             } else {
                 setUiWarning('Đơn hiện không ở trạng thái cho phép thanh toán.')
@@ -943,8 +1286,16 @@ export default function StoreOrderPage() {
     const handlePaymentMethod = async (method) => {
         if (!selectedPaymentOrder) return
 
-        if (!canPayOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status, selectedPaymentOrder?.paymentStatus || detailOrder?.paymentStatus)) {
-            if (isPendingOrder(selectedPaymentOrder?.orderStatus || detailOrder?.orderStatus || detailOrder?.status)) {
+        const selectedBackendStatus = normalizeApiOrderStatus(
+            selectedPaymentOrder?.backendStatus
+            || selectedPaymentOrder?.orderStatus
+            || detailOrder?.backendStatus
+            || detailOrder?.orderStatus
+            || detailOrder?.status,
+        )
+
+        if (!canPayOrder(selectedBackendStatus, selectedPaymentOrder?.paymentStatus || detailOrder?.paymentStatus)) {
+            if (isPendingOrder(selectedBackendStatus)) {
                 setDetailError('Đơn chưa duyệt, chưa thể thanh toán.')
             } else {
                 setDetailError('Đơn hiện không ở trạng thái cho phép thanh toán.')
@@ -1136,7 +1487,7 @@ export default function StoreOrderPage() {
                 setDetailOrderId(String(createdId))
                 fetchOrderById(createdId)
             }
-            setSubmitSuccess(orderCode ? `Tạo đơn hàng thành công: #${orderCode}` : 'Tạo đơn hàng thành công.')
+            setSubmitSuccess(orderCode ? `Tạo đơn hàng thành công: ${orderCode}` : 'Tạo đơn hàng thành công.')
             setOrderDetailRows([createEmptyOrderDetailRow()])
             setShowCreateOrderForm(false)
             setTab(1)
@@ -1167,11 +1518,104 @@ export default function StoreOrderPage() {
     const currentOrderPage = Math.min(Math.max(ordersPage, 1), totalOrderPages)
     const pagedOrders = orders.slice((currentOrderPage - 1) * ordersPerPage, currentOrderPage * ordersPerPage)
 
+    const statsItems = useMemo(() => {
+        const pendingOrders = orders.filter((item) => String(item.backendStatus || item.status || '').toUpperCase() === 'PENDING').length
+        const shippingOrders = orders.filter((item) => {
+            const normalized = String(item.backendStatus || item.status || '').toUpperCase()
+            return normalized === 'SHIPPING' || normalized === 'PARTIAL_SHIPPING' || normalized === 'SHIPPED'
+        }).length
+        const completedOrders = orders.filter((item) => String(item.backendStatus || item.status || '').toUpperCase() === 'COMPLETED').length
+
+        const lowOrCriticalStock = inventoryRows.filter((item) => item.status === 'low' || item.status === 'critical').length
+
+        return [
+            {
+                key: 'orders-total',
+                label: 'Tổng đơn hàng',
+                value: Number(orders.length || 0).toLocaleString('vi-VN'),
+                note: 'Đơn hiện có trong hệ thống',
+                icon: 'receipt_long',
+                tone: 'blue',
+            },
+            {
+                key: 'orders-pending',
+                label: 'Chờ duyệt',
+                value: Number(pendingOrders || 0).toLocaleString('vi-VN'),
+                note: 'Đơn cần xác nhận',
+                icon: 'pending',
+                tone: 'amber',
+            },
+            {
+                key: 'orders-shipping',
+                label: 'Đang giao',
+                value: Number(shippingOrders || 0).toLocaleString('vi-VN'),
+                note: 'Bao gồm giao một phần',
+                icon: 'local_shipping',
+                tone: 'purple',
+            },
+            {
+                key: 'orders-completed',
+                label: 'Đã hoàn tất',
+                value: Number(completedOrders || 0).toLocaleString('vi-VN'),
+                note: `${Number(lowOrCriticalStock || 0).toLocaleString('vi-VN')} cảnh báo tồn kho`,
+                icon: 'check_circle',
+                tone: 'green',
+            },
+        ]
+    }, [orders, inventoryRows])
+
     const openOrderDetailFromRow = (order) => {
         const selectedId = Number(order?.orderId || order?.id)
         if (selectedId > 0) {
             setDetailOrderId(String(selectedId))
             fetchOrderById(selectedId)
+        }
+    }
+
+    const closeDetailModal = () => {
+        setDetailOrder(null)
+        setDetailError('')
+    }
+
+    const isDetailModalOpen = tab === 1 && !!detailOrder
+
+    const handleDetailModalKeyDown = (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault()
+            closeDetailModal()
+            return
+        }
+
+        if (event.key !== 'Tab') return
+
+        const dialog = detailModalRef.current
+        if (!dialog) return
+
+        const focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        const focusableElements = Array.from(dialog.querySelectorAll(focusableSelector))
+            .filter((element) => element.getClientRects().length > 0)
+
+        if (focusableElements.length === 0) {
+            event.preventDefault()
+            dialog.focus()
+            return
+        }
+
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+        const activeElement = document.activeElement
+
+        if (event.shiftKey) {
+            if (activeElement === firstElement || !dialog.contains(activeElement)) {
+                event.preventDefault()
+                lastElement.focus()
+            }
+            return
+        }
+
+        if (activeElement === lastElement) {
+            event.preventDefault()
+            firstElement.focus()
         }
     }
 
@@ -1194,6 +1638,48 @@ export default function StoreOrderPage() {
 
         return () => window.clearTimeout(timer)
     }, [toastMessage])
+
+    useEffect(() => {
+        if (!isDetailModalOpen) return undefined
+
+        const previousBodyOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        const focusTimer = window.setTimeout(() => {
+            const focusTarget = detailModalCloseButtonRef.current || detailModalRef.current
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+                focusTarget.focus()
+            }
+        }, 0)
+
+        const handleFocusIn = (event) => {
+            const dialog = detailModalRef.current
+            if (!dialog || dialog.contains(event.target)) return
+
+            const focusTarget = detailModalCloseButtonRef.current || dialog
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+                focusTarget.focus()
+            }
+        }
+
+        document.addEventListener('focusin', handleFocusIn)
+
+        return () => {
+            window.clearTimeout(focusTimer)
+            document.removeEventListener('focusin', handleFocusIn)
+            document.body.style.overflow = previousBodyOverflow
+        }
+    }, [isDetailModalOpen])
+
+    useEffect(() => {
+        if (tab === 1) return
+        if (!detailOrder) return
+        setDetailOrder(null)
+    }, [tab, detailOrder])
+
+    const detailBackendStatus = getBackendOrderStatus(detailOrder)
+    const detailDisplayStatus = normalizeStatus(detailOrder?.orderStatus || detailOrder?.status)
+    const detailShippingLike = isShippedLikeStatus(detailDisplayStatus) || isShippedLikeStatus(detailBackendStatus)
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -1227,8 +1713,8 @@ export default function StoreOrderPage() {
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-slate-900 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <span className="material-symbols-outlined text-primary text-[24px]">storefront</span>
-                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Cổng Đặt Hàng Cửa Hàng</h2>
-                    <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded-full">Chi nhánh #042</span>
+                    <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Cổng đặt hàng cửa hàng</h2>
+                    <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded-full">Chi nhánh 042</span>
                 </div>
                 <div className="flex flex-1 justify-end gap-6 items-center">
                     <nav className="hidden md:flex items-center gap-8">
@@ -1236,29 +1722,25 @@ export default function StoreOrderPage() {
                             <button key={item} onClick={() => setTab(i)} className={`text-sm font-medium transition-colors ${i === tab ? 'text-primary font-semibold border-b-2 border-primary pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-primary'}`}>{item}</button>
                         ))}
                     </nav>
-                    <button className="relative text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-                        <span className="material-symbols-outlined">notifications</span>
-                    </button>
                     <div className="bg-slate-200 dark:bg-slate-700 rounded-full size-9" />
                 </div>
             </header>
 
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 {/* TAB 0: Place Order */}
                 {tab === 0 && (
                     <>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                                <h1 className="text-2xl font-bold">Tạo Đơn Hàng Nội Bộ</h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Bấm nút bên dưới để mở form tạo đơn. Đã bỏ giỏ hàng và phần nhập trùng để tránh rối dữ liệu.</p>
+                                <h1 className="text-2xl font-bold">Tạo đơn hàng</h1>
                             </div>
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <p className="text-sm font-semibold">Tạo đơn hàng theo biểu mẫu</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Chỉ còn một form duy nhất: Store ID, ngày giao dự kiến và danh sách sản phẩm theo Product ID.</p>
                             </div>
                             <button
                                 onClick={() => {
@@ -1269,7 +1751,7 @@ export default function StoreOrderPage() {
                                 }}
                                 className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90"
                             >
-                                + Tạo Đơn Hàng
+                                + Tạo đơn hàng
                             </button>
                         </div>
 
@@ -1319,7 +1801,7 @@ export default function StoreOrderPage() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{product.name}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mã: #{product.id}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mã: {product.id}</p>
                                                         <p className="text-sm font-bold text-primary mt-1">
                                                             {price.toLocaleString('vi-VN')} đ
                                                         </p>
@@ -1351,7 +1833,7 @@ export default function StoreOrderPage() {
                             <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-start justify-center p-4 pt-6 md:pt-10 overflow-y-auto">
                                 <div className="w-full max-w-3xl max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                                     <div className="flex items-center justify-between gap-3 mb-4">
-                                        <p className="text-base font-semibold">Form Tạo Đơn Hàng</p>
+                                        <p className="text-base font-semibold">Tạo đơn hàng</p>
                                         <button
                                             onClick={() => setShowCreateOrderForm(false)}
                                             className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -1369,7 +1851,7 @@ export default function StoreOrderPage() {
                                                 className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                             >
                                                 {storeOptions.map((store) => (
-                                                    <option key={store.id} value={String(store.id)}>{store.name} (#{store.id})</option>
+                                                    <option key={store.id} value={String(store.id)}>{store.name} ({store.id})</option>
                                                 ))}
                                             </select>
                                         </label>
@@ -1427,7 +1909,7 @@ export default function StoreOrderPage() {
                                                                 <div className="px-3 py-2">
                                                                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedProduct.name}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
-                                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã: #{selectedProduct.id}</p>
+                                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã: {selectedProduct.id}</p>
                                                                         <span className="text-xs text-slate-400">•</span>
                                                                         <p className="text-xs font-semibold text-primary">{price.toLocaleString('vi-VN')} đ</p>
                                                                     </div>
@@ -1486,7 +1968,7 @@ export default function StoreOrderPage() {
 
                                     {optionsLoading && (
                                         <div className="mb-3 text-xs">
-                                            <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách Store/Product...</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Đang tải danh sách cửa hàng/sản phẩm...</p>
                                         </div>
                                     )}
 
@@ -1496,7 +1978,7 @@ export default function StoreOrderPage() {
                                             onClick={() => setOrderDetailRows([createEmptyOrderDetailRow()])}
                                             className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                         >
-                                            Xóa Mẫu Nhập
+                                            Xóa mẫu nhập
                                         </button>
                                         <button
                                             onClick={handleSubmitOrder}
@@ -1516,7 +1998,7 @@ export default function StoreOrderPage() {
                 {tab === 1 && (
                     <>
                         <div>
-                            <h1 className="text-2xl font-bold">Danh Sách Đơn Hàng</h1>
+                            <h1 className="text-2xl font-bold">Danh sách đơn hàng</h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Xem đơn theo mã cửa hàng và trạng thái để quản lý/hủy nhanh.</p>
                         </div>
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
@@ -1529,7 +2011,7 @@ export default function StoreOrderPage() {
                                         className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                                     >
                                         {storeOptions.map((store) => (
-                                            <option key={store.id} value={String(store.id)}>{store.name} (#{store.id})</option>
+                                            <option key={store.id} value={String(store.id)}>{store.name} ({store.id})</option>
                                         ))}
                                     </select>
                                 </label>
@@ -1543,10 +2025,9 @@ export default function StoreOrderPage() {
                                         <option value="">Tất cả</option>
                                         <option value="PENDING">Chờ duyệt</option>
                                         <option value="APPROVED">Đã duyệt</option>
-                                        <option value="PROCESSING">Đang sản xuất</option>
-                                        <option value="PRODUCED">Đã sản xuất</option>
+                                        <option value="PARTIAL_SHIPPING">Giao một phần</option>
                                         <option value="SHIPPING">Đang giao</option>
-                                        <option value="COMPLETED">Hoàn thành</option>
+                                        <option value="COMPLETED">Đã nhận hàng</option>
                                         <option value="REJECTED">Đã từ chối</option>
                                         <option value="CANCELLED">Đã hủy</option>
                                     </select>
@@ -1555,13 +2036,13 @@ export default function StoreOrderPage() {
                                     onClick={fetchMyOrders}
                                     className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90"
                                 >
-                                    Tải Danh Sách
+                                    Tải danh sách
                                 </button>
                             </div>
                         </div>
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
                             <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold">Danh sách đơn (dạng bảng)</p>
+                                <p className="text-sm font-semibold">Danh sách đơn</p>
                                 {detailLoading && <p className="text-xs text-slate-500 dark:text-slate-400">Đang tải chi tiết đơn...</p>}
                             </div>
                         </div>
@@ -1578,7 +2059,7 @@ export default function StoreOrderPage() {
                                             }}
                                             className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90"
                                         >
-                                            Xem ngay đơn vừa tạo #{lastCreatedOrderId}
+                                            Xem ngay đơn vừa tạo {lastCreatedOrderId}
                                         </button>
                                     </div>
                                 )}
@@ -1589,7 +2070,7 @@ export default function StoreOrderPage() {
                                 <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
                                     Nhấn vào từng dòng để xem chi tiết và thao tác.
                                 </div>
-                                <table className="w-full text-left border-collapse table-fixed">
+                                <table className="list-nowrap w-full text-left border-collapse table-fixed">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                             <th className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mã đơn</th>
@@ -1611,13 +2092,13 @@ export default function StoreOrderPage() {
                                                     key={order.id}
                                                     className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
                                                     onClick={() => openOrderDetailFromRow(order)}
-                                                    title={`Xem chi tiết đơn #${order.id}`}
+                                                    title={`Xem chi tiết đơn ${order.id}`}
                                                 >
-                                                    <td className="px-3 py-2 text-xs font-semibold">#{order.id}</td>
+                                                    <td className="px-3 py-2 text-xs font-semibold">{order.id}</td>
                                                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{order.storeName}</td>
                                                     <td className="px-3 py-2 text-xs max-w-[180px]">
                                                         <div className="flex items-center gap-1">
-                                                            <span className="truncate">{order.productLabel}</span>
+                                                            <span className="whitespace-nowrap">{order.productLabel}</span>
                                                             {order.hasMultipleProducts && (
                                                                 <div className="relative group flex-shrink-0">
                                                                     <span className="material-symbols-outlined text-[14px] text-slate-400 hover:text-primary cursor-help">
@@ -1637,10 +2118,10 @@ export default function StoreOrderPage() {
                                                         {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
                                                     </td>
                                                     <td className="px-3 py-2 text-center">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${order.statusStyle}`}>{order.status}</span>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${order.statusStyle}`}>{order.status}</span>
                                                     </td>
                                                     <td className="px-3 py-2 text-center">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${paymentStatusStyle[normalizedPaymentStatus] || paymentStatusStyle.UNPAID}`}>
                                                             {paymentStatusLabel[normalizedPaymentStatus] || normalizedPaymentStatus}
                                                         </span>
                                                     </td>
@@ -1659,12 +2140,12 @@ export default function StoreOrderPage() {
                                                                 <span className="material-symbols-outlined text-[16px]">visibility</span>
                                                             </button>
 
-                                                            {canCancelOrderInList(order.status) && (
+                                                            {canCancelOrderInList(order.backendStatus || order.status) && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={async (e) => {
                                                                         e.stopPropagation()
-                                                                        if (!window.confirm(`Xác nhận hủy đơn #${order.orderId}?`)) return
+                                                                        if (!window.confirm(`Xác nhận hủy đơn ${order.orderId}?`)) return
                                                                         await cancelOrderById(order.orderId)
                                                                     }}
                                                                     disabled={cancelLoading || receiveLoading || returnLoading}
@@ -1705,9 +2186,21 @@ export default function StoreOrderPage() {
                                 </div>
                             </div>
                         )}
-                        {detailOrder && (
-                            <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-start md:items-center justify-center p-4 overflow-y-auto">
-                                <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[calc(100dvh-3rem)] flex flex-col">
+                        {isDetailModalOpen && (
+                            <div
+                                className="fixed inset-0 z-[1000] bg-black/50 backdrop-blur-sm flex items-start justify-center p-3 sm:p-4 overflow-y-auto"
+                                onClick={closeDetailModal}
+                            >
+                                <div
+                                    className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto"
+                                    onClick={(event) => event.stopPropagation()}
+                                    onKeyDown={handleDetailModalKeyDown}
+                                    ref={detailModalRef}
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="store-order-detail-title"
+                                    tabIndex={-1}
+                                >
                                     {/* Header */}
                                     <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -1715,30 +2208,31 @@ export default function StoreOrderPage() {
                                                 <span className="material-symbols-outlined text-white text-[24px]">receipt_long</span>
                                             </div>
                                             <div>
-                                                <p className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
-                                                <p className="text-white/80 text-sm">#{detailOrder.orderId || detailOrder.id}</p>
+                                                <p id="store-order-detail-title" className="text-white font-bold text-lg">Chi tiết đơn hàng</p>
+                                                <p className="text-white/80 text-sm">{detailOrder.orderId || detailOrder.id}</p>
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                setDetailOrder(null)
-                                                setDetailError('')
-                                            }}
+                                            type="button"
+                                            onClick={closeDetailModal}
                                             className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                                            ref={detailModalCloseButtonRef}
                                         >
                                             <span className="material-symbols-outlined text-white text-[20px]">close</span>
                                         </button>
                                     </div>
 
                                     {/* Content */}
-                                    <div className="p-6 overflow-y-auto min-h-0">
+                                    <div className="p-4 sm:p-6">
                                         {/* Status and Payment */}
                                         <div className="flex flex-wrap items-center gap-2 mb-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${orderStatusStyle[normalizeStatus(detailOrder.orderStatus || detailOrder.status)] || orderStatusStyle['Chờ duyệt']}`}>
-                                                {normalizeStatus(detailOrder.orderStatus || detailOrder.status)}
+                                            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${orderStatusStyle[detailDisplayStatus] || orderStatusStyle['Chờ duyệt']}`}>
+                                                <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                                                <span>{detailDisplayStatus}</span>
                                             </span>
-                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
-                                                {paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}
+                                            <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${paymentStatusStyle[normalizePaymentStatus(detailOrder.paymentStatus)] || paymentStatusStyle.UNPAID}`}>
+                                                <span className="material-symbols-outlined text-[14px]">payments</span>
+                                                <span>{paymentStatusLabel[normalizePaymentStatus(detailOrder.paymentStatus)] || normalizePaymentStatus(detailOrder.paymentStatus)}</span>
                                             </span>
                                         </div>
 
@@ -1750,7 +2244,7 @@ export default function StoreOrderPage() {
                                                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cửa hàng</p>
                                                 </div>
                                                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                                    {detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}
+                                                    {detailOrder?.storeName || detailOrder?.store?.storeName || detailOrder?.store?.name || getStoreNameById(detailOrder?.storeId)}
                                                 </p>
                                             </div>
                                             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
@@ -1790,17 +2284,16 @@ export default function StoreOrderPage() {
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Sản phẩm</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đơn giá</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đặt</th>
-                                                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Xác nhận</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">Đã giao</th>
                                                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">Thành tiền</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                        {(detailOrder.internalOrderDetails || detailOrder.orderDetails || []).length > 0 ? (
-                                                            (detailOrder.internalOrderDetails || detailOrder.orderDetails || []).map((row, idx) => {
-                                                                const unitPrice = row.unitPrice || row.price || 0
-                                                                const quantity = row.quantityOrdered || 0
-                                                                const subtotal = unitPrice * quantity
+                                                        {buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).length > 0 ? (
+                                                            buildDetailRowsWithPrice(detailOrder.internalOrderDetails || detailOrder.orderDetails || [], detailOrder.totalAmount).map((row, idx) => {
+                                                                const unitPrice = row._unitPrice || 0
+                                                                const quantity = row._quantity || 0
+                                                                const subtotal = row._subtotal || 0
 
                                                                 return (
                                                                     <tr key={row.detailId || `${row.productId}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -1816,8 +2309,7 @@ export default function StoreOrderPage() {
                                                                             {unitPrice.toLocaleString('vi-VN')} đ
                                                                         </td>
                                                                         <td className="px-4 py-3 text-sm text-center font-semibold text-slate-900 dark:text-slate-100">{quantity}</td>
-                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-blue-600 dark:text-blue-400">{row.quantityConfirmed}</td>
-                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{row.quantityShipped}</td>
+                                                                        <td className="px-4 py-3 text-sm text-center font-semibold text-emerald-600 dark:text-emerald-400">{getDetailShippedQty(row)}</td>
                                                                         <td className="px-4 py-3 text-sm text-right font-bold text-slate-900 dark:text-slate-100">
                                                                             {subtotal.toLocaleString('vi-VN')} đ
                                                                         </td>
@@ -1826,7 +2318,7 @@ export default function StoreOrderPage() {
                                                             })
                                                         ) : (
                                                             <tr>
-                                                                <td colSpan={6} className="px-4 py-6 text-sm text-center text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
+                                                                <td colSpan={5} className="px-4 py-6 text-sm text-center text-slate-500 dark:text-slate-400">Đơn hàng chưa có chi tiết sản phẩm.</td>
                                                             </tr>
                                                         )}
                                                     </tbody>
@@ -1845,14 +2337,15 @@ export default function StoreOrderPage() {
                                         )}
 
                                         {/* Action Buttons */}
-                                        {normalizeStatus(detailOrder.orderStatus || detailOrder.status) !== 'Đã hủy' && (
+                                        {detailBackendStatus !== 'CANCELLED' && (
                                             <div className="flex items-center gap-3 flex-wrap">
-                                                {canPayOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                {canPayOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                     <button
                                                         onClick={() => openPaymentModal({
                                                             orderId: detailOrder.orderId || detailOrder.id,
                                                             totalAmount: detailOrder.totalAmount || 0,
-                                                            orderStatus: detailOrder.orderStatus || detailOrder.status,
+                                                            orderStatus: detailBackendStatus,
+                                                            backendStatus: detailBackendStatus,
                                                             paymentStatus: detailOrder.paymentStatus,
                                                         })}
                                                         className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
@@ -1862,21 +2355,21 @@ export default function StoreOrderPage() {
                                                     </button>
                                                 )}
 
-                                                {isPendingOrder(detailOrder.orderStatus || detailOrder.status) && (
+                                                {isPendingOrder(detailBackendStatus) && (
                                                     <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                                                         Đơn chưa duyệt, chưa thể thanh toán.
                                                     </div>
                                                 )}
 
-                                                {isShippingUnpaidOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                {isShippingUnpaidOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                     <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                                                         Đơn chưa thanh toán, vui lòng thanh toán trước khi nhận hàng.
                                                     </div>
                                                 )}
 
-                                                {isShippedLikeStatus(detailOrder.orderStatus || detailOrder.status) && (
+                                                {detailShippingLike && (
                                                     <>
-                                                        {canReceiveOrder(detailOrder.orderStatus || detailOrder.status, detailOrder.paymentStatus) && (
+                                                        {canReceiveOrder(detailBackendStatus, detailOrder.paymentStatus) && (
                                                             <button
                                                                 onClick={() => confirmReceivedById(detailOrder.orderId || detailOrder.id)}
                                                                 disabled={receiveLoading || returnLoading}
@@ -1886,17 +2379,26 @@ export default function StoreOrderPage() {
                                                                 {receiveLoading ? 'Đang xác nhận...' : 'Đã nhận hàng'}
                                                             </button>
                                                         )}
-                                                        <button
-                                                            onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
-                                                            disabled={receiveLoading || returnLoading}
-                                                            className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
-                                                            {returnLoading ? 'Đang gửi...' : 'Trả hàng'}
-                                                        </button>
+                                                        {canReturnOrder(detailBackendStatus) && (
+                                                            <button
+                                                                onClick={() => returnOrderById(detailOrder.orderId || detailOrder.id)}
+                                                                disabled={receiveLoading || returnLoading}
+                                                                className="flex-1 min-w-[140px] h-11 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
+                                                                {returnLoading ? 'Đang gửi...' : 'Trả hàng'}
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
-                                                {getOrderStatusActions(detailOrder.orderStatus || detailOrder.status).map((action) => (
+
+                                                {normalizeApiOrderStatus(detailBackendStatus) === 'PARTIAL_SHIPPING' && (
+                                                    <div className="w-full rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                                                        Đơn đang giao một phần. Chỉ khi giao đủ và lên SHIPPING mới xác nhận đã nhận hàng.
+                                                    </div>
+                                                )}
+
+                                                {getOrderStatusActions(detailBackendStatus).map((action) => (
                                                     <button
                                                         key={`detail-${detailOrder.orderId || detailOrder.id}-${action.status}`}
                                                         onClick={() => updateOrderStatusById(detailOrder.orderId || detailOrder.id, action.status)}
@@ -1906,14 +2408,17 @@ export default function StoreOrderPage() {
                                                         {statusUpdating === `${detailOrder.orderId || detailOrder.id}-${action.status}` ? 'Đang cập nhật...' : action.label}
                                                     </button>
                                                 ))}
-                                                <button
-                                                    onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
-                                                    disabled={cancelLoading || receiveLoading || returnLoading}
-                                                    className="h-11 px-4 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">cancel</span>
-                                                    {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
-                                                </button>
+                                                {isPendingOrder(detailBackendStatus) && (
+                                                    <button
+                                                        onClick={() => cancelOrderById(detailOrder.orderId || detailOrder.id)}
+                                                        disabled={cancelLoading || receiveLoading || returnLoading}
+                                                        className="h-11 px-4 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">cancel</span>
+                                                        {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
+                                                    </button>
+                                                )}
+
                                             </div>
                                         )}
                                     </div>
@@ -1953,20 +2458,6 @@ export default function StoreOrderPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {[
-                                { label: 'Mặt hàng', value: inventoryRows.length },
-                                { label: 'Sắp hết', value: inventoryRows.filter((row) => row.status === 'low').length },
-                                { label: 'Cần bổ sung ngay', value: inventoryRows.filter((row) => row.status === 'critical').length },
-                                { label: 'Tổng số lượng', value: inventoryRows.reduce((sum, row) => sum + Number(row.currentQuantity || 0), 0) },
-                            ].map((card) => (
-                                <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm">
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-4">{card.label}</p>
-                                    <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
-                            ))}
-                        </div>
-
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
                             <table className="w-full min-w-[840px] text-left border-collapse">
                                 <thead>
@@ -1996,11 +2487,11 @@ export default function StoreOrderPage() {
                                                     <span className="material-symbols-outlined text-slate-400">inventory_2</span>
                                                     <div>
                                                         <p className="font-medium text-sm">{item.productName}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Product #{item.productId}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Mã sản phẩm: {item.productId}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} #{item.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">{item.locationType} {item.locationId || 'Không có'}</td>
                                             <td className="px-5 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`font-bold text-sm ${item.status === 'critical' ? 'text-red-600 dark:text-red-400' : item.status === 'low' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.currentQuantity}</span>
@@ -2012,7 +2503,7 @@ export default function StoreOrderPage() {
                                             <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{item.minQuantity || '-'}</td>
                                             <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(item.lastUpdated)}</td>
                                             <td className="px-5 py-4">
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${item.status === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : item.status === 'low' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${item.status === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : item.status === 'low' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
                                                     <span className={`size-1.5 rounded-full ${statusColors[item.status]}`} />
                                                     {item.status === 'critical' ? 'Cần đặt ngay' : item.status === 'low' ? 'Sắp hết' : 'Đủ hàng'}
                                                 </span>
@@ -2058,9 +2549,9 @@ export default function StoreOrderPage() {
 
                                     {!inventoryLoading && inventoryLogs.map((log) => (
                                         <tr key={`${log.id}-${log.inventoryId}-${log.createdAt || 'no-date'}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-5 py-3 text-sm font-semibold">#{log.id || log.inventoryId}</td>
+                                            <td className="px-5 py-3 text-sm font-semibold">{log.id || log.inventoryId}</td>
                                             <td className="px-5 py-3 text-sm">{log.productName}</td>
-                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} #{log.locationId || 'N/A'}</td>
+                                            <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">{log.locationType} {log.locationId || 'Không có'}</td>
                                             <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
                                                 <p>{log.action}</p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Reason: {log.reason || '-'}</p>
@@ -2069,7 +2560,7 @@ export default function StoreOrderPage() {
                                                 {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
                                             </td>
                                             <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                <p>{log.referenceType || 'N/A'}</p>
+                                                <p>{log.referenceType || 'Không có'}</p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Ref ID: {log.referenceId ?? '-'}</p>
                                             </td>
                                             <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{toReadableDate(log.createdAt)}</td>
@@ -2107,7 +2598,7 @@ export default function StoreOrderPage() {
 
                         <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                             <p className="text-sm">
-                                <span className="font-semibold">Đơn hàng:</span> #{selectedPaymentOrder.orderId}
+                                <span className="font-semibold">Đơn hàng:</span> {selectedPaymentOrder.orderId}
                             </p>
                             <p className="text-sm mt-1">
                                 <span className="font-semibold">Tổng tiền:</span>{' '}

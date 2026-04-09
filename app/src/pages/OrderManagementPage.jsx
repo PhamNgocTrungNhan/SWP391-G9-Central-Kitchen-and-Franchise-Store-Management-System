@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 const statusStyle = {
     Pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -6,6 +7,7 @@ const statusStyle = {
     Confirmed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
     Processing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     Produced: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+    PartialShipping: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
     Shipped: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
@@ -19,6 +21,7 @@ const statusLabel = {
     Confirmed: 'Đã xác nhận',
     Processing: 'Đang sản xuất',
     Produced: 'Sẵn sàng',
+    PartialShipping: 'Giao một phần',
     Shipped: 'Đang giao',
     Delivered: 'Đã hoàn tất',
     Rejected: 'Đã từ chối',
@@ -32,6 +35,7 @@ const apiStatusToUi = {
     CONFIRMED: 'Confirmed',
     PROCESSING: 'Processing',
     PRODUCED: 'Produced',
+    PARTIAL_SHIPPING: 'PartialShipping',
     SHIPPED: 'Shipped',
     SHIPPING: 'Shipped',
     IN_TRANSIT: 'Shipped',
@@ -57,10 +61,18 @@ function isShippingStatus(status) {
     if (!raw) return false
 
     const normalized = normalizeStatus(raw)
-    if (normalized === 'Shipped') return true
+    if (normalized === 'Shipped' || normalized === 'PartialShipping') return true
 
     const upper = raw.toUpperCase().replace(/[\s-]+/g, '_')
-    return upper === 'SHIPPING' || upper === 'IN_TRANSIT' || upper === 'INTRANSIT' || upper === 'DELIVERING' || upper === 'ON_THE_WAY' || raw === 'Đang giao'
+    return upper === 'SHIPPING'
+        || upper === 'PARTIAL_SHIPPING'
+        || upper === 'IN_TRANSIT'
+        || upper === 'INTRANSIT'
+        || upper === 'DELIVERING'
+        || upper === 'ON_THE_WAY'
+        || upper === 'GIAO_MOT_PHAN'
+        || raw === 'Đang giao'
+        || raw === 'Giao một phần'
 }
 
 function toReadableDate(dateString) {
@@ -93,14 +105,18 @@ function resolveDefaultStoreId() {
 export default function OrderManagementPage() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
     const [orders, setOrders] = useState([])
+    const [storeNameMap, setStoreNameMap] = useState({})
     const [productNameMap, setProductNameMap] = useState({})
+    const [productPriceMap, setProductPriceMap] = useState({})
+    const [kitchenStockByProduct, setKitchenStockByProduct] = useState({})
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('All')
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoadingId, setActionLoadingId] = useState(null)
-    const [transferLoadingId, setTransferLoadingId] = useState(null)
+    const [shipLoadingId, setShipLoadingId] = useState(null)
     const [cancelLoadingId, setCancelLoadingId] = useState(null)
     const [detailLoadingId, setDetailLoadingId] = useState(null)
+    const [shipDraftByOrder, setShipDraftByOrder] = useState({})
     const [notice, setNotice] = useState({ open: false, type: 'success', message: '' })
 
     const token = () => {
@@ -127,6 +143,291 @@ export default function OrderManagementPage() {
     const openNotice = (type, message) => setNotice({ open: true, type, message })
     const closeNotice = () => setNotice((prev) => ({ ...prev, open: false }))
 
+    const toNumber = (value, fallback = 0) => {
+        const n = Number(value)
+        return Number.isFinite(n) ? n : fallback
+    }
+
+    const parseArrayData = (raw) => {
+        if (Array.isArray(raw)) return raw
+        if (Array.isArray(raw?.items)) return raw.items
+        if (Array.isArray(raw?.data)) return raw.data
+        return []
+    }
+
+    const firstPositiveNumber = (...candidates) => {
+        for (const candidate of candidates) {
+            const value = toNumber(candidate, 0)
+            if (value > 0) return value
+        }
+        return 0
+    }
+
+    const extractStoreId = (item) => toNumber(
+        item?.storeId
+        ?? item?.StoreId
+        ?? item?.storeID
+        ?? item?.store_id
+        ?? item?.store?.storeId
+        ?? item?.store?.StoreId
+        ?? item?.store?.id,
+        0,
+    )
+
+    const extractStoreName = (item) => {
+        const raw = item?.storeName
+            ?? item?.StoreName
+            ?? item?.store?.storeName
+            ?? item?.store?.StoreName
+            ?? item?.store?.name
+
+        if (typeof raw !== 'string') return ''
+        return raw.trim()
+    }
+
+    const resolveStoreMeta = (item, nameMap = {}) => {
+        const storeId = extractStoreId(item)
+        const directStoreName = extractStoreName(item)
+        if (directStoreName) {
+            return { storeId, storeName: directStoreName }
+        }
+
+        const mappedName = storeId > 0 ? String(nameMap?.[storeId] || '').trim() : ''
+        if (mappedName) {
+            return { storeId, storeName: mappedName }
+        }
+
+        if (storeId > 0) {
+            return { storeId, storeName: 'Cửa hàng chưa có tên' }
+        }
+
+        return { storeId: 0, storeName: 'Cửa hàng chưa có tên' }
+    }
+
+    const getDetailQuantity = (row) => toNumber(
+        row?.quantityOrdered
+        ?? row?.quantity
+        ?? row?.qty
+        ?? row?.quantityConfirmed
+        ?? row?.quantityShipped,
+        0,
+    )
+
+    const getDetailConfirmed = (row) => toNumber(row?.quantityConfirmed, 0)
+    const getDetailShipped = (row) => toNumber(row?.quantityShipped, 0)
+    const getDetailTarget = (row) => {
+        const confirmed = getDetailConfirmed(row)
+        return confirmed > 0 ? confirmed : getDetailQuantity(row)
+    }
+
+    const deriveShippingStatusFromDetails = (baseStatus, details) => {
+        const terminalStatuses = new Set(['Delivered', 'Cancelled', 'Rejected', 'Returned'])
+        if (terminalStatuses.has(baseStatus)) return baseStatus
+        if (!Array.isArray(details) || details.length === 0) return baseStatus
+
+        const totals = details.reduce((acc, row) => {
+            acc.target += getDetailTarget(row)
+            acc.shipped += getDetailShipped(row)
+            return acc
+        }, { target: 0, shipped: 0 })
+
+        if (totals.shipped <= 0) return baseStatus
+        if (totals.target <= 0) return 'Shipped'
+        if (totals.shipped >= totals.target) return 'Shipped'
+        return 'PartialShipping'
+    }
+
+    const getRemainingToShip = (row) => {
+        const remaining = getDetailTarget(row) - getDetailShipped(row)
+        return remaining > 0 ? remaining : 0
+    }
+
+    const getKitchenStockByProductId = (productId) => {
+        const numericProductId = Number(productId)
+        if (!numericProductId) return 0
+        if (!Object.prototype.hasOwnProperty.call(kitchenStockByProduct, numericProductId)) return 0
+        return toNumber(kitchenStockByProduct[numericProductId], 0)
+    }
+
+    const getMaxShippableNow = (row) => {
+        const remaining = getRemainingToShip(row)
+        const stockQty = getKitchenStockByProductId(row?.productId)
+        return Math.max(0, Math.min(remaining, stockQty))
+    }
+
+    const isFullShipmentDraft = (order) => {
+        const numericOrderId = Number(order?.orderId)
+        if (!numericOrderId) return false
+
+        const detailRows = Array.isArray(order?.details) ? order.details : []
+        const rowsNeedShip = detailRows.filter((row) => getRemainingToShip(row) > 0)
+        if (!rowsNeedShip.length) return false
+
+        const draftRows = shipDraftByOrder[numericOrderId] || {}
+
+        return rowsNeedShip.every((row) => {
+            const productId = Number(row?.productId)
+            if (!productId) return false
+
+            const draftRaw = String(draftRows[productId] ?? '').trim()
+            if (!draftRaw) return false
+
+            const quantityToShip = Number(draftRaw)
+            if (!Number.isFinite(quantityToShip) || quantityToShip <= 0) return false
+
+            const remaining = getRemainingToShip(row)
+            const maxShippableNow = getMaxShippableNow(row)
+            if (maxShippableNow <= 0) return false
+
+            return quantityToShip >= remaining - 0.000001
+                && quantityToShip <= maxShippableNow + 0.000001
+        })
+    }
+
+    const isFullShipmentPayload = (order, payload) => {
+        if (!Array.isArray(payload) || payload.length === 0) return false
+
+        const detailRows = Array.isArray(order?.details) ? order.details : []
+        const rowsNeedShip = detailRows.filter((row) => getRemainingToShip(row) > 0)
+        if (!rowsNeedShip.length) return false
+
+        const payloadByProductId = payload.reduce((acc, line) => {
+            const productId = Number(line?.productId)
+            if (!productId) return acc
+            acc[productId] = toNumber(line?.quantityToShip, 0)
+            return acc
+        }, {})
+
+        return rowsNeedShip.every((row) => {
+            const productId = Number(row?.productId)
+            if (!productId) return false
+            const qty = toNumber(payloadByProductId[productId], 0)
+            const remaining = getRemainingToShip(row)
+            return qty >= remaining - 0.000001
+        })
+    }
+
+    const getDetailUnitPrice = (row) => {
+        const explicitUnitPrice = firstPositiveNumber(
+            row?.unitPrice,
+            row?.price,
+            row?.internalPrice,
+            row?.unit_price,
+            row?.unitprice,
+            row?.product?.internalPrice,
+            row?.product?.price,
+            row?.product?.unitPrice,
+        )
+        if (explicitUnitPrice > 0) return explicitUnitPrice
+
+        const productId = toNumber(row?.productId, 0)
+        const priceFromProductMap = productId > 0 ? toNumber(productPriceMap[productId], 0) : 0
+        if (priceFromProductMap > 0) return priceFromProductMap
+
+        const lineAmount = firstPositiveNumber(
+            row?.lineTotal,
+            row?.lineAmount,
+            row?.subtotal,
+            row?.subTotal,
+            row?.totalAmount,
+            row?.totalPrice,
+            row?.amount,
+        )
+        const quantity = getDetailQuantity(row)
+        if (lineAmount > 0 && quantity > 0) {
+            return lineAmount / quantity
+        }
+
+        return 0
+    }
+
+    const getDetailSubtotal = (row) => {
+        const explicitLineAmount = firstPositiveNumber(
+            row?.lineTotal,
+            row?.lineAmount,
+            row?.subtotal,
+            row?.subTotal,
+            row?.totalAmount,
+            row?.totalPrice,
+            row?.amount,
+        )
+        if (explicitLineAmount > 0) return explicitLineAmount
+
+        return getDetailUnitPrice(row) * getDetailQuantity(row)
+    }
+
+    const updateShipDraftValue = (orderId, productId, value) => {
+        const numericOrderId = Number(orderId)
+        const numericProductId = Number(productId)
+        if (!numericOrderId || !numericProductId) return
+
+        setShipDraftByOrder((prev) => ({
+            ...prev,
+            [numericOrderId]: {
+                ...(prev[numericOrderId] || {}),
+                [numericProductId]: value,
+            },
+        }))
+    }
+
+    const clearShipDraft = (orderId) => {
+        const numericOrderId = Number(orderId)
+        if (!numericOrderId) return
+
+        setShipDraftByOrder((prev) => {
+            if (!prev[numericOrderId]) return prev
+            const next = { ...prev }
+            delete next[numericOrderId]
+            return next
+        })
+    }
+
+    const buildShipPartialPayload = (order) => {
+        const numericOrderId = Number(order?.orderId)
+        const detailRows = Array.isArray(order?.details) ? order.details : []
+        const draftRows = shipDraftByOrder[numericOrderId] || {}
+        const payload = []
+
+        for (const row of detailRows) {
+            const productId = Number(row?.productId)
+            if (!productId) continue
+
+            const draftValue = String(draftRows[productId] ?? '').trim()
+            if (!draftValue) continue
+
+            const quantityToShip = Number(draftValue)
+            if (!Number.isFinite(quantityToShip) || quantityToShip <= 0) {
+                return { error: `Sản phẩm chưa có tên: số lượng giao phải lớn hơn 0.` }
+            }
+
+            if (quantityToShip < 0.01 || quantityToShip > 999999) {
+                return { error: `Sản phẩm chưa có tên: số lượng giao phải trong khoảng 0.01 đến 999999.` }
+            }
+
+            const remaining = getRemainingToShip(row)
+            if (remaining <= 0) {
+                continue
+            }
+
+            const stockQty = getKitchenStockByProductId(productId)
+            if (stockQty !== null && quantityToShip > stockQty) {
+                return { error: `Sản phẩm chưa có tên: tồn kho bếp không đủ (${stockQty}).` }
+            }
+
+            if (quantityToShip > remaining) {
+                return { error: `Sản phẩm chưa có tên: vượt số lượng còn lại (${remaining}).` }
+            }
+
+            payload.push({ productId, quantityToShip })
+        }
+
+        if (!payload.length) {
+            return { error: 'Vui lòng nhập ít nhất 1 sản phẩm có số lượng giao hợp lệ.' }
+        }
+
+        return { payload }
+    }
+
     useEffect(() => {
         if (!notice.open) return undefined
 
@@ -137,38 +438,37 @@ export default function OrderManagementPage() {
         return () => window.clearTimeout(timer)
     }, [notice.open, notice.message])
 
-    const normalizeOrders = (rawOrders) => {
+    const normalizeOrders = (rawOrders, nameMap = storeNameMap) => {
         if (!Array.isArray(rawOrders)) return []
 
         return rawOrders
             .map((item) => {
                 const orderId = Number(item?.orderId || item?.internalOrderId || item?.id)
                 if (!orderId) return null
+                const { storeId, storeName } = resolveStoreMeta(item, nameMap)
 
-                const status = normalizeStatus(item?.orderStatus || item?.status)
+                const rawStatus = normalizeStatus(item?.orderStatus || item?.status)
                 const details = Array.isArray(item?.internalOrderDetails)
                     ? item.internalOrderDetails
                     : Array.isArray(item?.orderDetails)
                         ? item.orderDetails
                         : []
+                const status = deriveShippingStatusFromDetails(rawStatus, details)
 
                 const itemCount = details.length
-                const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
 
                 // Calculate totalAmount from details if not provided by backend
                 let totalAmount = item?.totalAmount || 0
                 if (!totalAmount && details.length > 0) {
-                    totalAmount = details.reduce((sum, row) => {
-                        const unitPrice = row?.unitPrice || row?.price || 0
-                        const quantity = Number(row?.quantityOrdered || 0)
-                        return sum + (unitPrice * quantity)
-                    }, 0)
+                    totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                 }
 
                 return {
                     orderId,
-                    orderCode: item?.orderCode || `#${orderId}`,
-                    storeName: item?.store?.storeName || item?.store?.name || `Store #${item?.storeId || 'N/A'}`,
+                    orderCode: item?.orderCode || `${orderId}`,
+                    storeId,
+                    storeName,
                     createdAt: toReadableDate(item?.createdAt || item?.orderDate || item?.expectedDeliveryDate),
                     status,
                     statusStyle: statusStyle[status] || statusStyle.Pending,
@@ -180,6 +480,46 @@ export default function OrderManagementPage() {
                 }
             })
             .filter(Boolean)
+    }
+
+    const fetchStoreMap = async () => {
+        const tk = token()
+        if (!tk) {
+            setStoreNameMap({})
+            return {}
+        }
+
+        try {
+            const response = await fetch(`${apiBase}/Organization/stores`, {
+                method: 'GET',
+                headers: authHeaders(),
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                setStoreNameMap({})
+                return {}
+            }
+
+            const records = parseArrayData(data)
+            const nextMap = {}
+
+            records.forEach((item) => {
+                const storeId = toNumber(item?.storeId ?? item?.StoreId ?? item?.id, 0)
+                const storeNameRaw = item?.storeName ?? item?.StoreName ?? item?.name
+                const storeName = typeof storeNameRaw === 'string' ? storeNameRaw.trim() : ''
+
+                if (storeId > 0 && storeName) {
+                    nextMap[storeId] = storeName
+                }
+            })
+
+            setStoreNameMap(nextMap)
+            return nextMap
+        } catch {
+            setStoreNameMap({})
+            return {}
+        }
     }
 
     const fetchProductMap = async () => {
@@ -198,20 +538,65 @@ export default function OrderManagementPage() {
 
             const records = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
             const map = {}
+            const priceMap = {}
             records.forEach((item) => {
                 const id = Number(item?.productId || item?.id)
                 if (!id) return
                 const name = item?.productName || item?.name
                 if (!name) return
                 map[id] = name
+
+                const internalPrice = firstPositiveNumber(item?.internalPrice, item?.price, item?.unitPrice)
+                if (internalPrice > 0) {
+                    priceMap[id] = internalPrice
+                }
             })
             setProductNameMap(map)
+            setProductPriceMap(priceMap)
         } catch {
             setProductNameMap({})
+            setProductPriceMap({})
         }
     }
 
-    const fetchOrders = async () => {
+    const fetchKitchenStock = async () => {
+        const tk = token()
+        if (!tk) {
+            setKitchenStockByProduct({})
+            return
+        }
+
+        try {
+            const response = await fetch(`${apiBase}/Inventory/stock`, {
+                method: 'GET',
+                headers: authHeaders(),
+            })
+
+            const data = await response.json().catch(() => [])
+            if (!response.ok) {
+                setKitchenStockByProduct({})
+                return
+            }
+
+            const records = parseArrayData(data)
+            const kitchenRecords = records.filter((item) => String(item?.locationType || '').toUpperCase() === 'KITCHEN')
+            const sourceRecords = kitchenRecords.length > 0 ? kitchenRecords : records
+            const stockMap = {}
+
+            sourceRecords.forEach((item) => {
+                const productId = toNumber(item?.productId, 0)
+                if (!productId) return
+                const qty = toNumber(item?.currentQuantity ?? item?.quantity, 0)
+                stockMap[productId] = toNumber(stockMap[productId], 0) + qty
+            })
+
+            setKitchenStockByProduct(stockMap)
+        } catch {
+            setKitchenStockByProduct({})
+        }
+    }
+
+    const fetchOrders = async (storeMapOverride = null) => {
         const effectiveStoreId = resolveDefaultStoreId()
         const tk = token()
 
@@ -260,16 +645,12 @@ export default function OrderManagementPage() {
                             ? data.orderDetails
                             : []
 
-                    const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                    const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
 
                     // Calculate totalAmount from details if not provided
                     let totalAmount = data?.totalAmount || 0
                     if (!totalAmount && details.length > 0) {
-                        totalAmount = details.reduce((sum, row) => {
-                            const unitPrice = row?.unitPrice || row?.price || 0
-                            const quantity = Number(row?.quantityOrdered || 0)
-                            return sum + (unitPrice * quantity)
-                        }, 0)
+                        totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                     }
 
                     return [order.orderId, { details, itemCount: details.length, totalQty, totalAmount }]
@@ -282,8 +663,11 @@ export default function OrderManagementPage() {
             return baseOrders.map((order) => {
                 const hydrated = detailMap.get(order.orderId)
                 if (!hydrated) return order
+                const nextStatus = deriveShippingStatusFromDetails(order.status, hydrated.details)
                 return {
                     ...order,
+                    status: nextStatus,
+                    statusStyle: statusStyle[nextStatus] || statusStyle.Pending,
                     details: hydrated.details,
                     itemCount: hydrated.itemCount,
                     totalQty: hydrated.totalQty,
@@ -296,7 +680,21 @@ export default function OrderManagementPage() {
         try {
             const records = await fetchOrderRecords(`${apiBase}/internal-orders?storeId=${encodeURIComponent(effectiveStoreId)}`)
 
-            const normalized = normalizeOrders(records)
+            const recordsNeedStoreLookup = records.some((item) => {
+                const storeId = extractStoreId(item)
+                const storeName = extractStoreName(item)
+                return storeId > 0 && !storeName
+            })
+
+            let effectiveStoreMap = storeMapOverride && typeof storeMapOverride === 'object'
+                ? storeMapOverride
+                : storeNameMap
+
+            if (recordsNeedStoreLookup && Object.keys(effectiveStoreMap || {}).length === 0) {
+                effectiveStoreMap = await fetchStoreMap()
+            }
+
+            const normalized = normalizeOrders(records, effectiveStoreMap)
             const hydrated = await hydrateOrdersWithDetails(normalized)
 
             setOrders(hydrated)
@@ -318,7 +716,7 @@ export default function OrderManagementPage() {
         }
 
         if (!isShippingStatus(status)) {
-            openNotice('error', 'Chỉ đơn ở trạng thái Đang giao mới được xác nhận hoàn tất.')
+            openNotice('error', 'Chỉ đơn ở trạng thái Đang giao hoặc Giao một phần mới được xác nhận hoàn tất.')
             return
         }
 
@@ -487,7 +885,7 @@ export default function OrderManagementPage() {
                 throw new Error(data?.message || data?.title || 'Không thể cập nhật trạng thái đơn hàng.')
             }
 
-            openNotice('success', data?.message || `Đơn hàng #${orderId} đã sẵn sàng xuất kho.`)
+            openNotice('success', data?.message || `Đơn hàng ${orderId} đã sẵn sàng xuất kho.`)
             await fetchOrders()
         } catch (error) {
             openNotice('error', error.message || 'Cập nhật trạng thái thất bại.')
@@ -496,18 +894,26 @@ export default function OrderManagementPage() {
         }
     }
 
-    const transferOrder = async (orderId) => {
+    const shipPartialOrder = async (orderId) => {
         const targetOrder = orders.find((item) => Number(item?.orderId) === Number(orderId))
 
         if (!targetOrder) {
-            openNotice('error', 'Không tìm thấy đơn hàng để xuất kho.')
+            openNotice('error', 'Không tìm thấy đơn hàng để giao.')
             return
         }
 
-        if (!canTransferOrder(targetOrder.status)) {
-            openNotice('error', 'Chỉ đơn ở trạng thái Đang sản xuất hoặc Sẵn sàng mới được xuất kho.')
+        if (!canShipPartialOrder(targetOrder.status)) {
+            openNotice('error', 'Chỉ đơn ở trạng thái Đã duyệt, Đang sản xuất, Sẵn sàng hoặc Giao một phần mới được giao tiếp.')
             return
         }
+
+        const { payload, error } = buildShipPartialPayload(targetOrder)
+        if (error) {
+            openNotice('error', error)
+            return
+        }
+
+        const isFullShipment = isFullShipmentPayload(targetOrder, payload)
 
         const tk = token()
 
@@ -516,32 +922,81 @@ export default function OrderManagementPage() {
             return
         }
 
-        setTransferLoadingId(orderId)
+        setShipLoadingId(orderId)
         try {
-            const response = await fetch(`${apiBase}/internal-orders/${orderId}/status`, {
-                method: 'PUT',
+            const response = await fetch(`${apiBase}/internal-orders/${orderId}/ship-partial`, {
+                method: 'POST',
                 headers: {
                     accept: '*/*',
                     Authorization: `Bearer ${tk}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ status: 'SHIPPING' }),
+                body: JSON.stringify(payload),
             })
 
             const data = await response.json().catch(() => ({}))
 
             if (!response.ok) {
-                throw new Error(data?.message || data?.title || `Không thể xuất kho cho đơn hàng này. Status: ${response.status}`)
+                throw new Error(data?.message || data?.title || `Không thể giao từng phần. HTTP ${response.status}`)
             }
 
-            openNotice('success', data?.message || `Đã xuất kho cho đơn hàng #${orderId}. Kho Kitchen đã được trừ.`)
+            const responseOrder = data?.order && typeof data.order === 'object' ? data.order : null
+            if (responseOrder) {
+                const responseStatus = normalizeStatus(responseOrder?.orderStatus || targetOrder.status)
+                const nextDetails = Array.isArray(responseOrder?.internalOrderDetails)
+                    ? responseOrder.internalOrderDetails
+                    : Array.isArray(responseOrder?.orderDetails)
+                        ? responseOrder.orderDetails
+                        : null
 
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            await fetchOrders()
+                setOrders((prev) => prev.map((order) => {
+                    if (Number(order?.orderId) !== Number(orderId)) return order
+
+                    const resolvedDetails = Array.isArray(nextDetails) ? nextDetails : order.details
+                    const nextStatus = deriveShippingStatusFromDetails(responseStatus, resolvedDetails)
+                    const totalQty = Array.isArray(resolvedDetails)
+                        ? resolvedDetails.reduce((sum, row) => sum + getDetailQuantity(row), 0)
+                        : order.totalQty
+
+                    return {
+                        ...order,
+                        status: nextStatus,
+                        statusStyle: statusStyle[nextStatus] || statusStyle.Pending,
+                        details: resolvedDetails,
+                        itemCount: Array.isArray(resolvedDetails) ? resolvedDetails.length : order.itemCount,
+                        totalQty,
+                    }
+                }))
+            }
+
+            setKitchenStockByProduct((prev) => {
+                const next = { ...prev }
+                payload.forEach((line) => {
+                    const productId = toNumber(line?.productId, 0)
+                    if (!productId || !Object.prototype.hasOwnProperty.call(next, productId)) return
+                    const current = toNumber(next[productId], 0)
+                    const deducted = current - toNumber(line?.quantityToShip, 0)
+                    next[productId] = deducted > 0 ? deducted : 0
+                })
+                return next
+            })
+
+            clearShipDraft(orderId)
+            openNotice(
+                'success',
+                data?.message || (isFullShipment
+                    ? `Đã xuất kho đủ số lượng cho đơn ${orderId}.`
+                    : `Đã ghi nhận giao từng phần cho đơn ${orderId}.`),
+            )
+
+            await Promise.all([fetchOrders(), fetchKitchenStock()])
+            if (expandedId === orderId) {
+                await fetchOrderDetail(orderId)
+            }
         } catch (error) {
-            openNotice('error', error.message || 'Xuất kho thất bại.')
+            openNotice('error', error.message || 'Giao từng phần thất bại.')
         } finally {
-            setTransferLoadingId(null)
+            setShipLoadingId(null)
         }
     }
 
@@ -576,20 +1031,20 @@ export default function OrderManagementPage() {
             setOrders((prev) => prev.map((order) => {
                 if (order.orderId !== orderId) return order
 
-                const totalQty = details.reduce((sum, row) => sum + Number(row?.quantityOrdered || 0), 0)
+                const totalQty = details.reduce((sum, row) => sum + getDetailQuantity(row), 0)
+                const rawStatus = normalizeStatus(data?.orderStatus || data?.status || order.status)
+                const nextStatus = deriveShippingStatusFromDetails(rawStatus, details)
 
                 // Calculate totalAmount from details if not provided
                 let totalAmount = data?.totalAmount || order.totalAmount || 0
                 if (!totalAmount && details.length > 0) {
-                    totalAmount = details.reduce((sum, row) => {
-                        const unitPrice = row?.unitPrice || row?.price || 0
-                        const quantity = Number(row?.quantityOrdered || 0)
-                        return sum + (unitPrice * quantity)
-                    }, 0)
+                    totalAmount = details.reduce((sum, row) => sum + getDetailSubtotal(row), 0)
                 }
 
                 return {
                     ...order,
+                    status: nextStatus,
+                    statusStyle: statusStyle[nextStatus] || statusStyle.Pending,
                     details,
                     itemCount: details.length,
                     totalQty,
@@ -612,12 +1067,16 @@ export default function OrderManagementPage() {
         }
     }
 
+    const refreshAllData = async () => {
+        const [latestStoreMap] = await Promise.all([fetchStoreMap(), fetchProductMap(), fetchKitchenStock()])
+        await fetchOrders(latestStoreMap)
+    }
+
     useEffect(() => {
-        fetchOrders()
-        fetchProductMap()
+        refreshAllData()
     }, [])
 
-    const filters = ['All', 'Pending', 'Approved', 'Rejected', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+    const filters = ['All', 'Pending', 'Approved', 'Rejected', 'Confirmed', 'Processing', 'Produced', 'PartialShipping', 'Shipped', 'Delivered', 'Cancelled', 'Returned']
 
     const filtered = useMemo(() => {
         if (filter === 'All') return orders
@@ -630,23 +1089,58 @@ export default function OrderManagementPage() {
         approved: orders.filter((o) => o.status === 'Approved').length,
         processing: orders.filter((o) => o.status === 'Processing').length,
         shipped: orders.filter((o) => isShippingStatus(o.status)).length,
+        partialShipping: orders.filter((o) => o.status === 'PartialShipping').length,
         delivered: orders.filter((o) => o.status === 'Delivered').length,
         rejected: orders.filter((o) => o.status === 'Rejected').length,
         cancelled: orders.filter((o) => o.status === 'Cancelled').length,
     }), [orders])
 
-    const canConfirmCompleted = (status) => isShippingStatus(status) // SHIPPING → COMPLETED
+    const statsItems = useMemo(() => ([
+        {
+            key: 'orders-total',
+            label: 'Tổng đơn hàng',
+            value: Number(stats.total || 0).toLocaleString('vi-VN'),
+            note: 'Đơn hàng nội bộ toàn danh sách',
+            icon: 'receipt_long',
+            tone: 'blue',
+        },
+        {
+            key: 'orders-pending',
+            label: 'Chờ duyệt',
+            value: Number(stats.pending || 0).toLocaleString('vi-VN'),
+            note: 'Đơn chờ xử lý ban đầu',
+            icon: 'pending',
+            tone: 'amber',
+        },
+        {
+            key: 'orders-shipping',
+            label: 'Đang giao',
+            value: Number(stats.shipped || 0).toLocaleString('vi-VN'),
+            note: `${Number(stats.partialShipping || 0).toLocaleString('vi-VN')} đơn giao một phần`,
+            icon: 'local_shipping',
+            tone: 'purple',
+        },
+        {
+            key: 'orders-completed',
+            label: 'Hoàn tất',
+            value: Number(stats.delivered || 0).toLocaleString('vi-VN'),
+            note: 'Đơn đã giao hoàn tất',
+            icon: 'check_circle',
+            tone: 'green',
+        },
+    ]), [stats])
+
     const canCancelOrder = (status) => status === 'Pending' // PENDING → CANCELLED
     const canApproveOrder = (status) => status === 'Pending' // PENDING → APPROVED
     const canRejectOrder = (status) => status === 'Pending' // PENDING → REJECTED
-    const canTransferOrder = (status) => status === 'Processing' || status === 'Produced' // PROCESSING/PRODUCED → SHIPPING
+    const canShipPartialOrder = (status) => status === 'Approved' || status === 'Processing' || status === 'Produced' || status === 'PartialShipping'
 
     const getProductDisplayName = (item) => {
         const productId = Number(item?.productId)
         if (item?.product?.productName) return item.product.productName
         if (item?.product?.name) return item.product.name
         if (productId && productNameMap[productId]) return productNameMap[productId]
-        if (productId) return `Sản phẩm #${productId}`
+        if (productId) return `Sản phẩm chưa có tên`
         return 'Sản phẩm chưa xác định'
     }
 
@@ -657,7 +1151,7 @@ export default function OrderManagementPage() {
                     <span className="material-symbols-outlined text-primary text-[24px]">assignment</span>
                     <h2 className="text-lg font-bold leading-tight">Quản lý đơn hàng nội bộ</h2>
                 </div>
-                <button className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors" onClick={fetchOrders}>
+                <button className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors" onClick={refreshAllData}>
                     <span className="material-symbols-outlined text-[18px]">refresh</span>Tải lại
                 </button>
             </header>
@@ -665,27 +1159,10 @@ export default function OrderManagementPage() {
             <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col gap-6">
                 <div>
                     <h1 className="text-2xl font-bold">Đơn hàng từ cửa hàng</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái và xác nhận hoàn tất các đơn nội bộ.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi trạng thái và tiến độ xử lý đơn hàng.</p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[
-                        { label: 'Tổng đơn hàng', value: stats.total, icon: 'receipt_long', color: 'text-blue-600 dark:text-blue-400' },
-                        { label: 'Chờ duyệt', value: stats.pending, icon: 'pending', color: 'text-amber-600 dark:text-amber-400' },
-                        { label: 'Đang giao', value: stats.shipped, icon: 'local_shipping', color: 'text-indigo-600 dark:text-indigo-400' },
-                        { label: 'Hoàn tất', value: stats.delivered, icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400' },
-                    ].map((card) => (
-                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3">
-                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                                <div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                     <label className="block">
@@ -708,7 +1185,7 @@ export default function OrderManagementPage() {
                     {!loading && filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500">Không có đơn hàng phù hợp.</div> : null}
 
                     {!loading && filtered.length > 0 ? (
-                        <table className="w-full table-fixed text-left border-collapse">
+                        <table className="list-nowrap w-full table-fixed text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                                     <th className="w-[14%] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Đơn hàng</th>
@@ -725,23 +1202,23 @@ export default function OrderManagementPage() {
                                 {filtered.map((order) => (
                                     <Fragment key={order.orderId}>
                                         <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">
-                                                <p className="font-semibold">#{order.orderId}</p>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                                <p className="font-semibold">{order.orderId}</p>
                                                 <p className="text-xs text-slate-500 mt-0.5">{order.orderCode}</p>
                                             </td>
-                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">{order.storeName}</td>
-                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">{order.createdAt}</td>
-                                            <td className="px-4 py-3 text-sm">{order.itemCount}</td>
-                                            <td className="px-4 py-3 text-sm">{order.totalQty}</td>
-                                            <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words">
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">{order.storeName}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">{order.createdAt}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">{order.itemCount}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">{order.totalQty}</td>
+                                            <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                                 {(order.totalAmount || 0).toLocaleString('vi-VN')} đ
                                             </td>
-                                            <td className="px-4 py-3 text-sm whitespace-normal break-words">
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${order.statusStyle}`}>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${order.statusStyle}`}>
                                                     {statusLabel[order.status] || order.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 whitespace-normal">
+                                            <td className="px-4 py-3 whitespace-nowrap">
                                                 <button
                                                     className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
                                                     onClick={() => handleToggleExpand(order)}
@@ -757,7 +1234,7 @@ export default function OrderManagementPage() {
                                                     <div className="mb-3 flex items-center gap-2 flex-wrap">
                                                         {canApproveOrder(order.status) && (
                                                             <button
-                                                                className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60"
+                                                                className="h-8 px-3 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors disabled:opacity-60 whitespace-nowrap"
                                                                 disabled={actionLoadingId === order.orderId}
                                                                 onClick={() => approveOrder(order.orderId)}
                                                             >
@@ -766,25 +1243,27 @@ export default function OrderManagementPage() {
                                                         )}
                                                         {canRejectOrder(order.status) && (
                                                             <button
-                                                                className="h-8 px-3 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors disabled:opacity-60"
+                                                                className="h-8 px-3 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors disabled:opacity-60 whitespace-nowrap"
                                                                 disabled={actionLoadingId === order.orderId}
                                                                 onClick={() => rejectOrder(order.orderId)}
                                                             >
                                                                 {actionLoadingId === order.orderId ? 'Đang từ chối...' : 'Từ chối'}
                                                             </button>
                                                         )}
-                                                        {canTransferOrder(order.status) && (
+                                                        {canShipPartialOrder(order.status) && (
                                                             <button
-                                                                className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-60"
-                                                                disabled={transferLoadingId === order.orderId}
-                                                                onClick={() => transferOrder(order.orderId)}
+                                                                className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 whitespace-nowrap"
+                                                                disabled={shipLoadingId === order.orderId || !(order.details || []).some((row) => getRemainingToShip(row) > 0 && getMaxShippableNow(row) > 0)}
+                                                                onClick={() => shipPartialOrder(order.orderId)}
                                                             >
-                                                                {transferLoadingId === order.orderId ? 'Đang xuất kho...' : 'Xuất kho'}
+                                                                {shipLoadingId === order.orderId
+                                                                    ? 'Đang ghi nhận...'
+                                                                    : (isFullShipmentDraft(order) ? 'Xuất kho' : 'Giao từng phần')}
                                                             </button>
                                                         )}
                                                         {canCancelOrder(order.status) && (
                                                             <button
-                                                                className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60"
+                                                                className="h-8 px-3 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-60 whitespace-nowrap"
                                                                 disabled={cancelLoadingId === order.orderId}
                                                                 onClick={() => cancelOrder(order.orderId)}
                                                             >
@@ -792,31 +1271,53 @@ export default function OrderManagementPage() {
                                                             </button>
                                                         )}
                                                     </div>
-                                                    {(order.details || []).length > 0 ? (
-                                                        <table className="w-full text-left border-collapse rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                                                    {canShipPartialOrder(order.status) && !(order.details || []).some((row) => getRemainingToShip(row) > 0 && getMaxShippableNow(row) > 0) ? (
+                                                        <div className="mb-3 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+                                                            Hiện chưa có sản phẩm nào đủ điều kiện giao (hết tồn kho bếp hoặc đã giao đủ mục tiêu).
+                                                        </div>
+                                                    ) : null}
+                                                    {(order.details || []).filter((row) => getRemainingToShip(row) > 0).length > 0 ? (
+                                                        <table className="list-nowrap w-full text-left border-collapse rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                                                             <thead>
                                                                 <tr className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                                                                     <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sản phẩm</th>
-                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Đơn giá</th>
-                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Số lượng đặt</th>
-                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Thành tiền</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Mục tiêu giao (đơn)</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Đã giao (đơn)</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Còn giao (đơn)</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Tồn kho bếp</th>
+                                                                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Giao lần này</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {(order.details || []).map((item) => {
-                                                                    const unitPrice = item.unitPrice || item.price || 0
-                                                                    const quantity = Number(item?.quantityOrdered || 0)
-                                                                    const subtotal = unitPrice * quantity
+                                                                {(order.details || []).filter((row) => getRemainingToShip(row) > 0).map((item) => {
+                                                                    const shipped = getDetailShipped(item)
+                                                                    const target = getDetailTarget(item)
+                                                                    const remaining = getRemainingToShip(item)
+                                                                    const stockQty = getKitchenStockByProductId(item?.productId)
+                                                                    const maxShippableNow = getMaxShippableNow(item)
+                                                                    const draftValue = shipDraftByOrder[order.orderId]?.[Number(item?.productId)] ?? ''
 
                                                                     return (
                                                                         <tr key={item?.detailId || `${order.orderId}-${item?.productId}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                                                                            <td className="px-3 py-2 text-sm">{getProductDisplayName(item)}</td>
-                                                                            <td className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-300">
-                                                                                {unitPrice.toLocaleString('vi-VN')} đ
+                                                                            <td className="px-3 py-2 text-sm whitespace-nowrap">{getProductDisplayName(item)}</td>
+                                                                            <td className="px-3 py-2 text-sm font-semibold text-center whitespace-nowrap">{target}</td>
+                                                                            <td className="px-3 py-2 text-sm font-semibold text-center text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{shipped}</td>
+                                                                            <td className={`px-3 py-2 text-sm font-semibold text-center whitespace-nowrap ${remaining <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{remaining}</td>
+                                                                            <td className={`px-3 py-2 text-sm font-semibold text-center whitespace-nowrap ${stockQty <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                                                {stockQty}
                                                                             </td>
-                                                                            <td className="px-3 py-2 text-sm font-medium text-center">{quantity}</td>
-                                                                            <td className="px-3 py-2 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
-                                                                                {subtotal.toLocaleString('vi-VN')} đ
+                                                                            <td className="px-3 py-2 text-center">
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min="0"
+                                                                                    step="0.01"
+                                                                                    max={maxShippableNow > 0 ? maxShippableNow : undefined}
+                                                                                    value={draftValue}
+                                                                                    disabled={!canShipPartialOrder(order.status) || maxShippableNow <= 0 || shipLoadingId === order.orderId}
+                                                                                    onChange={(event) => updateShipDraftValue(order.orderId, item?.productId, event.target.value)}
+                                                                                    placeholder="Nhập SL"
+                                                                                    className="h-8 w-28 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-sm text-center"
+                                                                                />
                                                                             </td>
                                                                         </tr>
                                                                     )
@@ -824,7 +1325,7 @@ export default function OrderManagementPage() {
                                                             </tbody>
                                                         </table>
                                                     ) : (
-                                                        <p className="text-xs text-slate-500">Đơn này chưa có dòng chi tiết hoặc API chưa trả chi tiết.</p>
+                                                        <p className="text-xs text-slate-500">Đơn này đã giao đủ các sản phẩm.</p>
                                                     )}
                                                 </td>
                                             </tr>

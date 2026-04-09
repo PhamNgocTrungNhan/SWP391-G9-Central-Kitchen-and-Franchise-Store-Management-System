@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
 
 function parseArrayData(raw) {
     if (Array.isArray(raw)) return raw
@@ -56,7 +57,7 @@ function toInventoryLogRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         action,
@@ -206,10 +207,37 @@ export default function InventoryLogsPage() {
     }
 
     const stats = useMemo(() => ({
-        total: filteredLogs.length,
-        in: filteredLogs.filter((log) => log.quantityChange > 0).length,
-        out: filteredLogs.filter((log) => log.quantityChange < 0).length,
-    }), [filteredLogs])
+        total: logs.length,
+        in: logs.filter((log) => log.quantityChange > 0).length,
+        out: logs.filter((log) => log.quantityChange < 0).length,
+    }), [logs])
+
+    const statsItems = useMemo(() => ([
+        {
+            key: 'logs-total',
+            label: 'Tổng giao dịch',
+            value: Number(stats.total || 0).toLocaleString('vi-VN'),
+            note: 'Tổng nhật ký toàn hệ thống',
+            icon: 'receipt_long',
+            tone: 'blue',
+        },
+        {
+            key: 'logs-in',
+            label: 'Nhập kho',
+            value: Number(stats.in || 0).toLocaleString('vi-VN'),
+            note: 'Biến động tăng tồn',
+            icon: 'arrow_downward',
+            tone: 'green',
+        },
+        {
+            key: 'logs-out',
+            label: 'Xuất kho',
+            value: Number(stats.out || 0).toLocaleString('vi-VN'),
+            note: 'Biến động giảm tồn',
+            icon: 'arrow_upward',
+            tone: 'red',
+        },
+    ]), [stats])
 
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -234,23 +262,7 @@ export default function InventoryLogsPage() {
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi lịch sử nhập xuất và điều chỉnh tồn kho.</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                        { label: 'Tổng giao dịch', value: stats.total, icon: 'receipt_long', color: 'text-blue-600 dark:text-blue-400' },
-                        { label: 'Nhập kho', value: stats.in, icon: 'arrow_downward', color: 'text-emerald-600 dark:text-emerald-400' },
-                        { label: 'Xuất kho', value: stats.out, icon: 'arrow_upward', color: 'text-red-600 dark:text-red-400' },
-                    ].map((card) => (
-                        <div key={card.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3">
-                                <span className={`material-symbols-outlined text-[32px] ${card.color}`}>{card.icon}</span>
-                                <div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
-                                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                     <label className="block">
@@ -308,8 +320,8 @@ export default function InventoryLogsPage() {
                                                     {log.quantityChange > 0 ? '+' : ''}{log.quantityChange}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-sm">{log.locationType} #{log.locationId || 'N/A'}</td>
-                                            <td className="px-4 py-3 text-sm">{log.referenceType} {log.referenceId ? `#${log.referenceId}` : ''}</td>
+                                            <td className="px-4 py-3 text-sm">{log.locationType} {log.locationId || 'N/A'}</td>
+                                            <td className="px-4 py-3 text-sm">{log.referenceType} {log.referenceId ? `${log.referenceId}` : ''}</td>
                                         </tr>
                                     ))}
                                 </tbody>

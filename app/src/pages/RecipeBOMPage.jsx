@@ -61,7 +61,7 @@ export default function RecipeBOMPage() {
         const materialProductId = Number(item?.materialId || item?.material?.productId || item?.material?.id || 0)
         return {
             id: id || Date.now(),
-            name: item?.recipeName || item?.product?.productName || item?.product?.name || `Recipe #${id || 'N/A'}`,
+            name: item?.recipeName || item?.product?.productName || item?.product?.name || 'Công thức chưa có tên',
             type: item?.recipeType || item?.type || 'Recipe',
             yield: item?.yieldAmount ? String(item.yieldAmount) : 'N/A',
             cost: item?.estimatedCost ? `$${Number(item.estimatedCost).toFixed(2)}` : '$0.00',
@@ -71,15 +71,25 @@ export default function RecipeBOMPage() {
             materialId: materialProductId,
             quantityRequired: Number(item?.quantityRequired || 0),
             wasteAllowancePercent: Number(item?.wasteAllowancePercent || 0),
-            parentProductName: item?.parentProduct?.productName || item?.parentProduct?.name || `Sản phẩm #${parentProductId || 'N/A'}`,
-            materialName: item?.material?.productName || item?.material?.name || `Nguyên liệu #${materialProductId || 'N/A'}`,
+            parentProductName: item?.parentProduct?.productName || item?.parentProduct?.name || `Sản phẩm chưa có tên`,
+            materialName: item?.material?.productName || item?.material?.name || 'Nguyên liệu chưa có tên',
         }
     }
 
     const getProductNameById = (id) => {
         const numberId = Number(id)
         if (!numberId) return 'N/A'
-        return productOptions.find((p) => Number(p.id) === numberId)?.name || `Product #${numberId}`
+
+        const fromOptions = productOptions.find((p) => Number(p.id) === numberId)?.name
+        if (fromOptions) return fromOptions
+
+        const fromParentRows = recipeRows.find((row) => Number(row?.parentProductId) === numberId)?.parentProductName
+        if (fromParentRows) return fromParentRows
+
+        const fromMaterialRows = recipeRows.find((row) => Number(row?.materialId) === numberId)?.materialName
+        if (fromMaterialRows) return fromMaterialRows
+
+        return 'Sản phẩm chưa có tên'
     }
 
     const fetchParentRecipes = async () => {
@@ -146,7 +156,7 @@ export default function RecipeBOMPage() {
                     if (!id) return null
                     return {
                         id,
-                        name: item?.productName || item?.name || `Product #${id}`,
+                        name: item?.productName || item?.name || 'Sản phẩm chưa có tên',
                     }
                 })
                 .filter(Boolean)
@@ -321,7 +331,7 @@ export default function RecipeBOMPage() {
             return
         }
 
-        if (!window.confirm(`Xác nhận xóa công thức #${recipeId}?`)) {
+        if (!window.confirm(`Xác nhận xóa công thức ${recipeId}?`)) {
             return
         }
 
@@ -343,7 +353,7 @@ export default function RecipeBOMPage() {
                 throw new Error(data?.message || data?.title || 'Không thể xóa công thức.')
             }
 
-            setCreateSuccess(data?.message || `Đã xóa công thức #${recipeId}.`)
+            setCreateSuccess(data?.message || `Đã xóa công thức ${recipeId}.`)
             fetchParentRecipes()
         } catch (error) {
             setCreateError(error.message || 'Xóa công thức thất bại.')
@@ -397,7 +407,7 @@ export default function RecipeBOMPage() {
                                 onChange={(e) => setParentId(e.target.value)}
                                 className="h-10 w-56 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm"
                             >
-                                {productOptions.length === 0 ? <option value="1">Product #1</option> : null}
+                                {productOptions.length === 0 ? <option value="1">Sản phẩm chưa có tên</option> : null}
                                 {productOptions.map((p) => (
                                     <option key={p.id} value={String(p.id)}>{p.name}</option>
                                 ))}
@@ -451,7 +461,7 @@ export default function RecipeBOMPage() {
 
                             {recipes.map((row) => (
                                 <tr key={`recipe-row-${row.id}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-5 py-3 text-sm font-semibold">#{row.id}</td>
+                                    <td className="px-5 py-3 text-sm font-semibold">{row.id}</td>
                                     <td className="px-5 py-3 text-sm">{getProductNameById(row.parentProductId)}</td>
                                     <td className="px-5 py-3 text-sm">{getProductNameById(row.materialId)}</td>
                                     <td className="px-5 py-3 text-sm">{Number(row.quantityRequired || 0)}</td>
@@ -761,7 +771,7 @@ export default function RecipeBOMPage() {
                 <div className="fixed inset-0 z-[70] bg-slate-950/40 flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5">
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <p className="text-base font-semibold">Chi tiết công thức #{viewingRecipe.id}</p>
+                            <p className="text-base font-semibold">Chi tiết công thức {viewingRecipe.id}</p>
                             <button
                                 onClick={() => setShowViewForm(false)}
                                 className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -771,7 +781,7 @@ export default function RecipeBOMPage() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <p><span className="font-semibold">Recipe ID:</span> #{viewingRecipe.id}</p>
+                            <p><span className="font-semibold">Recipe ID:</span> {viewingRecipe.id}</p>
                             <p><span className="font-semibold">Parent:</span> {getProductNameById(viewingRecipe.parentProductId)}</p>
                             <p><span className="font-semibold">Material:</span> {getProductNameById(viewingRecipe.materialId)}</p>
                             <p><span className="font-semibold">Quantity Required:</span> {Number(viewingRecipe.quantityRequired || 0)}</p>

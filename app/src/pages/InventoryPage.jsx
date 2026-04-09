@@ -1,4 +1,155 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { MetricsStrip } from '../components/ui'
+
+function parseArrayData(raw) {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.items)) return raw.items
+  if (Array.isArray(raw?.data)) return raw.data
+  return []
+}
+
+function readApiErrorMessage(data, fallback) {
+  if (typeof data === 'string' && data.trim()) return data.trim()
+  if (!data || typeof data !== 'object') return fallback
+
+  if (typeof data.message === 'string' && data.message.trim()) return data.message
+  if (typeof data.title === 'string' && data.title.trim()) return data.title
+  if (typeof data.detail === 'string' && data.detail.trim()) return data.detail
+
+  const firstError = Object.values(data.errors || {}).find((value) => Array.isArray(value) && value.length)
+  if (firstError && firstError[0]) return String(firstError[0])
+
+  return fallback
+}
+
+function normalizeSupplierActive(value) {
+  if (value === undefined || value === null || value === '') return true
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+
+  const normalized = String(value).trim().toUpperCase()
+  if (['FALSE', '0', 'INACTIVE', 'DISABLED', 'BLACKLIST', 'BANNED', 'BLOCKED', 'NGUNG_HOAT_DONG', 'NGỪNG_HOẠT_ĐỘNG'].includes(normalized)) return false
+  if (['TRUE', '1', 'ACTIVE', 'ENABLED', 'HOAT_DONG', 'HOẠT_ĐỘNG'].includes(normalized)) return true
+  return true
+}
+
+function parseUserNumber(value) {
+  if (typeof value === 'number') return value
+  const normalized = String(value ?? '').trim().replace(',', '.')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
+function normalizeImportPayload(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    productId: Number(raw.productId ?? raw.ProductId),
+    quantity: Number(raw.quantity ?? raw.Quantity),
+    supplierId: Number(raw.supplierId ?? raw.SupplierId),
+  }
+}
+
+function isSameImportPayload(requestPayload, debugPayload) {
+  const requestNormalized = normalizeImportPayload(requestPayload)
+  const debugNormalized = normalizeImportPayload(debugPayload)
+  if (!requestNormalized || !debugNormalized) return false
+
+  return requestNormalized.productId === debugNormalized.productId
+    && requestNormalized.supplierId === debugNormalized.supplierId
+    && requestNormalized.quantity === debugNormalized.quantity
+}
+
+function withTraceId(message, traceId) {
+  const normalizedTrace = String(traceId || '').trim()
+  if (!normalizedTrace) return message
+  return `${message} (traceId: ${normalizedTrace})`
+}
+
+function resolveImportErrorMessage(data, requestPayload) {
+  const rawError = readApiErrorMessage(data, 'Nhập kho thất bại.')
+  const normalized = String(rawError || '').toLowerCase()
+  const errorCode = String(data?.errorCode || '').trim().toUpperCase()
+  const traceId = data?.traceId
+  const debugPayload = data?.debugPayload
+  const hasDebugPayload = Boolean(debugPayload && typeof debugPayload === 'object')
+  const payloadMatched = hasDebugPayload && isSameImportPayload(requestPayload, debugPayload)
+
+  if (hasDebugPayload && !payloadMatched) {
+    return withTraceId('Dữ liệu API nhận được không khớp dữ liệu FE gửi. Vui lòng thử lại và kiểm tra request payload.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_LOG_FIELD_TOO_LONG') {
+    return withTraceId('Hệ thống đang lỗi độ dài dữ liệu log khi nhập kho. Vui lòng gửi traceId cho backend để kiểm tra.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_DUPLICATE_INVENTORY') {
+    return withTraceId('Dữ liệu tồn kho bị trùng khóa. Vui lòng gửi traceId cho backend để xử lý dữ liệu hệ thống.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_SUPPLIER_FK_FAILED') {
+    return withTraceId('Nhà cung cấp không hợp lệ trong hệ thống. Vui lòng chọn nhà cung cấp khác.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_PRODUCT_FK_FAILED') {
+    return withTraceId('Nguyên liệu không hợp lệ trong hệ thống. Vui lòng chọn nguyên liệu khác.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_SAVE_FAILED') {
+    return withTraceId('Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng gửi traceId cho backend kiểm tra.', traceId)
+  }
+
+  if (errorCode === 'INV_IMPORT_BUSINESS_ERROR') {
+    if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+      return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+    }
+    if (normalized.includes('raw')) {
+      return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+    }
+    if (normalized.includes('không tìm thấy sản phẩm')) {
+      return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+    if (normalized.includes('không tìm thấy nhà cung cấp')) {
+      return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+    if (normalized.includes('số lượng') || normalized.includes('so luong')) {
+      return withTraceId('Số lượng nhập kho phải lớn hơn 0.', traceId)
+    }
+    return withTraceId(rawError, traceId)
+  }
+
+  if (normalized.includes('saving the entity changes') || normalized.includes('inner exception')) {
+    const hasStructuredError = Boolean(errorCode || traceId)
+    if (payloadMatched) {
+      return withTraceId(
+        hasStructuredError
+          ? 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. Vui lòng gửi traceId cho backend kiểm tra DB.'
+          : 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+        traceId,
+      )
+    }
+    return withTraceId(
+      hasStructuredError
+        ? 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng thử lại sau.'
+        : 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+      traceId,
+    )
+  }
+
+  if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+    return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+  }
+  if (normalized.includes('raw')) {
+    return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+  }
+  if (normalized.includes('không tìm thấy sản phẩm')) {
+    return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+  }
+  if (normalized.includes('không tìm thấy nhà cung cấp')) {
+    return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+  }
+
+  return withTraceId(rawError, traceId)
+}
 
 function getToken() {
   const candidates = [
@@ -35,6 +186,15 @@ function toShortDate(dateString) {
     month: '2-digit',
     year: 'numeric',
   })
+}
+
+function normalizeLocationLabel(locationType, locationId) {
+  const type = String(locationType || '').trim().toUpperCase()
+  const id = Number(locationId || 0)
+
+  if (type === 'STORE') return `Kho cửa hàng ${id > 0 ? `#${id}` : ''}`.trim()
+  if (type === 'KITCHEN') return `Kho bếp trung tâm ${id > 0 ? `#${id}` : ''}`.trim()
+  return 'Kho hệ thống'
 }
 
 export default function InventoryPage() {
@@ -101,7 +261,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -121,20 +281,22 @@ export default function InventoryPage() {
         return
       }
 
-      const normalized = data.map((item) => {
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
-        const location = item.location || item.locationName || 'Bếp trung tâm #1'
-        const quantity = Number(item.currentQuantity || item.quantity || 0)
+      const normalized = data
+        .filter((item) => String(item?.locationType || '').toUpperCase() !== 'STORE')
+        .map((item) => {
+          const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
+          const location = item.location || item.locationName || 'Bếp trung tâm #1'
+          const quantity = Number(item.currentQuantity || item.quantity || 0)
 
-        return {
-          id: item.inventoryId || item.stockId || item.productId,
-          productId: item.productId,
-          product: productName,
-          location,
-          quantity,
-          unit: item.product?.baseUnit || item.baseUnit || 'unit',
-        }
-      })
+          return {
+            id: item.inventoryId || item.stockId || item.productId,
+            productId: item.productId,
+            product: productName,
+            location,
+            quantity,
+            unit: item.product?.baseUnit || item.baseUnit || 'unit',
+          }
+        })
 
       setStock(normalized)
     } catch {
@@ -159,7 +321,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -181,22 +343,43 @@ export default function InventoryPage() {
 
       const normalized = data.map((item) => {
         const qty = Number(item.changeQuantity || 0)
-        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm #${item.productId}`
+        const productName = productMap[item.productId] || item.product?.productName || item.product?.name || item.productName || `Sản phẩm chưa có tên`
+        const reasonRaw = String(item.reason || '')
+        const reasonUpper = reasonRaw.toUpperCase()
+        const referenceType = String(item.referenceType || '').toUpperCase()
+        const locationType = String(item.locationType || '').toUpperCase()
 
-        let action = item.reason || 'Unknown'
-        if (action.includes('SẢN XUẤT')) action = 'Trừ nguyên liệu sản xuất'
-        if (action.includes('NHẬP THÀNH PHẨM')) action = 'Nhập thành phẩm'
-        if (action.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
-        if (action.includes('NHẬP NGUYÊN LIỆU') || action.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
+        // Trang này đang là UI kho bếp: tạm ẩn log kho STORE, sẽ hiển thị ở UI kho store riêng.
+        if (locationType === 'STORE') return null
+
+        const locationLabel = normalizeLocationLabel(item.locationType, item.locationId)
+
+        let action = reasonRaw || 'Unknown'
+        if (reasonUpper.includes('SẢN XUẤT')) action = 'Trừ nguyên liệu sản xuất'
+        if (reasonUpper.includes('NHẬP THÀNH PHẨM')) action = 'Nhập thành phẩm'
+        if (reasonUpper.includes('XUẤT GIAO')) action = 'Xuất giao cửa hàng'
+        if (reasonUpper.includes('NHẬP NGUYÊN LIỆU') || reasonUpper.includes('NHAP_TU_NHA_CUNG_CAP')) action = 'Nhập nguyên liệu'
+
+        if (referenceType === 'INTERNAL_ORDER') {
+          if (locationType === 'STORE' && qty > 0) {
+            action = 'Nhận giao từ bếp (kho cửa hàng)'
+          } else if (locationType === 'KITCHEN' && qty < 0) {
+            action = 'Xuất giao cho cửa hàng'
+          }
+        }
 
         let actor = 'Hệ thống'
-        if (item.referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
-          actor = `Mẻ SX #${item.referenceId}`
-        } else if (item.referenceType === 'INTERNAL_ORDER' && item.referenceId) {
-          actor = `Đơn hàng #${item.referenceId}`
+        if (referenceType === 'PRODUCTION_BATCH' && item.referenceId) {
+          actor = `Mẻ SX ${item.referenceId}`
+        } else if (referenceType === 'INTERNAL_ORDER' && item.referenceId) {
+          actor = `Đơn hàng ${item.referenceId}`
         } else if (item.supplierId) {
-          actor = `NCC #${item.supplierId}`
+          actor = 'Nhà cung cấp'
         }
+
+        const statusLabel = qty >= 0
+          ? (locationType === 'STORE' ? 'Nhập kho store' : 'Nhập')
+          : (locationType === 'KITCHEN' ? 'Xuất' : 'Xuất')
 
         return {
           id: item.logId,
@@ -204,10 +387,12 @@ export default function InventoryPage() {
           quantity: qty >= 0 ? `+${qty}` : `${qty}`,
           action,
           actor,
+          locationLabel,
+          statusLabel,
           date: toReadableDate(item.createdAt),
           type: qty >= 0 ? 'IN' : 'OUT',
         }
-      })
+      }).filter(Boolean)
 
       setLogs(normalized)
     } catch {
@@ -232,7 +417,7 @@ export default function InventoryPage() {
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
           productMap[p.productId] = {
-            name: p.productName || p.name || `Sản phẩm #${p.productId}`,
+            name: p.productName || p.name || `Sản phẩm chưa có tên`,
             sku: p.sku || 'N/A'
           }
         })
@@ -267,7 +452,7 @@ export default function InventoryPage() {
 
       // Hiển thị TẤT CẢ mẻ COMPLETED có expDate, không cần phân bổ tồn kho
       const result = completedBatches.map((batch) => {
-        const productInfo = productMap[batch.productId] || { name: `Sản phẩm #${batch.productId}`, sku: 'N/A' }
+        const productInfo = productMap[batch.productId] || { name: `Sản phẩm chưa có tên`, sku: 'N/A' }
         const now = new Date()
         const expDate = batch.expDate ? new Date(batch.expDate) : null
         let expiryStatus = 'N/A'
@@ -334,7 +519,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -369,7 +554,7 @@ export default function InventoryPage() {
       for (const batch of completedBatches) {
         const expDate = new Date(batch.expDate)
         if (expDate < now) {
-          const productName = productMap[batch.productId] || `Sản phẩm #${batch.productId}`
+          const productName = productMap[batch.productId] || `Sản phẩm chưa có tên`
           expired.push({
             batchId: batch.batchId,
             batchCode: batch.batchCode,
@@ -414,7 +599,7 @@ export default function InventoryPage() {
       const productMap = {}
       if (Array.isArray(productsData)) {
         productsData.forEach((p) => {
-          productMap[p.productId] = p.productName || p.name || `Sản phẩm #${p.productId}`
+          productMap[p.productId] = p.productName || p.name || `Sản phẩm chưa có tên`
         })
       }
 
@@ -431,19 +616,27 @@ export default function InventoryPage() {
       const batchData = await batchRes.json()
 
       // Fetch recipe/BOM
-      const recipeRes = await fetch(`${apiBase}/Recipes/product/${item.productId}`, {
+      const recipeRes = await fetch(`${apiBase}/Recipes/parent/${item.productId}`, {
         headers: { Authorization: `Bearer ${tk}` },
       })
 
       let recipeData = null
       if (recipeRes.ok) {
-        recipeData = await recipeRes.json()
+        const recipeJson = await recipeRes.json().catch(() => [])
+        const recipeRows = parseArrayData(recipeJson)
+        const materials = recipeRows.map((row) => ({
+          materialId: row.materialId,
+          materialName: row.materialName || productMap[row.materialId] || 'Nguyên liệu chưa có tên',
+          quantityRequired: Number(row.quantityRequired || 0),
+          maxWastePercent: Number(row.maxWastePercent ?? row.wasteAllowancePercent ?? 0),
+        }))
+        recipeData = { materials }
       }
 
       // Enrich batch data
       const enrichedBatch = {
         ...batchData,
-        productName: productMap[batchData.productId] || `Sản phẩm #${batchData.productId}`,
+        productName: productMap[batchData.productId] || `Sản phẩm chưa có tên`,
         recipe: recipeData,
       }
 
@@ -510,41 +703,57 @@ export default function InventoryPage() {
       ])
 
       if (productsRes.ok) {
-        const data = await productsRes.json()
-        const normalized = (Array.isArray(data) ? data : []).map((p) => ({
-          id: p.productId || p.id,
-          name: p.productName || p.name || `Sản phẩm #${p.productId || p.id}`,
-        }))
+        const data = await productsRes.json().catch(() => [])
+        const normalized = parseArrayData(data)
+          .map((p) => ({
+            id: p.productId || p.id,
+            name: p.productName || p.name || `Sản phẩm chưa có tên`,
+            productType: String(p.productType || '').toUpperCase(),
+          }))
+          .filter((item) => Number(item.id) > 0)
+          .filter((item) => !item.productType || item.productType === 'RAW')
         setRawProducts(normalized)
 
         if (normalized.length > 0 && !importForm.productId) {
           setImportForm((prev) => ({ ...prev, productId: String(normalized[0].id) }))
         }
+      } else {
+        setRawProducts([])
       }
 
       if (suppliersRes.ok) {
-        const data = await suppliersRes.json()
-        const normalized = (Array.isArray(data) ? data : []).map((s) => ({
-          id: s.supplierId || s.id,
-          name: s.supplierName || s.name || `NCC #${s.supplierId || s.id}`,
-        }))
-        setSuppliers(normalized)
+        const data = await suppliersRes.json().catch(() => [])
+        const normalized = parseArrayData(data)
+          .map((s) => ({
+            id: s.supplierId || s.id,
+            name: s.supplierName || s.name || 'Nhà cung cấp chưa có tên',
+            isActive: normalizeSupplierActive(s.isActive ?? s.active ?? s.is_active ?? s.status),
+          }))
+          .filter((s) => Number(s.id) > 0)
 
-        if (normalized.length > 0 && !importForm.supplierId) {
-          setImportForm((prev) => ({ ...prev, supplierId: String(normalized[0].id) }))
+        const activeSuppliers = normalized.filter((s) => s.isActive)
+        setSuppliers(activeSuppliers)
+
+        if (activeSuppliers.length > 0 && !importForm.supplierId) {
+          setImportForm((prev) => ({ ...prev, supplierId: String(activeSuppliers[0].id) }))
         }
+
+        if (normalized.length > 0 && activeSuppliers.length === 0) {
+          setImportError('Hiện không có nhà cung cấp đang hoạt động để nhập kho.')
+        }
+      } else {
+        setSuppliers([])
       }
     } catch (error) {
       console.error('Error fetching raw products/suppliers:', error)
+      setImportError('Không tải được dữ liệu nhập kho. Vui lòng thử lại.')
     }
   }
 
   const openImportModal = () => {
     setShowImportModal(true)
     setImportError('')
-    if (rawProducts.length === 0 || suppliers.length === 0) {
-      fetchRawProductsAndSuppliers()
-    }
+    fetchRawProductsAndSuppliers()
   }
 
   const closeImportModal = () => {
@@ -563,25 +772,41 @@ export default function InventoryPage() {
       return
     }
 
-    const productId = Number(importForm.productId || 0)
-    const supplierId = Number(importForm.supplierId || 0)
-    const quantity = Number(importForm.quantity || 0)
+    const productId = parseUserNumber(importForm.productId)
+    const supplierId = parseUserNumber(importForm.supplierId)
+    const quantity = parseUserNumber(importForm.quantity)
+    const selectedProduct = rawProducts.find((p) => Number(p.id) === productId)
+    const selectedSupplier = suppliers.find((s) => Number(s.id) === supplierId)
 
-    if (productId < 1) {
+    if (!Number.isFinite(productId) || productId < 1) {
       setImportError('Vui lòng chọn sản phẩm hợp lệ.')
       return
     }
-    if (supplierId < 1) {
+    if (!Number.isFinite(supplierId) || supplierId < 1) {
       setImportError('Vui lòng chọn nhà cung cấp hợp lệ.')
       return
     }
-    if (quantity <= 0) {
+    if (!selectedProduct) {
+      setImportError('Sản phẩm không hợp lệ hoặc không thuộc nhóm nguyên liệu thô (RAW).')
+      return
+    }
+    if (!selectedSupplier) {
+      setImportError('Nhà cung cấp không hợp lệ hoặc đã ngừng hoạt động.')
+      return
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       setImportError('Số lượng nhập phải lớn hơn 0.')
       return
     }
 
     setImporting(true)
     try {
+      const requestPayload = {
+        productId: Number(productId),
+        quantity: Number(quantity),
+        supplierId: Number(supplierId),
+      }
+
       const response = await fetch(`${apiBase}/Inventory/import`, {
         method: 'POST',
         headers: {
@@ -589,17 +814,24 @@ export default function InventoryPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tk}`,
         },
-        body: JSON.stringify({
-          productId,
-          quantity,
-          supplierId,
-        }),
+        body: JSON.stringify(requestPayload),
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        const errorMsg = data?.message || data?.title || 'Nhập kho thất bại.'
-        throw new Error(errorMsg)
+        if (import.meta.env.DEV) {
+          console.warn('[InventoryImport] request failed', {
+            status: response.status,
+            requestPayload,
+            responseBody: data,
+          })
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Bạn không có quyền nhập kho. Vui lòng đăng nhập bằng tài khoản ADMIN hoặc MANAGER.')
+        }
+
+        throw new Error(resolveImportErrorMessage(data, requestPayload))
       }
 
       setMessage({ type: 'success', text: data?.message || 'Nhập nguyên liệu thành công.' })
@@ -637,6 +869,46 @@ export default function InventoryPage() {
       setCurrentPage(page)
     }
   }
+
+  const statsItems = useMemo(() => {
+    const lowStockCount = stock.filter((item) => item.status === 'low').length
+    const criticalStockCount = stock.filter((item) => item.status === 'critical').length
+
+    return [
+      {
+        key: 'inventory-total-stock',
+        label: 'Mặt hàng tồn kho',
+        value: Number(stock.length || 0).toLocaleString('vi-VN'),
+        note: 'Số dòng tồn kho hiện tại',
+        icon: 'inventory_2',
+        tone: 'blue',
+      },
+      {
+        key: 'inventory-low-critical',
+        label: 'Cảnh báo tồn kho',
+        value: Number(lowStockCount + criticalStockCount).toLocaleString('vi-VN'),
+        note: `${lowStockCount} sắp hết • ${criticalStockCount} hết hàng`,
+        icon: 'warning',
+        tone: criticalStockCount > 0 ? 'red' : 'amber',
+      },
+      {
+        key: 'inventory-logs',
+        label: 'Nhật ký tồn kho',
+        value: Number(logs.length || 0).toLocaleString('vi-VN'),
+        note: 'Tổng giao dịch đã ghi nhận',
+        icon: 'receipt_long',
+        tone: 'green',
+      },
+      {
+        key: 'inventory-expiry',
+        label: 'Theo dõi hạn dùng',
+        value: Number(expiryTracking.length || 0).toLocaleString('vi-VN'),
+        note: 'Danh sách lô theo hạn sử dụng',
+        icon: 'event_busy',
+        tone: 'purple',
+      },
+    ]
+  }, [stock, logs, expiryTracking])
 
 
   return (
@@ -678,6 +950,8 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold">Tồn kho và lịch sử</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Theo dõi số lượng tồn kho và lịch sử thay đổi.</p>
         </div>
+
+        <MetricsStrip items={statsItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
         {message && (
           <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
@@ -754,7 +1028,7 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-4 py-3 text-sm">{item.unit}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${item.quantity > 100 ? 'bg-emerald-100 text-emerald-700' : item.quantity > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                             {item.quantity > 100 ? '●' : item.quantity > 0 ? '●' : '●'}
                           </span>
                         </td>
@@ -811,7 +1085,10 @@ export default function InventoryPage() {
                       <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-4 py-3 text-sm font-medium">{log.product}</td>
                         <td className="px-4 py-3 text-sm">{log.action}</td>
-                        <td className="px-4 py-3 text-sm">{log.actor}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="font-medium">{log.actor}</div>
+                          <div className="text-xs text-slate-500">{log.locationLabel}</div>
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={String(log.quantity).startsWith('+') ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
                             {log.quantity}
@@ -819,8 +1096,8 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-4 py-3 text-xs">{log.date}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {String(log.quantity).startsWith('+') ? 'Nhập' : 'Xuất'}
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${String(log.quantity).startsWith('+') ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {log.statusLabel}
                           </span>
                         </td>
                       </tr>
@@ -883,7 +1160,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-xs">{toShortDate(item.createdAt || item.mfgDate)}</td>
                         <td className="px-4 py-3 text-xs font-medium">{toShortDate(item.expDate)}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${item.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
                             item.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
                               item.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
                                 'bg-emerald-100 text-emerald-700'
@@ -944,7 +1221,7 @@ export default function InventoryPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất #{selectedExpiryItem.batchId}</h3>
+              <h3 className="text-lg font-semibold">Chi tiết mẻ sản xuất {selectedExpiryItem.batchId}</h3>
               <button
                 type="button"
                 onClick={() => setShowExpiryDetailModal(false)}
@@ -1069,7 +1346,7 @@ export default function InventoryPage() {
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Trạng thái</label>
                       <p className="text-sm font-medium mt-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${selectedExpiryItem.expiryStatus === 'Hết hạn' ? 'bg-red-100 text-red-700' :
                           selectedExpiryItem.expiryStatus === 'Sắp hết hạn' ? 'bg-orange-100 text-orange-700' :
                             selectedExpiryItem.expiryStatus === 'Cảnh báo' ? 'bg-amber-100 text-amber-700' :
                               'bg-emerald-100 text-emerald-700'
@@ -1229,12 +1506,12 @@ export default function InventoryPage() {
                         </thead>
                         <tbody>
                           {selectedExpiredItem.recipe.materials.map((mat, idx) => {
-                            const actualNeeded = mat.quantityRequired * (1 + (mat.wasteAllowancePercent || 0) / 100)
+                            const actualNeeded = mat.quantityRequired * (1 + (mat.maxWastePercent || mat.wasteAllowancePercent || 0) / 100)
                             return (
                               <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
-                                <td className="px-3 py-2 text-sm">{mat.materialName || `Material #${mat.materialId}`}</td>
+                                <td className="px-3 py-2 text-sm">{mat.materialName || 'Nguyên liệu chưa có tên'}</td>
                                 <td className="px-3 py-2 text-sm">{mat.quantityRequired}</td>
-                                <td className="px-3 py-2 text-sm">{mat.wasteAllowancePercent || 0}%</td>
+                                <td className="px-3 py-2 text-sm">{mat.maxWastePercent ?? mat.wasteAllowancePercent ?? 0}%</td>
                                 <td className="px-3 py-2 text-sm font-semibold">{actualNeeded.toFixed(2)}</td>
                               </tr>
                             )

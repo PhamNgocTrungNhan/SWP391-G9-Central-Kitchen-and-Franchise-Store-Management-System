@@ -33,6 +33,124 @@ function parseSafeNumber(value, fallback = 0) {
     return Number.isFinite(n) ? n : fallback
 }
 
+function normalizeImportPayload(raw) {
+    if (!raw || typeof raw !== 'object') return null
+    return {
+        productId: Number(raw.productId ?? raw.ProductId),
+        quantity: Number(raw.quantity ?? raw.Quantity),
+        supplierId: Number(raw.supplierId ?? raw.SupplierId),
+    }
+}
+
+function isSameImportPayload(requestPayload, debugPayload) {
+    const requestNormalized = normalizeImportPayload(requestPayload)
+    const debugNormalized = normalizeImportPayload(debugPayload)
+    if (!requestNormalized || !debugNormalized) return false
+
+    return requestNormalized.productId === debugNormalized.productId
+        && requestNormalized.supplierId === debugNormalized.supplierId
+        && requestNormalized.quantity === debugNormalized.quantity
+}
+
+function withTraceId(message, traceId) {
+    const normalizedTrace = String(traceId || '').trim()
+    if (!normalizedTrace) return message
+    return `${message} (traceId: ${normalizedTrace})`
+}
+
+function resolveImportErrorMessage(payload, requestPayload) {
+    const rawError = readApiErrorMessage(payload, 'Nhập kho thất bại.')
+    const normalized = String(rawError || '').toLowerCase()
+    const errorCode = String(payload?.errorCode || '').trim().toUpperCase()
+    const traceId = payload?.traceId
+    const debugPayload = payload?.debugPayload
+    const hasDebugPayload = Boolean(debugPayload && typeof debugPayload === 'object')
+    const payloadMatched = hasDebugPayload && isSameImportPayload(requestPayload, debugPayload)
+
+    if (hasDebugPayload && !payloadMatched) {
+        return withTraceId('Dữ liệu API nhận được không khớp dữ liệu FE gửi. Vui lòng thử lại và kiểm tra request payload.', traceId)
+    }
+
+    if (errorCode === 'INV_IMPORT_LOG_FIELD_TOO_LONG') {
+        return withTraceId('Hệ thống đang lỗi độ dài dữ liệu log khi nhập kho. Vui lòng gửi traceId cho backend để kiểm tra.', traceId)
+    }
+    if (errorCode === 'INV_IMPORT_DUPLICATE_INVENTORY') {
+        return withTraceId('Dữ liệu tồn kho bị trùng khóa. Vui lòng gửi traceId cho backend để xử lý dữ liệu hệ thống.', traceId)
+    }
+    if (errorCode === 'INV_IMPORT_SUPPLIER_FK_FAILED') {
+        return withTraceId('Nhà cung cấp không hợp lệ trong hệ thống. Vui lòng chọn nhà cung cấp khác.', traceId)
+    }
+    if (errorCode === 'INV_IMPORT_PRODUCT_FK_FAILED') {
+        return withTraceId('Nguyên liệu không hợp lệ trong hệ thống. Vui lòng chọn nguyên liệu khác.', traceId)
+    }
+    if (errorCode === 'INV_IMPORT_SAVE_FAILED') {
+        return withTraceId('Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng gửi traceId cho backend kiểm tra.', traceId)
+    }
+
+    if (errorCode === 'INV_IMPORT_BUSINESS_ERROR') {
+        if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+            return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+        }
+        if (normalized.includes('raw')) {
+            return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+        }
+        if (normalized.includes('không tìm thấy sản phẩm')) {
+            return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+        }
+        if (normalized.includes('không tìm thấy nhà cung cấp')) {
+            return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+        }
+        if (normalized.includes('số lượng') || normalized.includes('so luong')) {
+            return withTraceId('Số lượng nhập kho phải lớn hơn 0.', traceId)
+        }
+        return withTraceId(rawError, traceId)
+    }
+
+    if (normalized.includes('saving the entity changes') || normalized.includes('inner exception')) {
+        const hasStructuredError = Boolean(errorCode || traceId)
+        if (payloadMatched) {
+            return withTraceId(
+                hasStructuredError
+                    ? 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. Vui lòng gửi traceId cho backend kiểm tra DB.'
+                    : 'Dữ liệu nhập kho đã hợp lệ nhưng hệ thống đang lỗi lưu dữ liệu. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+                traceId,
+            )
+        }
+        return withTraceId(
+            hasStructuredError
+                ? 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. Vui lòng thử lại sau.'
+                : 'Không thể nhập kho lúc này do lỗi lưu dữ liệu hệ thống. API hiện chưa trả errorCode/traceId để truy vết nhanh.',
+            traceId,
+        )
+    }
+
+    if (normalized.includes('blacklist') || normalized.includes('ngừng hoạt động')) {
+        return withTraceId('Nhà cung cấp đã ngừng hoạt động. Vui lòng chọn nhà cung cấp khác.', traceId)
+    }
+    if (normalized.includes('raw')) {
+        return withTraceId('Chỉ có thể nhập kho cho nhóm nguyên liệu thô (RAW).', traceId)
+    }
+    if (normalized.includes('không tìm thấy sản phẩm')) {
+        return withTraceId('Sản phẩm không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+    if (normalized.includes('không tìm thấy nhà cung cấp')) {
+        return withTraceId('Nhà cung cấp không còn tồn tại. Vui lòng chọn lại.', traceId)
+    }
+
+    return withTraceId(rawError, traceId)
+}
+
+function normalizeSupplierActive(value) {
+    if (value === undefined || value === null || value === '') return true
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number') return value > 0
+
+    const normalized = String(value).trim().toUpperCase()
+    if (['FALSE', '0', 'INACTIVE', 'DISABLED', 'NGUNG_HOAT_DONG', 'NGỪNG_HOẠT_ĐỘNG'].includes(normalized)) return false
+    if (['TRUE', '1', 'ACTIVE', 'ENABLED', 'HOAT_DONG', 'HOẠT_ĐỘNG'].includes(normalized)) return true
+    return true
+}
+
 function readApiErrorMessage(payload, fallback) {
     if (!payload) return fallback
     if (typeof payload === 'string') return payload
@@ -98,7 +216,7 @@ function toInventoryRow(item, productNameById) {
     } else if (productNameById && productNameById[productId]) {
         productName = productNameById[productId]
     } else if (productId > 0) {
-        productName = `Sản phẩm #${productId}`
+        productName = `Sản phẩm chưa có tên`
     }
 
     return {
@@ -129,7 +247,7 @@ function toInventoryLogRow(item, productNameById) {
     return {
         id: parseSafeNumber(item?.logId ?? item?.transactionId ?? item?.id, 0),
         productId,
-        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm #${productId || 'N/A'}`,
+        productName: item?.product?.productName || item?.product?.name || productNameById[productId] || `Sản phẩm chưa có tên`,
         locationType: normalizeLocationType(item?.locationType),
         locationId: parseSafeNumber(item?.locationId, 0),
         action,
@@ -315,7 +433,7 @@ export default function BatchTraceabilityPage() {
                     .map((item) => {
                         const id = parseSafeNumber(item?.productId ?? item?.id, 0)
                         if (!id) return null
-                        return { id, name: item?.productName || item?.name || `Sản phẩm #${id}` }
+                        return { id, name: item?.productName || item?.name || `Sản phẩm chưa có tên` }
                     })
                     .filter(Boolean)
                 : []
@@ -327,8 +445,8 @@ export default function BatchTraceabilityPage() {
                         if (!id) return null
                         return {
                             id,
-                            name: item?.supplierName || item?.name || `Nhà cung cấp #${id}`,
-                            isActive: item?.isActive !== false,
+                            name: item?.supplierName || item?.name || 'Nhà cung cấp chưa có tên',
+                            isActive: normalizeSupplierActive(item?.isActive ?? item?.active ?? item?.is_active ?? item?.status),
                         }
                     })
                     .filter((item) => item?.isActive)
@@ -347,6 +465,8 @@ export default function BatchTraceabilityPage() {
                 setImportError('Một số dữ liệu danh mục chưa tải được. Vui lòng kiểm tra quyền API.')
             }
         } catch {
+            setImportProducts([])
+            setImportSuppliers([])
             setImportError('Không thể tải dữ liệu sản phẩm/nhà cung cấp để nhập kho.')
         }
     }
@@ -382,6 +502,8 @@ export default function BatchTraceabilityPage() {
         const productId = parseSafeNumber(importForm.productId, 0)
         const supplierId = parseSafeNumber(importForm.supplierId, 0)
         const quantity = parseSafeNumber(importForm.quantity, 0)
+        const selectedProduct = importProducts.find((p) => Number(p.id) === productId)
+        const selectedSupplier = importSuppliers.find((s) => Number(s.id) === supplierId)
 
         if (productId < 1) {
             setImportError('Vui lòng chọn sản phẩm hợp lệ.')
@@ -391,6 +513,14 @@ export default function BatchTraceabilityPage() {
             setImportError('Vui lòng chọn nhà cung cấp hợp lệ.')
             return
         }
+        if (!selectedProduct) {
+            setImportError('Sản phẩm không hợp lệ hoặc không thuộc nhóm nguyên liệu thô (RAW).')
+            return
+        }
+        if (!selectedSupplier) {
+            setImportError('Nhà cung cấp không hợp lệ hoặc đã ngừng hoạt động.')
+            return
+        }
         if (quantity <= 0) {
             setImportError('Số lượng nhập phải lớn hơn 0.')
             return
@@ -398,6 +528,12 @@ export default function BatchTraceabilityPage() {
 
         setImporting(true)
         try {
+            const requestPayload = {
+                productId: Number(productId),
+                quantity: Number(quantity),
+                supplierId: Number(supplierId),
+            }
+
             const response = await fetch(`${apiBase}/Inventory/import`, {
                 method: 'POST',
                 headers: {
@@ -405,16 +541,16 @@ export default function BatchTraceabilityPage() {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${tk}`,
                 },
-                body: JSON.stringify({
-                    productId,
-                    quantity,
-                    supplierId,
-                }),
+                body: JSON.stringify(requestPayload),
             })
 
             const data = await response.json().catch(() => null)
             if (!response.ok) {
-                throw new Error(readApiErrorMessage(data, 'Nhập kho thất bại.'))
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Bạn không có quyền nhập kho. Vui lòng đăng nhập bằng tài khoản ADMIN hoặc MANAGER.')
+                }
+
+                throw new Error(resolveImportErrorMessage(data, requestPayload))
             }
 
             setImportSuccess(data?.message || 'Nhập kho thành công.')
@@ -461,7 +597,7 @@ export default function BatchTraceabilityPage() {
             let materials = []
             if (batchData.productId) {
                 try {
-                    const recipeRes = await fetch(`${apiBase}/Recipes/product/${batchData.productId}`, {
+                    const recipeRes = await fetch(`${apiBase}/Recipes/parent/${batchData.productId}`, {
                         method: 'GET',
                         headers,
                     })
@@ -470,9 +606,9 @@ export default function BatchTraceabilityPage() {
                         const recipeData = await recipeRes.json()
                         materials = parseArrayData(recipeData).map((item) => ({
                             materialId: item.materialId,
-                            materialName: productNameMap[item.materialId] || `Nguyên liệu #${item.materialId}`,
+                            materialName: productNameMap[item.materialId] || 'Nguyên liệu chưa có tên',
                             quantityRequired: item.quantityRequired || 0,
-                            wasteAllowance: item.wasteAllowancePercent || 0,
+                            wasteAllowance: item.maxWastePercent ?? item.wasteAllowancePercent ?? 0,
                         }))
                     }
                 } catch {
@@ -656,7 +792,7 @@ export default function BatchTraceabilityPage() {
                                 {!loading && filteredRows.map((row) => (
                                     <tr key={`${row.id}-${row.productId}`} className={stockBg[row.status]}>
                                         <td className="px-5 py-4 text-sm font-medium">{row.productName}</td>
-                                        <td className="px-5 py-4 text-sm">{row.locationType} #{row.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm">{row.locationType} {row.locationId || 'N/A'}</td>
                                         <td className="px-5 py-4 text-sm font-semibold">{row.currentQuantity}</td>
                                         <td className="px-5 py-4 text-sm">{row.minQuantity}</td>
                                         <td className="px-5 py-4 text-sm">{toReadableDate(row.lastUpdated)}</td>
@@ -696,8 +832,8 @@ export default function BatchTraceabilityPage() {
                                                 {log.quantityChange > 0 ? '+' : ''}{log.quantityChange}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm">{log.locationType} #{log.locationId || 'N/A'}</td>
-                                        <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `#${log.referenceId}` : ''}</td>
+                                        <td className="px-5 py-4 text-sm">{log.locationType} {log.locationId || 'N/A'}</td>
+                                        <td className="px-5 py-4 text-sm">{log.referenceType} {log.referenceId ? `${log.referenceId}` : ''}</td>
                                         <td className="px-5 py-4 text-sm">
                                             {log.referenceType === 'PRODUCTION_BATCH' && log.referenceId ? (
                                                 <button

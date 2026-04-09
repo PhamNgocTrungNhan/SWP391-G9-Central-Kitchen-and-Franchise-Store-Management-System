@@ -1,3 +1,6 @@
+import { useMemo } from 'react'
+import { MetricsStrip } from '../components/ui'
+
 const orders = [
     { id: '#ORD-9021', priority: 'High Priority', priorityStyle: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', time: '08:30 AM', store: 'Store 12 (Downtown)', pallets: '14 Pallets', type: 'Cold Storage', zone: 'Central' },
     { id: '#ORD-9023', priority: 'High Priority', priorityStyle: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', time: '09:15 AM', store: 'Store 05 (East Side)', pallets: '8 Pallets', type: 'Ambient', zone: 'East' },
@@ -12,6 +15,40 @@ const fleet = [
 ]
 
 export default function SupplyDispatchPage() {
+    const statsItems = useMemo(() => {
+        const pendingOrders = orders.length
+        const highPriorityOrders = orders.filter((item) => String(item.priority || '').toLowerCase().includes('high')).length
+        const availableFleet = fleet.filter((item) => String(item.status || '').toLowerCase() === 'available').length
+        const activeRoutes = fleet.filter((item) => item.content).length
+
+        return [
+            {
+                key: 'dispatch-pending',
+                label: 'Đơn chờ điều phối',
+                value: Number(pendingOrders || 0).toLocaleString('vi-VN'),
+                note: `${highPriorityOrders} đơn ưu tiên cao`,
+                icon: 'assignment',
+                tone: 'blue',
+            },
+            {
+                key: 'dispatch-fleet-available',
+                label: 'Xe khả dụng',
+                value: Number(availableFleet || 0).toLocaleString('vi-VN'),
+                note: 'Sẵn sàng nhận lệnh',
+                icon: 'local_shipping',
+                tone: 'green',
+            },
+            {
+                key: 'dispatch-active-routes',
+                label: 'Tuyến đang chạy',
+                value: Number(activeRoutes || 0).toLocaleString('vi-VN'),
+                note: 'Đơn đã gán xe',
+                icon: 'route',
+                tone: 'purple',
+            },
+        ]
+    }, [])
+
     return (
         <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 overflow-x-hidden">
             {/* Header */}
@@ -59,6 +96,8 @@ export default function SupplyDispatchPage() {
                         </button>
                     </div>
                 </div>
+
+                <MetricsStrip items={statsItems} columns="sm:grid-cols-3" />
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-[600px]">
                     {/* Orders Queue */}
